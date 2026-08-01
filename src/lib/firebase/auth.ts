@@ -109,13 +109,6 @@ const createUserProfile = async (user: User, additionalData?: Partial<UserProfil
         achievements: [],
         badges: [],
       },
-      subscription: {
-        plan: 'free',
-        status: 'active',
-        startDate: new Date(),
-        endDate: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
-        features: ['basic_courses'],
-      },
       ...additionalData,
     };
 

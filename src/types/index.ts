@@ -12,7 +12,6 @@ export interface UserProfile {
   settings: UserSettings;
   learningPreferences: LearningPreferences;
   statistics: UserStatistics;
-  subscription: Subscription;
 }
 
 export interface UserSettings {
@@ -67,14 +66,6 @@ export interface StudySchedule {
   preferredTime: 'morning' | 'afternoon' | 'evening' | 'night';
   reminders: boolean;
   reminderTime: string;
-}
-
-export interface Subscription {
-  plan: 'free' | 'premium' | 'pro' | 'enterprise';
-  status: 'active' | 'cancelled' | 'expired';
-  startDate: Date;
-  endDate: Date;
-  features: string[];
 }
 
 // Course Types
@@ -542,14 +533,12 @@ export interface HelpTicket {
 
 export type HelpCategory =
   | 'account'
-  | 'subscription'
   | 'technical'
   | 'learning'
   | 'ai'
   | 'auth'
   | 'coding'
   | 'certificates'
-  | 'billing'
   | 'other';
 
 export interface TicketMessage {
@@ -651,7 +640,7 @@ export interface BoardPage {
 
 export interface BoardContentItem {
   id: string;
-  type: 'heading' | 'text' | 'code' | 'diagram' | 'bullets' | 'quiz';
+  type: 'heading' | 'text' | 'code' | 'diagram' | 'bullets' | 'quiz' | 'check';
   content: string;
   isStreaming?: boolean;
   timestamp: Date;

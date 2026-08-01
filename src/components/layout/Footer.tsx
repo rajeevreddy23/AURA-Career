@@ -11,7 +11,7 @@ const footerLinks = [
     links: [
       { label: 'Explore Courses', href: '/courses' },
       { label: 'AI Teacher', href: '/ai-teacher' },
-      { label: 'Pricing', href: '/pricing' },
+      { label: 'Resume Hub', href: '/resume-hub' },
       { label: 'Career Roadmaps', href: '/roadmap' },
       { label: 'Certificates', href: '/certificates' },
     ],

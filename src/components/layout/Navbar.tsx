@@ -75,7 +75,7 @@ export const Navbar: React.FC = () => {
 
             {/* Desktop Navigation */}
             <nav className="hidden lg:flex items-center gap-1">
-              {NAV_LINKS.slice(0, 6).map((link) => (
+              {NAV_LINKS.slice(0, 7).map((link) => (
                 <Link
                   key={link.href}
                   href={link.href}

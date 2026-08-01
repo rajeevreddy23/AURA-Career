@@ -44,6 +44,20 @@ async def verify_firebase_token(
     except Exception as e:
         raise HTTPException(status_code=401, detail=f"Invalid token: {str(e)}")
 
+async def optional_firebase_token(
+    credentials: HTTPAuthorizationCredentials = Security(security_scheme),
+) -> dict | None:
+    """
+    Like verify_firebase_token but returns None instead of raising 401.
+    Use this for endpoints that work both authenticated and anonymous.
+    """
+    if not credentials or not credentials.credentials:
+        return None
+    try:
+        return firebase_auth.verify_id_token(credentials.credentials)
+    except Exception:
+        return None
+
 async def rate_limit(key: str, limit: int, window: int) -> bool:
     """
     Check if a key (e.g. IP or UID) is within the rate limit.

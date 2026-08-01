@@ -9,12 +9,6 @@ class UserRole(str, enum.Enum):
     teacher = "teacher"
     admin = "admin"
 
-class SubscriptionPlan(str, enum.Enum):
-    free = "free"
-    premium = "premium"
-    pro = "pro"
-    enterprise = "enterprise"
-
 class User(Base):
     __tablename__ = "users"
 
@@ -29,8 +23,6 @@ class User(Base):
     settings = Column(JSON, default=dict)
     learning_preferences = Column(JSON, default=dict)
     statistics = Column(JSON, default=dict)
-    subscription = Column(JSON, default=dict)
-
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     last_login = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 

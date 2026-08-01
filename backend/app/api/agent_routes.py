@@ -7,7 +7,9 @@ from ..agents.voice_agent import VoiceAgent
 from ..agents.memory_agent import MemoryAgent
 from ..agents.translation_agent import TranslationAgent
 from ..agents.analytics_agent import AnalyticsAgent
-from ..core.security import verify_firebase_token, rate_limit
+from ..agents.resume_agent import ResumeAgent
+from ..core.security import verify_firebase_token, optional_firebase_token, rate_limit
+from ..core.config import settings
 from ..schemas.agent_schemas import (
     AgentRequest, AgentResponse, LessonRequest, DoubtRequest,
     CodeRequest, QuizRequest, ProjectRequest, TranslateRequest,
@@ -23,6 +25,39 @@ voice = VoiceAgent()
 memory = MemoryAgent()
 translator = TranslationAgent()
 analytics = AnalyticsAgent()
+resume = ResumeAgent()
+
+AGENTS = {
+    "teacher": teacher,
+    "coding": coder,
+    "curriculum": curriculum,
+    "memory": memory,
+    "resume": resume,
+    "analytics": analytics,
+    "translation": translator,
+    "voice": voice,
+}
+
+@router.post("/chat/{agent_type}")
+async def chat_endpoint(agent_type: str, body: dict, user=Depends(optional_firebase_token)):
+    """Generic ChatGPT-style SSE chat endpoint — one per surface, not per agent."""
+    agent = AGENTS.get(agent_type)
+    if agent is None:
+        raise HTTPException(status_code=404, detail=f"Unknown agent type: {agent_type}")
+
+    async def event_stream():
+        try:
+            async for chunk in agent.chat(
+                body.get("message", ""),
+                body.get("history", []),
+                body.get("context"),
+            ):
+                yield f"data: {chunk}\n\n"
+        except Exception as e:
+            yield f"data: {str(e)}\n\n"
+        yield "data: [DONE]\n\n"
+
+    return StreamingResponse(event_stream(), media_type="text/event-stream")
 
 @router.post("/teach/lesson", response_model=AgentResponse)
 async def teach_lesson(req: LessonRequest, user=Depends(verify_firebase_token)):
@@ -101,7 +136,7 @@ async def generate_voice(req: dict, user=Depends(verify_firebase_token)):
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/memory/analyze", response_model=AgentResponse)
-async def analyze_student(data: dict, user=Depends(verify_firebase_token)):
+async def analyze_student(data: dict, user=Depends(optional_firebase_token)):
     try:
         result = await memory.analyze_progress(data)
         return AgentResponse(success=True, data=result)
@@ -123,6 +158,72 @@ async def generate_report(data: dict, user=Depends(verify_firebase_token)):
         return AgentResponse(success=True, data={"report": result})
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/status")
+async def agents_status():
+    """Which AI engine is active (NVIDIA / Groq / Gemini / mock)."""
+    return {
+        "success": True,
+        "data": {
+            "provider": teacher.active_provider,
+            "models": {
+                "nvidia": settings.nvidia_model if settings.nvidia_api_key else None,
+                "groq": "llama-3.3-70b-versatile" if settings.groq_api_key else None,
+                "gemini": "gemini-2.0-flash" if settings.gemini_api_key else None,
+            },
+        },
+    }
+
+@router.post("/resume/analyze")
+async def resume_analyze(data: dict, request: Request):
+    """Public resume analysis via ResumeAgent (ATS analyst + coach)."""
+    ip = request.client.host if request.client else "unknown"
+    if not await rate_limit(f"rate_limit:resume_analyze:{ip}", limit=10, window=60):
+        raise HTTPException(status_code=429, detail="Too many requests. Please try again later.")
+    resume_text = data.get("resume_text") or data.get("text", "")
+    if not resume_text.strip():
+        raise HTTPException(status_code=400, detail="No resume text provided.")
+    result = await resume.analyze(resume_text)
+    return {"success": True, "data": result}
+
+@router.post("/resume/score")
+async def resume_score(data: dict, user=Depends(verify_firebase_token)):
+    """Match a resume against a target job description (ATS simulation)."""
+    resume_text = data.get("resume_text", "")
+    job_description = data.get("job_description", "")
+    if not resume_text.strip() or not job_description.strip():
+        raise HTTPException(status_code=400, detail="Both resume_text and job_description are required.")
+    result = await resume.score_against_job(resume_text, job_description)
+    return {"success": True, "data": result}
+
+@router.post("/resume/improve")
+async def resume_improve(data: dict, request: Request):
+    """Rewrite or generate a resume section (public with rate limiting)."""
+    ip = request.client.host if request.client else "unknown"
+    if not await rate_limit(f"rate_limit:resume_improve:{ip}", limit=10, window=60):
+        raise HTTPException(status_code=429, detail="Too many requests. Please try again later.")
+    
+    section = data.get("section", "")
+    content = data.get("content", "")
+    mode = data.get("mode", "improve")
+    background = data.get("background", "")
+    
+    if not section or not content:
+        raise HTTPException(status_code=400, detail="section and content are required")
+    
+    if mode == "improve":
+        prompt = f"""Improve this {section} section of a resume. Make it ATS-friendly, professional, and impactful. Use strong action verbs and quantify achievements where possible. Return only the improved text, no extra commentary.
+
+Section: {section}
+Current content: {content}"""
+    else:
+        prompt = f"""Generate a professional {section} section for a resume based on this background description. Make it ATS-friendly. Return only the generated text, no extra commentary.
+
+Section: {section}
+Background: {background or content}"""
+    
+    result = await resume.generate(prompt)
+    return {"success": True, "data": {"improved": result}}
 
 @router.post("/public/ask")
 async def public_ask(req: GenerateRequest, request: Request):
@@ -160,7 +261,7 @@ async def public_generate_lesson(request: Request, topic: str = "Python", level:
     return {"success": True, "data": lesson}
 
 @router.post("/generate/stream")
-async def generate_stream(req: GenerateRequest, user=Depends(verify_firebase_token)):
+async def generate_stream(req: GenerateRequest, user=Depends(optional_firebase_token)):
     from ..agents.base import BaseAgent
     agent = BaseAgent()
     agent.system_prompt = req.system_prompt or ""

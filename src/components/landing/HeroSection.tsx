@@ -117,7 +117,7 @@ export const HeroSection: React.FC = () => {
               <p className="text-lg sm:text-xl text-muted-foreground max-w-lg">
                 Learn any subject with an intelligent AI professor that teaches
                 step by step, like a real human instructor. Interactive whiteboard,
-                live coding, and personalized lessons.
+                live classroom voice lessons, and personalized AI chat support.
               </p>
             </motion.div>
 
@@ -133,10 +133,12 @@ export const HeroSection: React.FC = () => {
                   <ArrowRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" />
                 </Button>
               </Link>
-              <Button variant="outline" size="xl" className="text-base gap-2">
-                <Play className="h-5 w-5" />
-                See AI in Action
-              </Button>
+              <Link href="/classroom">
+                <Button variant="outline" size="xl" className="text-base gap-2">
+                  <Play className="h-5 w-5" />
+                  Join Live Classroom
+                </Button>
+              </Link>
             </motion.div>
 
             {/* Stats */}

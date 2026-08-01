@@ -12,24 +12,21 @@ import {
   Search,
   MessageCircle,
   BookOpen,
-  CreditCard,
   User,
   Shield,
   Code2,
   Download,
   FileText,
   Headphones,
-  ArrowRight,
   ChevronRight,
   Sparkles,
   Bot,
-  HelpCircle,
 } from 'lucide-react';
 
 const helpCategories = [
   { icon: BookOpen, label: 'Getting Started', desc: 'Learn the basics of AURA Learn', color: 'bg-blue-500/10 text-blue-500' },
   { icon: User, label: 'Account & Profile', desc: 'Manage your account settings', color: 'bg-green-500/10 text-green-500' },
-  { icon: CreditCard, label: 'Billing & Subscriptions', desc: 'Payment and plan information', color: 'bg-purple-500/10 text-purple-500' },
+  { icon: Bot, label: 'AI Features', desc: 'AI teaching and assistance', color: 'bg-purple-500/10 text-purple-500' },
   { icon: Shield, label: 'Privacy & Security', desc: 'Keep your data safe', color: 'bg-red-500/10 text-red-500' },
   { icon: Code2, label: 'Coding Lab', desc: 'Coding environment help', color: 'bg-cyan-500/10 text-cyan-500' },
   { icon: Download, label: 'Downloads & Offline', desc: 'Access content offline', color: 'bg-orange-500/10 text-orange-500' },
@@ -39,9 +36,9 @@ const helpCategories = [
 
 const faqs = [
   { q: 'How do I reset my password?', a: 'Go to Settings > Account > Password Reset, or use the "Forgot Password" link on the login page.' },
-  { q: 'Can I download courses for offline?', a: 'Yes! Premium and Pro subscribers can download lessons for offline viewing.' },
+  { q: 'Can I download courses for offline?', a: 'Yes! You can download lessons for offline viewing from the course page.' },
   { q: 'How are certificates verified?', a: 'Each certificate has a unique verification ID that employers can validate on our verification page.' },
-  { q: 'What payment methods do you accept?', a: 'We accept all major credit cards, PayPal, and cryptocurrency.' },
+  { q: 'How does the AI teacher work?', a: 'Our AI teacher uses advanced language models to deliver personalized lessons, answer questions, and adapt to your learning style.' },
 ];
 
 export default function HelpCenterPage() {

@@ -1,32 +1,37 @@
 'use client';
 
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Button } from '@/components/ui/Button';
-import { Badge } from '@/components/ui/Badge';
-import { Input } from '@/components/ui/Input';
 import { Navbar } from '@/components/layout/Navbar';
-import { useAI } from '@/contexts/AIContext';
-import { useAuth } from '@/contexts/AuthContext';
-import { cn, generateId } from '@/lib/utils';
+import { Button } from '@/components/ui/Button';
+import { Input } from '@/components/ui/Input';
+import { Badge } from '@/components/ui/Badge';
 import { MOCK_COURSES, TEACHER_STYLES } from '@/lib/constants';
-import type { TeacherStyle, BoardContentItem, BoardPage, TeacherStyleId } from '@/types';
-
-import {
-  Play, Pause, MessageSquare, Volume2, VolumeX,
-  Settings, BookOpen, Code2, Sparkles, Bot, X, Send,
-  Sun, Moon, Loader2, StopCircle, RefreshCw, ChevronRight,
-  Download, FileText, Maximize2, Minimize2, SkipBack, SkipForward,
-  Quote, Award, Calendar as CalendarIcon, Clock, Coffee
-} from 'lucide-react';
+import type { TeacherStyleId, BoardPage, BoardContentItem } from '@/types';
+import { generateId, cn } from '@/lib/utils';
+import { useAuth } from '@/contexts/AuthContext';
+import { useAI } from '@/contexts/AIContext';
 import toast from 'react-hot-toast';
+import {
+  Bot, Sparkles, ArrowLeft, Play, Pause, Square, Volume2, VolumeX,
+  ChevronLeft, ChevronRight, Download, ZoomIn, ZoomOut, Maximize, Minimize,
+  MessageSquare, HelpCircle, StickyNote, Timer, Calendar, CalendarIcon, Settings, Sun, Moon,
+  Mic, MicOff, BookOpen, Brain, Code2, LayoutGrid, BarChart3, Trophy, Star,
+  RefreshCw, Copy, Check, Lightbulb, AlertTriangle, CheckCircle, XCircle,
+  Send, Grid, Circle, Layers, Palette, GraduationCap, Zap, Heart, ChevronDown,
+  X, Expand, Shrink, Monitor, PanelRight, PanelLeft, Wand2, Target, Award,
+  MessageCircleQuestion, Clock, FileText, Quote, StopCircle, Loader2
+} from 'lucide-react';
+import { ChatPanel } from '@/components/classroom/ChatPanel';
 import { TeacherAvatar } from '@/components/classroom/TeacherAvatar';
 import { ConceptDiagram } from '@/components/classroom/ConceptDiagram';
-import { StudentDashboard } from '@/components/classroom/StudentDashboard';
-import { PomodoroTimer } from '@/components/classroom/PomodoroTimer';
-import { CalendarIntegration } from '@/components/classroom/CalendarIntegration';
 import { NotesGenerator } from '@/components/classroom/NotesGenerator';
+import { PomodoroTimer } from '@/components/classroom/PomodoroTimer';
+import { StudentDashboard } from '@/components/classroom/StudentDashboard';
+import { CalendarIntegration } from '@/components/classroom/CalendarIntegration';
+import { AudioPlayer } from '@/components/classroom/AudioPlayer';
+
 
 export default function ClassroomPage() {
   const searchParams = useSearchParams();
@@ -40,7 +45,25 @@ export default function ClassroomPage() {
   const topic = topicParam || course?.title || '';
 
   const [boardStyle, setBoardStyle] = useState<'whiteboard' | 'blackboard'>('blackboard');
-  const [activeSidebarTab, setActiveSidebarTab] = useState<'doubt' | 'notes' | 'timer' | 'calendar' | null>(null);
+  const [activeSidebarTab, setActiveSidebarTab] = useState<'chat' | 'doubt' | 'notes' | 'timer' | 'calendar' | null>('chat');
+  const [voiceMode, setVoiceMode] = useState(false);
+  const voiceModeRef = useRef(voiceMode);
+  useEffect(() => {
+    voiceModeRef.current = voiceMode;
+  }, [voiceMode]);
+  const [memoryInsight, setMemoryInsight] = useState('');
+  const memorySyncRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [aiProvider, setAiProvider] = useState<string>('');
+
+  // Show which AI engine is serving the lesson (NVIDIA / Groq / Gemini / mock)
+  useEffect(() => {
+    fetch('/api/v1/agents/status')
+      .then(res => res.json())
+      .then(data => {
+        if (data?.success && data?.data?.provider) setAiProvider(data.data.provider);
+      })
+      .catch(() => {});
+  }, []);
   
   // Dashboard & Gamification States
   const [showDashboard, setShowDashboard] = useState(false);
@@ -80,8 +103,12 @@ export default function ClassroomPage() {
   const [currentSection, setCurrentSection] = useState('');
   const [isListeningVoice, setIsListeningVoice] = useState(false);
   const recognitionRef = useRef<any>(null);
-  const [showConceptMap, setShowConceptMap] = useState(true);
+  const [teacherState, setTeacherState] = useState<'idle' | 'speaking' | 'thinking' | 'happy'>('idle');
   const [isPaused, setIsPaused] = useState(false);
+  const isPausedRef = useRef(false);
+  useEffect(() => {
+    isPausedRef.current = isPaused;
+  }, [isPaused]);
   const [pausedAt, setPausedAt] = useState<{pageIndex: number; charOffset: number} | null>(null);
   const [highlightColor, setHighlightColor] = useState('indigo');
   
@@ -95,6 +122,7 @@ export default function ClassroomPage() {
 
   const classroomRef = useRef<HTMLDivElement>(null);
   const boardEndRef = useRef<HTMLDivElement>(null);
+  const transcriptRef = useRef<HTMLDivElement>(null);
   const abortRef = useRef<AbortController | null>(null);
   const speechRef = useRef<SpeechSynthesisUtterance | null>(null);
   const flyingRef = useRef<HTMLDivElement>(null);
@@ -106,11 +134,16 @@ export default function ClassroomPage() {
   useEffect(() => {
     setAssistantEmotion('happy');
     setAssistantAnimation('idle');
+    setTeacherState('happy');
   }, [setAssistantEmotion, setAssistantAnimation]);
 
   useEffect(() => {
     boardEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [boardPages, currentPage]);
+
+  useEffect(() => {
+    transcriptRef.current?.scrollTo({ top: transcriptRef.current.scrollHeight, behavior: 'smooth' });
+  }, [boardPages, isGenerating, currentPage]);
 
   const startAmbientAudio = useCallback((type: 'off' | 'lofi' | 'rain' | 'coffee') => {
     if (typeof window === 'undefined') return;
@@ -182,11 +215,49 @@ export default function ClassroomPage() {
     }
   }, []);
 
+  // Live progress rail sync — push slide progress to MemoryAgent.analyze_progress
+  // so the dashboard/insights update as the student goes, not only at session end.
+  useEffect(() => {
+    if (boardPages.length === 0) return;
+    if (memorySyncRef.current) clearTimeout(memorySyncRef.current);
+    memorySyncRef.current = setTimeout(async () => {
+      try {
+        const res = await fetch('/api/v1/agents/memory/analyze', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(user ? { Authorization: `Bearer ${await user.getIdToken().catch(() => '')}` } : {}),
+          },
+          body: JSON.stringify({
+            topic: lessonTitle || topic,
+            slidesCompleted: currentPage + 1,
+            totalSlides: boardPages.length,
+            currentSlide: currentSection,
+            quizHistory,
+          }),
+        });
+        const data = await res.json();
+        if (data.success && data.data) {
+          const d = data.data;
+          const insight =
+            (Array.isArray(d.recommendedNextTopics) && d.recommendedNextTopics.join(', ')) ||
+            (Array.isArray(d.personalizedStudyTips) && d.personalizedStudyTips[0]) ||
+            (Array.isArray(d.strengths) && `Strong in: ${d.strengths.slice(0, 2).join(', ')}`) ||
+            'Progress synced to your dashboard';
+          setMemoryInsight(insight);
+        }
+      } catch {
+        // Non-blocking — analytics sync must never interrupt the lesson
+      }
+    }, 1200);
+  }, [currentPage, boardPages.length, user, lessonTitle, topic, currentSection]);
+
   const currentBoard = boardPages[currentPage];
 
   const stopSpeaking = useCallback(() => {
     window.speechSynthesis.cancel();
     setIsSpeakingLesson(false);
+    setTeacherState('idle');
   }, []);
 
   const getSelectedVoice = useCallback((gender: 'female' | 'male') => {
@@ -234,8 +305,14 @@ export default function ClassroomPage() {
       utterance.voice = voice;
     }
 
-    utterance.onstart = () => setIsSpeakingLesson(true);
-    utterance.onend = () => setIsSpeakingLesson(false);
+    utterance.onstart = () => {
+      setIsSpeakingLesson(true);
+      setTeacherState('speaking');
+    };
+    utterance.onend = () => {
+      setIsSpeakingLesson(false);
+      setTeacherState('happy');
+    };
     speechRef.current = utterance;
     window.speechSynthesis.speak(utterance);
   }, [voiceSpeed, teacherId, selectedVoiceGender, getSelectedVoice]);
@@ -313,6 +390,16 @@ export default function ClassroomPage() {
               const answer = data.data.explanation || data.data;
               setDoubtAnswer(answer);
               speakText(answer);
+              // Voice mode loop: after the answer is spoken, resume the lesson
+              // and keep listening for the next doubt.
+              if (voiceModeRef.current) {
+                const spokenMs = Math.max(3000, answer.length * 55);
+                setTimeout(() => {
+                  if (!isPausedRef.current) return;
+                  resumeLesson(true);
+                  if (voiceModeRef.current) startVoiceRecognition();
+                }, spokenMs);
+              }
             } else {
               throw new Error();
             }
@@ -368,16 +455,26 @@ export default function ClassroomPage() {
     setCurrentSection('');
     setAssistantEmotion('thinking');
     setAssistantAnimation('thinking');
+    setTeacherState('thinking');
 
     // Build teacher-specific system prompt
     const teacherPrompt = buildTeacherPrompt(teacher, teachTopic, level);
 
     try {
+      // Get auth token if available — falls back gracefully for anonymous users
+      let authHeaders: Record<string, string> = {};
+      try {
+        if (user) {
+          const token = await user.getIdToken();
+          if (token) authHeaders = { Authorization: `Bearer ${token}` };
+        }
+      } catch { /* anonymous — proceed without auth */ }
+
       const res = await fetch('/api/v1/agents/generate/stream', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          ...(user ? { Authorization: `Bearer ${await user.getIdToken()}` } : {}),
+          ...authHeaders,
         },
         body: JSON.stringify({
           prompt: teacherPrompt,
@@ -386,6 +483,7 @@ export default function ClassroomPage() {
         }),
         signal: abortRef.current.signal,
       });
+
 
       if (!res.ok) throw new Error('Failed to generate lesson');
 
@@ -396,7 +494,7 @@ export default function ClassroomPage() {
       let buffer = '';
       let textBuffer = '';
 
-      const appendItem = (type: 'heading' | 'text' | 'code' | 'bullets' | 'diagram' | 'quiz', content: string) => {
+      const appendItem = (type: BoardContentItem['type'], content: string) => {
         setBoardPages(prev => {
           const pages = [...prev];
           const current = { ...pages[pages.length - 1] };
@@ -411,14 +509,37 @@ export default function ClassroomPage() {
           return pages;
         });
         if (type === 'text') {
-          speakText(content);
+          if (voiceModeRef.current) speakText(content);
+          setCurrentSection(content.slice(0, 100));
+        } else if (type === 'heading') {
+          if (voiceModeRef.current) speakText(`Now on the board: ${content}`);
+          setCurrentSection(content.slice(0, 100));
+        } else if (type === 'diagram') {
+          if (voiceModeRef.current) speakText(`A diagram is displayed on the board to explain this idea.`);
+          setCurrentSection('Diagram on board');
+        } else if (type === 'code') {
+          if (voiceModeRef.current) speakText(`A code example appears on the board. ${content.split('\n').slice(0, 2).join(' ')}.`);
+          setCurrentSection('Code example');
+        } else if (type === 'check') {
+          if (voiceModeRef.current) speakText(`Quick check: ${content}`);
           setCurrentSection(content.slice(0, 100));
         } else if (type === 'bullets') {
           const speakableText = content.split('||').join('. ');
-          speakText(speakableText);
+          if (voiceModeRef.current) {
+            speakText(speakableText);
+            // Voice mode loop: after AURA finishes speaking the slide, listen
+            // for a spoken doubt.
+            if (window.speechSynthesis) {
+              window.speechSynthesis.addEventListener('end', () => {
+                if (voiceModeRef.current && !isPausedRef.current) {
+                  startVoiceRecognition();
+                }
+              }, { once: true });
+            }
+          }
           setCurrentSection(speakableText.slice(0, 100));
         } else if (type === 'quiz') {
-          speakText("Time for a checkpoint quiz. Please review the challenge on the board.");
+          if (voiceModeRef.current) speakText("Time for a checkpoint quiz. Please review the challenge on the board.");
           setCurrentSection("Checkpoint Quiz");
           setIsPaused(true);
         }
@@ -510,6 +631,10 @@ export default function ClassroomPage() {
             finalizeLastItem();
             const content = trimmed.replace('##TEXT##', '').trim();
             if (content) appendItem('text', content);
+          } else if (trimmed.startsWith('##CHECK##')) {
+            finalizeLastItem();
+            const content = trimmed.replace('##CHECK##', '').trim();
+            if (content) appendItem('check', content);
           } else if (trimmed.startsWith('##PAUSE##')) {
             setIsPaused(true);
           } else if (trimmed.startsWith('##RESUME##')) {
@@ -527,6 +652,7 @@ export default function ClassroomPage() {
       setIsGenerating(false);
       setAssistantEmotion('happy');
       setAssistantAnimation('idle');
+      setTeacherState('happy');
       setBoardPages(prev => {
         const pages = [...prev];
         const last = { ...pages[pages.length - 1] };
@@ -546,37 +672,31 @@ export default function ClassroomPage() {
       simplifier: 'Teach like someone who makes complex topics simple. Use step-by-step breakdowns, simple analogies, and clear explanations. "Explain like I\'m 5" approach.',
     };
 
-    return `Teach a slide-based masterclass lesson on "${teachTopic}" tailored for a ${lvl} student.
+    return `Teach a live, conversational lesson on "${teachTopic}" tailored for a ${lvl} student.
 
 Your teaching style: ${styleMap[t.id] || styleMap.professor}
 
-Guidelines for Advanced, Visual Teaching:
-1. **Slide Format**: Break down the topic into 5-6 logical slides.
-2. **First-Principles Breakdown**: Don't just define terms. Explain the core "why" and "how". Build up complex concepts step-by-step.
-3. **Structured Bullet Points**: For each slide, write 3-4 clear, high-impact bullet points summarizing the core information.
-4. **Visual Conceptual Diagrams**: For every slide, define a visual hierarchical tree diagram mapping the main concepts. Make the labels short and descriptive (e.g. Brain, Hands, Eyes, Data, Security, Flow).
-5. **Commented Code**: If a slide introduces code, provide it inside the code block with rich inline comments.
+Guidelines for a modern AI tutor experience:
+1. Lead with a strong hook and explain why the topic matters right away.
+2. Use short, conversational explanations that sound like a skilled mentor speaking directly to a learner.
+3. Break the lesson into a few focused moments rather than a rigid board outline: hook, concept, example, pitfall, action step.
+4. Use one concrete analogy per important idea and keep the language clear and practical.
+5. If code is relevant, include a compact, commented example that feels natural to read.
+6. Keep the lesson interactive by occasionally asking a quick check-in or prompting the student to think through a tiny challenge.
+7. Make the response feel like a polished Gemini/Copilot-style tutor: crisp, precise, and encouraging.
 
-Structure your lesson precisely as follows, streaming each slide progressively:
-
+Structure your lesson as a streaming tutor conversation:
 ##TITLE## The lesson title
 ##OBJECTIVES## Objective 1||Objective 2||Objective 3
+##TEXT## Start with a warm introduction and explain the real-world relevance.
+##HEADING## A focused concept block
+##BULLETS## Key idea 1||Key idea 2||Key idea 3
+##TEXT## Explain the concept in plain language with a simple analogy.
+##CODE## language\ncode block (only if code is relevant)
+##CHECK## A short prompt that keeps the learner engaged
+##TEXT## Finish with a practical takeaway or a tiny next step.
 
-Then for each slide, output:
-##HEADING## Slide Title
-##BULLETS## Bullet point 1||Bullet point 2||Bullet point 3
-##DIAGRAM## {"root": {"label": "Root Concept Label"}, "children": [{"label": "Child Concept A"}, {"label": "Child Concept B"}]}
-##CODE## language\\ncode block (only if code is relevant to this slide, otherwise omit this block entirely)
-##QUIZ## {"question": "A multiple choice question testing this slide's concept", "options": ["Option A", "Option B", "Option C", "Option D"], "answer": "The exact correct option string", "explanation": "Detailed explanation why it is correct"}
-
-Cover these slides in order:
-1. Slide 1: Introduction & Real-world Motivation (Why this matters)
-2. Slide 2: Deep Dive: Core Concepts & Relationships
-3. Slide 3: Code Demonstration (If applicable, otherwise detail structure)
-4. Slide 4: Pitfalls & Common Mistakes (What to avoid)
-5. Slide 5: Action Summary & Hands-on Challenge
-
-Keep diagram node labels short (1-3 words max). Ensure the diagram JSON and quiz JSON are valid and fit the format exactly. Output each slide progressively as you generate.`;
+Keep the pacing natural, never overly formal, and make each chunk feel like part of a live conversation rather than a static slide deck.`;
   };
 
   const fallbackTeaching = (teachTopic: string, lvl: string) => {
@@ -684,11 +804,8 @@ Keep the explanation focused and helpful. After answering, say "Ready to continu
       });
       const data = await res.json();
       const rawResponse = data?.data?.response || 'I understand your question. Let me explain...';
-
       let parsed: Record<string, string> = {};
-      try {
-        parsed = JSON.parse(rawResponse);
-      } catch { parsed = { explanation: rawResponse }; }
+      try { parsed = JSON.parse(rawResponse); } catch { parsed = { explanation: rawResponse }; }
 
       const answer = parsed.explanation || rawResponse;
       setDoubtAnswer(answer);
@@ -735,13 +852,13 @@ Keep the explanation focused and helpful. After answering, say "Ready to continu
     }
   }, [doubtQuestion, lessonTitle, topic, teacherId, teacher, currentBoard, speakText]);
 
-  const resumeLesson = useCallback(() => {
+  const resumeLesson = useCallback((skipCancel = false) => {
     setIsPaused(false);
     setDoubtAnswer('');
     setAssistantEmotion('happy');
     setAssistantAnimation('idle');
     // Continue speaking if there's more content
-    window.speechSynthesis.cancel();
+    if (!skipCancel) window.speechSynthesis.cancel();
   }, [setAssistantEmotion, setAssistantAnimation]);
 
   const downloadBoardPage = useCallback((page: BoardPage) => {
@@ -879,6 +996,77 @@ Keep the explanation focused and helpful. After answering, say "Ready to continu
   const boardBgStyle = getCanvasStyle();
   const boardText = getCanvasTextClass();
 
+  const renderTranscriptItem = (item: BoardContentItem) => {
+    const baseCard = 'rounded-2xl border border-white/10 bg-white/5 backdrop-blur-sm shadow-sm';
+
+    switch (item.type) {
+      case 'heading':
+        return (
+          <div className="mb-3">
+            <div className="inline-flex items-center gap-2 rounded-full border border-indigo-500/30 bg-indigo-500/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.24em] text-indigo-300">
+              <Sparkles className="h-3 w-3" />
+              {lessonTitle || 'Live Lesson'}
+            </div>
+            <h3 className="mt-3 text-xl font-semibold text-white">{item.content}</h3>
+          </div>
+        );
+      case 'bullets':
+        return (
+          <div className={cn(baseCard, 'p-4')}>
+            <div className="mb-2 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-400">
+              <Bot className="h-3.5 w-3.5" />
+              Professor explanation
+            </div>
+            <ul className="space-y-2 text-sm leading-6 text-slate-200">
+              {item.content.split('||').filter(Boolean).map((bullet, idx) => (
+                <li key={`${item.id}-${idx}`} className="flex gap-2">
+                  <span className="mt-1 h-2.5 w-2.5 shrink-0 rounded-full bg-primary" />
+                  <span>{bullet}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        );
+      case 'code':
+        return (
+          <div className={cn(baseCard, 'overflow-hidden p-0')}>
+            <div className="flex items-center justify-between border-b border-white/10 bg-slate-900/70 px-3 py-2 text-[11px] uppercase tracking-[0.24em] text-slate-400">
+              <span>Code example</span>
+              <button
+                onClick={() => navigator.clipboard.writeText(item.content)}
+                className="rounded-md border border-white/10 px-2 py-1 text-[10px] text-slate-300"
+              >
+                Copy
+              </button>
+            </div>
+            <pre className="overflow-x-auto whitespace-pre-wrap p-4 text-sm leading-6 text-slate-100">{item.content}</pre>
+          </div>
+        );
+      case 'check':
+        return (
+          <div className={cn(baseCard, 'border-cyan-500/30 bg-cyan-500/10 p-4')}>
+            <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-cyan-300">Quick check</div>
+            <p className="mt-2 text-sm text-slate-100">{item.content}</p>
+          </div>
+        );
+      case 'quiz':
+        return (
+          <div className={cn(baseCard, 'border-amber-500/30 bg-amber-500/10 p-4')}>
+            <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-amber-300">Checkpoint</div>
+            <p className="mt-2 text-sm text-slate-100">{item.content}</p>
+          </div>
+        );
+      case 'text':
+      default:
+        return (
+          <div className={cn(baseCard, 'p-4')}>
+            <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-400">Follow-up</div>
+            <p className="whitespace-pre-wrap text-sm leading-6 text-slate-200">{item.content}</p>
+          </div>
+        );
+    }
+  };
+
   const renderSlideContent = (items: BoardContentItem[]) => {
     if (!items || items.length === 0) return null;
 
@@ -887,6 +1075,7 @@ Keep the explanation focused and helpful. After answering, say "Ready to continu
     const diagramItem = items.find(i => i.type === 'diagram');
     const codeItem = items.find(i => i.type === 'code');
     const quizItem = items.find(i => i.type === 'quiz');
+    const checkItem = items.find(i => i.type === 'check');
     const textItems = items.filter(i => i.type === 'text');
 
     const hasSplitLayout = bulletsItem && diagramItem;
@@ -1058,6 +1247,25 @@ Keep the explanation focused and helpful. After answering, say "Ready to continu
         )}
 
         {/* Checkpoint Quiz */}
+        {checkItem && (
+          <motion.div
+            initial={{ opacity: 0, y: 15 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="p-5 rounded-2xl border border-cyan-500/30 bg-cyan-500/5 backdrop-blur-md space-y-3 my-6 text-left"
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-cyan-400 uppercase tracking-widest flex items-center gap-1.5">
+                <MessageCircleQuestion className="h-4 w-4" /> Quick Check
+              </span>
+              <Badge size="sm" className="bg-cyan-500/10 text-cyan-300 border border-cyan-500/20">
+                still with me?
+              </Badge>
+            </div>
+            <p className="text-base font-semibold text-slate-100">{checkItem.content}</p>
+            <p className="text-xs text-slate-400">Think it through — then ask your doubt in the chat, or just say it aloud in voice mode.</p>
+          </motion.div>
+        )}
+
         {quizItem && (
           <motion.div
             initial={{ opacity: 0, y: 15 }}
@@ -1149,7 +1357,7 @@ Keep the explanation focused and helpful. After answering, say "Ready to continu
                           <Button 
                             variant="primary" 
                             size="sm" 
-                            onClick={resumeLesson}
+                            onClick={() => resumeLesson()}
                             className="mt-3 h-8 bg-indigo-600 hover:bg-indigo-500 text-white font-bold"
                           >
                             Continue Lecture
@@ -1297,13 +1505,15 @@ Keep the explanation focused and helpful. After answering, say "Ready to continu
                 </div>
               )}
             </div>
-            <Button variant="ghost" size="sm" onClick={() => setShowConceptMap(!showConceptMap)} title="Toggle Concept Map">
-              <BookOpen className="h-4 w-4 mr-2" />
-              Roadmap
-            </Button>
             <Badge variant="primary" size="sm" dot>
               {isGenerating ? `${teacher.name} is teaching...` : `${teacher.name} is ready`}
             </Badge>
+            {aiProvider && (
+              <span className="flex items-center gap-1.5 text-[10px] font-mono text-indigo-300 bg-indigo-500/10 border border-indigo-500/20 rounded-full px-2.5 py-1" title="Active AI engine">
+                <span className={cn("h-1.5 w-1.5 rounded-full", aiProvider === 'mock' ? 'bg-amber-400' : 'bg-emerald-400 animate-pulse')} />
+                {aiProvider}
+              </span>
+            )}
             <div className="flex items-center gap-1 text-xs text-muted-foreground bg-accent/30 rounded-full px-3 py-1">
               <Quote className="h-3 w-3" />
               {teacher.name} · {teacher.teachingApproach}
@@ -1327,6 +1537,29 @@ Keep the explanation focused and helpful. After answering, say "Ready to continu
               <option value="female">🔊 Sweet Female Voice</option>
               <option value="male">🔊 Sweet Male Voice</option>
             </select>
+            <button
+              onClick={() => {
+                const next = !voiceMode;
+                setVoiceMode(next);
+                if (next) {
+                  startVoiceRecognition();
+                } else {
+                  stopVoiceRecognition();
+                  if (window.speechSynthesis) window.speechSynthesis.cancel();
+                  setIsSpeakingLesson(false);
+                }
+              }}
+              className={cn(
+                "h-7 px-2.5 rounded-full border text-[10px] font-bold flex items-center gap-1.5 transition-all",
+                voiceMode
+                  ? "bg-emerald-500/15 border-emerald-500/40 text-emerald-400 shadow-[0_0_12px_rgba(16,185,129,0.15)]"
+                  : "border-input bg-background text-muted-foreground hover:text-slate-200"
+              )}
+              title="Voice mode — AURA speaks each slide and listens for spoken doubts"
+            >
+              {voiceMode ? <Volume2 className="h-3 w-3" /> : <VolumeX className="h-3 w-3" />}
+              {voiceMode ? 'Voice ON' : 'Voice Mode'}
+            </button>
             <Button
               variant="ghost"
               size="sm"
@@ -1343,21 +1576,21 @@ Keep the explanation focused and helpful. After answering, say "Ready to continu
             <Button 
               variant="ghost" 
               size="icon" 
-              onClick={() => setShowConceptMap(!showConceptMap)}
-              title="Toggle Concept Roadmap"
-              className={cn("h-7 w-7", showConceptMap && "text-primary bg-primary/10")}
-            >
-              <BookOpen className="h-4 w-4" />
-            </Button>
-
-            <Button 
-              variant="ghost" 
-              size="icon" 
               onClick={() => setActiveSidebarTab(activeSidebarTab === 'doubt' ? null : 'doubt')}
               title="Toggle AI Chat Doubt"
               className={cn("h-7 w-7", activeSidebarTab === 'doubt' && "text-primary bg-primary/10")}
             >
               <MessageSquare className="h-4 w-4" />
+            </Button>
+
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              onClick={() => setActiveSidebarTab(activeSidebarTab === 'chat' ? null : 'chat')}
+              title="Toggle Live Chat"
+              className={cn("h-7 w-7", activeSidebarTab === 'chat' && "text-primary bg-primary/10")}
+            >
+              <Bot className="h-4 w-4" />
             </Button>
 
             <Button 
@@ -1393,12 +1626,7 @@ Keep the explanation focused and helpful. After answering, say "Ready to continu
             <Button 
               variant="ghost" 
               size="icon" 
-              onClick={() => {
-                setIsWideView(!isWideView);
-                if (!isWideView) {
-                  setShowConceptMap(false);
-                }
-              }}
+              onClick={() => setIsWideView(!isWideView)}
               title="Toggle Wide Lecture Board"
               className={cn("h-7 w-7", isWideView && "text-primary bg-primary/10")}
             >
@@ -1442,481 +1670,161 @@ Keep the explanation focused and helpful. After answering, say "Ready to continu
 
         {/* Main Classroom */}
         <div ref={classroomRef} className="flex-1 flex overflow-hidden relative">
-          {/* Collapsible Left Concept Map */}
-          {showConceptMap && !isWideView && (
-            <div className={cn("hidden md:flex flex-col w-64 border-r p-4 space-y-5 overflow-y-auto transition-all duration-300 shrink-0", 
-              boardStyle === 'whiteboard' ? 'bg-slate-50 border-slate-200' : 'bg-[#0b0f19] border-white/5 text-white'
-            )}>
-              <div className="flex items-center justify-between border-b pb-3 border-border/40">
-                <div className="flex flex-col">
-                  <span className="text-xs font-semibold text-slate-300 uppercase tracking-wider">Concept Roadmap</span>
-                  {boardPages.length > 0 && (
-                    <span className="text-[9px] text-indigo-400 font-mono mt-0.5">
-                      Progress: {Math.round(((currentPage + 1) / boardPages.length) * 100)}%
-                    </span>
-                  )}
+          <aside className="hidden w-[320px] shrink-0 flex-col border-r border-white/10 bg-[#0b1120] p-4 lg:flex">
+            <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+              <div className="flex items-center gap-3">
+                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/15 text-primary">
+                  <Bot className="h-6 w-6" />
                 </div>
-                <Button variant="ghost" size="icon" onClick={() => setShowConceptMap(false)} className="h-6 w-6">
-                  <X className="h-3 w-3" />
-                </Button>
+                <div>
+                  <p className="text-sm font-semibold text-white">{teacher.name}</p>
+                  <p className="text-xs text-slate-400">{teacher.teachingApproach}</p>
+                </div>
               </div>
 
-              {/* Progress bar */}
-              {boardPages.length > 0 && (
-                <div className="w-full h-1 bg-slate-800 rounded-full overflow-hidden">
-                  <div 
-                    className="h-full bg-gradient-to-r from-indigo-500 to-emerald-400 transition-all duration-500"
-                    style={{ width: `${((currentPage + 1) / boardPages.length) * 100}%` }}
-                  />
+              <div className="mt-4 rounded-xl border border-white/10 bg-slate-950/70 p-3">
+                <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-400">Live session</div>
+                <div className="mt-2 flex items-center gap-2 text-sm text-slate-200">
+                  <span className="h-2.5 w-2.5 rounded-full bg-emerald-400" />
+                  {isGenerating ? 'Teaching now' : 'Ready to teach'}
                 </div>
-              )}
-              
-              {/* Objective Checklist */}
-              {objectives.length > 0 && (
-                <div className="space-y-3">
-                  <span className="text-xs font-bold text-indigo-400 flex items-center gap-1.5 uppercase tracking-wider">
-                    <Sparkles className="h-3 w-3" /> Targets
-                  </span>
-                  <div className="space-y-2">
-                    {objectives.map((obj, i) => (
-                      <div key={i} className="flex items-start gap-2 p-2 rounded-lg bg-white/[0.02] border border-white/5 text-xs leading-normal text-slate-300">
-                        <span className="h-4 w-4 rounded-full bg-indigo-500/20 text-indigo-400 border border-indigo-500/20 flex items-center justify-center font-bold text-[9px] shrink-0">
-                          {i + 1}
-                        </span>
-                        <span>{obj}</span>
-                      </div>
-                    ))}
+                {lessonTitle && <p className="mt-2 text-sm text-slate-300">{lessonTitle}</p>}
+                {topic && <p className="mt-1 text-xs text-slate-500">Topic: {topic}</p>}
+              </div>
+
+              <div className="mt-4 space-y-2">
+                {objectives.slice(0, 3).map((objective, idx) => (
+                  <div key={idx} className="flex gap-2 rounded-lg border border-white/10 bg-slate-900/70 px-3 py-2 text-sm text-slate-300">
+                    <span className="text-primary">{idx + 1}.</span>
+                    <span>{objective}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="mt-4 rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-slate-300">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-400">Quick actions</div>
+              <div className="mt-3 space-y-2">
+                <button
+                  onClick={() => setActiveSidebarTab(activeSidebarTab === 'chat' ? null : 'chat')}
+                  className="flex w-full items-center justify-between rounded-lg border border-white/10 bg-slate-900/70 px-3 py-2 text-left"
+                >
+                  <span>Open live chat</span>
+                  <MessageSquare className="h-4 w-4 text-primary" />
+                </button>
+                <button
+                  onClick={() => setActiveSidebarTab(activeSidebarTab === 'notes' ? null : 'notes')}
+                  className="flex w-full items-center justify-between rounded-lg border border-white/10 bg-slate-900/70 px-3 py-2 text-left"
+                >
+                  <span>Notes</span>
+                  <FileText className="h-4 w-4 text-primary" />
+                </button>
+              </div>
+            </div>
+
+            {memoryInsight && (
+              <div className="mt-4 rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-3 text-sm text-emerald-200">
+                <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-emerald-300">Memory insight</div>
+                <p className="mt-2 text-sm leading-6">{memoryInsight}</p>
+              </div>
+            )}
+          </aside>
+
+          <div className="flex-1 bg-[radial-gradient(circle_at_top,_rgba(99,102,241,0.12),_transparent_45%),linear-gradient(180deg,_#0f172a,_#020617)]">
+            <div className="mx-auto flex h-full max-w-5xl flex-col px-4 py-4 sm:px-6 lg:px-8">
+              <div className="mb-4 rounded-2xl border border-white/10 bg-slate-900/80 p-4 shadow-2xl backdrop-blur">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-indigo-300">AI tutor studio</div>
+                    <div className="mt-1 text-xl font-semibold text-white">{lessonTitle || `Learning ${topic || 'your topic'}`}</div>
+                  </div>
+                  <div className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-sm text-emerald-300">
+                    {isGenerating ? 'Streaming lesson' : 'Ready'}
                   </div>
                 </div>
-              )}
-              
-              {/* Blackboard Outline */}
-              <div className="space-y-3">
-                <span className="text-xs font-bold text-indigo-400 flex items-center gap-1.5 uppercase tracking-wider">
-                  <BookOpen className="h-3 w-3" /> Board Outline
-                </span>
-                <div className="space-y-3">
-                  {boardPages.map((page, pIdx) => {
-                    const isCompleted = pIdx < currentPage;
-                    const isCurrent = pIdx === currentPage;
-                    
-                    return (
-                      <div key={page.id} className="space-y-1 relative pl-6 border-l border-white/5 last:border-0 ml-2">
-                        {/* Interactive state markers */}
-                        <div className="absolute left-[-9px] top-0.5">
-                          {isCompleted ? (
-                            <span className="h-4.5 w-4.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 flex items-center justify-center text-[10px] font-bold" title="Completed">
-                              ✓
-                            </span>
-                          ) : isCurrent ? (
-                            <span className="h-4.5 w-4.5 rounded-full bg-indigo-500/20 text-indigo-400 border border-indigo-500/50 flex items-center justify-center text-[9px] font-black animate-pulse" title="Teaching...">
-                              ●
-                            </span>
-                          ) : (
-                            <span className="h-4.5 w-4.5 rounded-full bg-slate-800 text-slate-500 border border-slate-700 flex items-center justify-center text-[8px] font-mono" title="Locked">
-                              {pIdx + 1}
-                            </span>
-                          )}
-                        </div>
-
-                        <div className="space-y-1">
-                          <div className="text-[10px] font-bold text-slate-400 flex items-center gap-1">
-                            <span>Board Page {page.pageNumber}</span>
-                          </div>
-                          <div className="space-y-1">
-                            {page.items.filter(item => item.type === 'heading').map((item) => (
-                              <div 
-                                key={item.id} 
-                                onClick={() => scrollToSection(pIdx)}
-                                className={cn(
-                                  "text-[11px] cursor-pointer truncate transition-all py-0.5 font-medium",
-                                  isCurrent ? "text-indigo-400 font-bold" : "text-slate-400 hover:text-indigo-300"
-                                )}
-                              >
-                                {item.content}
-                              </div>
-                            ))}
-                            {page.items.filter(item => item.type === 'heading').length === 0 && (
-                              <span className="text-[10px] italic text-slate-500">Introductory section</span>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
               </div>
-            </div>
-          )}
 
-          {/* Collapsible Left Teacher stage */}
-          <div className={cn("hidden flex-col items-center justify-end w-52 p-4 border-r border-border shrink-0 bg-gradient-to-b from-[#0e1422] to-[#080b13] relative overflow-hidden select-none transition-all duration-500", isWideView ? "lg:hidden" : "lg:flex")}>
-            {/* Spot light shine overlay */}
-            <div className="absolute top-0 inset-x-0 h-full bg-gradient-to-b from-yellow-500/10 via-transparent to-transparent pointer-events-none z-10" 
-                 style={{ clipPath: 'polygon(50% 0%, 25% 100%, 75% 100%)' }} />
-            
-            {/* Stage details */}
-            <div className="absolute inset-0 bg-[radial-gradient(rgba(255,255,255,0.015)_1px,transparent_0)] bg-[size:10px_10px]" />
-            <div className="absolute bottom-0 inset-x-0 h-32 bg-amber-950/10 border-t border-white/[0.02]" />
-            
-            {/* Hanging lamp */}
-            <div className="absolute top-0 w-0.5 h-16 bg-neutral-600 flex items-end justify-center">
-              <div className="w-6 h-3 bg-neutral-500 rounded-b-full shadow-[0_4px_12px_rgba(251,191,36,0.5)] animate-pulse" />
-            </div>
-
-            {/* Glowing chalkboard halo backdrop for the teacher */}
-            <div className={cn(
-              "absolute rounded-full filter blur-2xl opacity-20 z-0 w-36 h-36 bottom-20 transition-all duration-700",
-              isSpeakingLesson ? "bg-indigo-500/50 scale-110" : "bg-purple-500/30 scale-100"
-            )} />
-
-            {/* Floating pointer wand */}
-            <motion.div
-              animate={{ y: [0, -12, 0], rotate: [0, 5, -5, 0] }}
-              transition={{ repeat: Infinity, duration: 4.5, ease: 'easeInOut' }}
-              className="absolute top-14 right-6 text-xl pointer-events-none select-none opacity-30 filter drop-shadow-[0_2px_4px_rgba(0,0,0,0.5)]"
-              title="Teacher Pointer"
-            >
-              🪄
-            </motion.div>
-
-            {/* Teacher Avatar */}
-            <TeacherAvatar
-              styleId={teacher.id}
-              state={isGenerating ? 'speaking' : isSpeakingLesson ? 'speaking' : isPaused ? 'thinking' : 'idle'}
-              isFemale={selectedVoiceGender === 'female'}
-              className="w-40 h-40 mb-16 z-20"
-            />
-
-            {/* Podium (Polished dark mahogany wood with gold metal accents) */}
-            <div className="absolute bottom-0 w-36 h-20 bg-gradient-to-b from-amber-900 to-amber-950 border-x-2 border-t-2 border-amber-950 rounded-t-2xl shadow-2xl flex flex-col items-center p-2 z-10 ring-1 ring-yellow-500/20">
-              <div className="w-full h-1 bg-yellow-500/40 rounded-full" />
-              <div className="text-[10px] text-amber-100 font-bold uppercase mt-1.5 select-none truncate max-w-full font-sans tracking-wide">
-                {teacher.name}
-              </div>
-              
-              {/* Responsive Audio Waveform */}
-              {isSpeakingLesson ? (
-                <div className="flex items-end justify-center gap-0.5 h-3 mt-1.5 w-16 select-none">
-                  {[...Array(6)].map((_, i) => (
-                    <motion.div
-                      key={i}
-                      animate={{
-                        height: [2, Math.random() * 8 + 4, 2],
-                      }}
-                      transition={{
-                        repeat: Infinity,
-                        duration: 0.35 + i * 0.08,
-                        ease: 'easeInOut',
-                      }}
-                      className="w-0.5 bg-yellow-400 rounded-full"
-                    />
-                  ))}
-                </div>
-              ) : (
-                <div className="flex gap-2 mt-1 select-none">
-                  <span className="text-xs" title="Coffee">☕</span>
-                  <span className="text-xs" title="Apple">🍎</span>
-                  <span className="text-xs" title="Notebook">📚</span>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Whiteboard Area */}
-          <div className={cn('flex-1 relative flex flex-col p-4 md:p-6 bg-slate-950 bg-gradient-to-b from-[#162032] to-[#0b101a] overflow-hidden', activeSidebarTab ? 'lg:w-2/3' : 'w-full')}>
-            {/* The Chalkboard/Whiteboard 3D Hanging Frame */}
-            <div className={cn(
-              "relative flex-1 flex flex-col rounded-2xl overflow-hidden shadow-2xl transition-all duration-500 border-t border-white/5",
-              canvasTheme === 'chalk' && 'border-[16px] border-amber-900 ring-8 ring-amber-950/30 ring-offset-2 ring-offset-amber-950',
-              canvasTheme === 'cyber' && (
-                highlightColor === 'yellow' ? 'border-4 border-yellow-500/50 shadow-[0_0_35px_rgba(234,179,8,0.4)]' :
-                highlightColor === 'red' ? 'border-4 border-red-500/50 shadow-[0_0_35px_rgba(239,68,68,0.4)]' :
-                highlightColor === 'cyan' ? 'border-4 border-cyan-500/50 shadow-[0_0_35px_rgba(34,211,238,0.4)]' :
-                highlightColor === 'white' ? 'border-4 border-slate-100/50 shadow-[0_0_30px_rgba(255,255,255,0.25)]' :
-                'border-4 border-indigo-500/50 shadow-[0_0_30px_rgba(99,102,241,0.25)]'
-              ),
-              canvasTheme === 'studio' && 'border-[14px] border-slate-300 ring-4 ring-slate-400/10',
-              canvasTheme === 'terminal' && 'border-[18px] border-zinc-800 rounded-3xl'
-            )}>
-              {/* Board Canvas background */}
-              <div className="flex-1 overflow-y-auto scrollbar-thin relative p-4 md:p-8" style={boardBgStyle}>
-                <div className={cn('mx-auto space-y-6 min-h-full transition-all duration-500', 
-                  isWideView ? 'max-w-none w-full px-2 py-2 md:px-6' : 'max-w-4xl'
-                , boardText)}>
-                  {/* Topic Input (shown when no lesson) */}
-                  {boardPages.every(p => p.items.length === 0) && !isGenerating && (
-                    <div className="flex flex-col items-center justify-center h-full min-h-[400px] space-y-6">
-                      <div className="text-center space-y-3">
-                        <div className={cn('h-20 w-20 rounded-full flex items-center justify-center mx-auto', canvasTheme === 'studio' ? 'bg-primary/10' : 'bg-white/10')}>
-                          <BookOpen className={cn('h-10 w-10', canvasTheme === 'studio' ? 'text-primary' : 'text-white')} />
-                        </div>
-                        <h2 className={cn('text-2xl font-bold', canvasTheme === 'chalk' ? 'chalk-text' : canvasTheme === 'studio' ? 'text-slate-800' : 'text-white')}>
-                          Your {teacher.name} is ready to teach!
-                        </h2>
-                        <p className={cn(canvasTheme === 'chalk' ? 'chalk-text opacity-70' : 'text-muted-foreground', 'max-w-md')}>
-                          {teacher.tagline}
-                        </p>
-                        {course && (
-                          <div className="bg-accent/30 rounded-xl p-4 max-w-md mx-auto">
-                            <p className="font-medium">Course: {course.title}</p>
-                            <p className="text-sm text-muted-foreground">Level: {course.level} · {course.totalLessons} lessons</p>
-                          </div>
-                        )}
+              <div ref={transcriptRef} className="flex-1 overflow-y-auto rounded-2xl border border-white/10 bg-slate-950/70 p-4 shadow-inner">
+                <div className="grid h-full gap-4 xl:grid-cols-[1.2fr_0.8fr]">
+                  <div className="min-h-[420px] overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-br from-slate-900 via-slate-900/95 to-indigo-950/60 shadow-2xl">
+                    <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
+                      <div>
+                        <div className="text-[10px] font-semibold uppercase tracking-[0.24em] text-indigo-300">Live tutor chat</div>
+                        <div className="text-sm font-semibold text-white">{teacher.name} is guiding this lesson in real time</div>
                       </div>
-                      <div className="flex gap-2 w-full max-w-lg">
-                        <Input
-                          value={inputTopic}
-                          onChange={(e) => setInputTopic(e.target.value)}
-                          placeholder="e.g., Python Variables, React Hooks, Machine Learning..."
-                          className="flex-1"
-                          onKeyDown={(e) => e.key === 'Enter' && generateLesson()}
-                        />
-                        <Button variant="primary" onClick={generateLesson} disabled={!inputTopic.trim()}>
-                          <Sparkles className="h-4 w-4 mr-2" />
-                          Teach
-                        </Button>
+                      <div className="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2.5 py-1 text-[10px] font-semibold text-emerald-300">
+                        {isGenerating ? 'Streaming' : 'Listening'}
                       </div>
-                      {!course && !topicParam && (
-                        <p className="text-xs text-muted-foreground">
-                          No course selected? Just type any topic above to start learning instantly!
-                        </p>
-                      )}
                     </div>
-                  )}
-
-                  {/* Laser Pointer dot */}
-                  {isSpeakingLesson && (
-                    <motion.div
-                      animate={{
-                        x: [20, 160, 45, 240, 20],
-                        y: [80, 160, 220, 110, 80],
-                      }}
-                      transition={{
-                        repeat: Infinity,
-                        duration: 11,
-                        ease: 'easeInOut',
-                      }}
-                      className="absolute h-2.5 w-2.5 rounded-full bg-red-500 shadow-[0_0_8px_4px_rgba(239,68,68,0.8)] z-40 pointer-events-none"
-                    />
-                  )}
-
-                  {/* Continuous Scroll Board Content rendering */}
-                  {boardPages.some(p => p.items.length > 0) ? (
-                    <div className="space-y-12">
-                      {boardPages.map((page, index) => {
-                        if (page.items.length === 0) return null;
-                        return (
-                          <div 
-                            key={page.id} 
-                            data-section={index}
-                            className="relative pb-10 border-b border-dashed border-white/10 last:border-b-0 last:pb-0"
-                          >
-                            <div className="absolute top-[-10px] right-2 text-[9px] font-mono text-slate-500 opacity-60 uppercase tracking-wider select-none">
-                              Section {index + 1}
-                            </div>
-                            {renderSlideContent(page.items)}
-                          </div>
-                        );
-                      })}
+                    <div className="h-[calc(100%-56px)]">
+                      <ChatPanel
+                        agentType="teacher"
+                        title={`Chat with ${teacher.name}`}
+                        context={{
+                          currentLesson: lessonTitle || topic,
+                          currentSlide: currentSection,
+                          slideIndex: currentPage,
+                          totalSlides: boardPages.length,
+                        }}
+                        voiceMode={voiceMode}
+                        onVoiceModeChange={setVoiceMode}
+                        speak={speakText}
+                        className="h-full"
+                      />
                     </div>
-                  ) : (
-                    lessonTitle && (
-                      <div className="space-y-6">
-                        <div className="space-y-4 border-b border-white/5 pb-4">
-                          <div className="flex items-center justify-between">
-                            <h1 className={cn('text-4xl font-bold tracking-tight', canvasTheme === 'chalk' ? 'chalk-text-yellow' : canvasTheme === 'studio' ? 'text-slate-800' : 'text-white')}>
-                              {lessonTitle}
-                            </h1>
-                            <div className="flex items-center gap-2">
-                              <span className="text-xs text-muted-foreground bg-accent/30 px-2 py-1 rounded">
-                                Board Setup Complete
-                              </span>
-                            </div>
-                          </div>
-                        </div>
+                  </div>
 
-                        {objectives.length > 0 && (
-                          <div className={cn('p-6 rounded-2xl', 
-                            canvasTheme === 'chalk'
-                              ? 'bg-white/[0.02] border border-white/[0.04]'
-                              : canvasTheme === 'studio' ? 'bg-slate-50 border border-slate-100 shadow-sm' : 'bg-white/5'
-                          )}>
-                            <h2 className={cn("text-xl font-semibold mb-4", canvasTheme === 'chalk' ? 'chalk-text-cyan' : '')}>Learning Objectives</h2>
-                            <ul className="space-y-3">
-                              {objectives.map((obj, i) => (
-                                <li key={i} className="flex items-start gap-3">
-                                  <span className={cn('h-6 w-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0 mt-0.5',
-                                    canvasTheme === 'chalk'
-                                      ? 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/20'
-                                      : canvasTheme === 'studio' ? 'bg-indigo-50 text-indigo-600' : 'bg-primary/20 text-primary'
-                                  )}>{i + 1}</span>
-                                  <span className={canvasTheme === 'chalk' ? 'chalk-text' : ''}>{obj}</span>
-                                </li>
-                              ))}
-                            </ul>
-                          </div>
-                        )}
-                      </div>
-                    )
-                  )}
-
-                  {/* Board navigation dots */}
-                  {boardPages.length > 1 && (
-                    <div className="flex items-center justify-center gap-2 py-4">
-                      {boardPages.map((_, i) => (
-                        <button
-                          key={i}
-                          onClick={() => scrollToSection(i)}
-                          className={cn('h-2 rounded-full transition-all', i === currentPage ? 'w-8 bg-primary' : 'w-2 bg-muted-foreground/30')}
-                        />
-                      ))}
-                    </div>
-                  )}
-
-                  {/* Generating indicator */}
-                  {isGenerating && (
-                    <div className={cn("flex items-center gap-3 py-4", canvasTheme === 'chalk' ? 'chalk-text opacity-70' : 'text-muted-foreground')}>
-                      <Loader2 className="h-5 w-5 animate-spin" />
-                      <span>{teacher.name} is teaching...</span>
-                    </div>
-                  )}
-
-                  {/* Paused for doubt */}
-                  {isPaused && doubtAnswer && (
-                    <motion.div
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      className={cn('p-6 rounded-2xl border-2', canvasTheme === 'chalk'
-                        ? 'bg-yellow-500/10 border-yellow-500/30 text-slate-100 font-chalk'
-                        : canvasTheme === 'studio'
-                          ? 'bg-yellow-50 border-yellow-200 text-slate-800'
-                          : 'bg-yellow-500/10 border-yellow-500/30 text-slate-100'
-                      )}
-                    >
+                  <div className="flex flex-col gap-4">
+                    <div className="rounded-3xl border border-white/10 bg-slate-900/70 p-4 shadow-lg">
                       <div className="flex items-start gap-3">
-                        <div className="h-10 w-10 rounded-full bg-yellow-500/20 flex items-center justify-center shrink-0">
-                          <MessageSquare className="h-5 w-5 text-yellow-500" />
+                        <div className="h-16 w-16 shrink-0 rounded-2xl border border-indigo-500/20 bg-indigo-500/10 p-2">
+                          <TeacherAvatar
+                            styleId={teacher.id as 'professor' | 'coach' | 'friend' | 'expert' | 'simplifier'}
+                            state={teacherState}
+                            isFemale={true}
+                            className="h-full w-full"
+                          />
                         </div>
-                        <div className="space-y-2 flex-1">
-                          <p className="font-medium">{teacher.name} answered your doubt:</p>
-                          <p className="text-sm whitespace-pre-wrap">{doubtAnswer}</p>
-                          <Button variant="primary" size="sm" onClick={resumeLesson}>
-                            <Play className="h-4 w-4 mr-1" />
-                            Ready, Continue Lesson
-                          </Button>
+                        <div className="min-w-0">
+                          <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-indigo-300">Current tutor</div>
+                          <div className="mt-1 text-base font-semibold text-white">{teacher.name}</div>
+                          <p className="mt-1 text-sm leading-6 text-slate-400">{teacher.description}</p>
                         </div>
                       </div>
-                    </motion.div>
-                  )}
 
-                  <div ref={boardEndRef} />
+                      <div className="mt-4 space-y-2">
+                        {objectives.slice(0, 3).map((objective, idx) => (
+                          <div key={idx} className="flex gap-2 rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-slate-300">
+                            <span className="text-indigo-400">{idx + 1}</span>
+                            <span>{objective}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="rounded-3xl border border-white/10 bg-slate-900/70 p-4 shadow-lg">
+                      <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-400">Live guidance</div>
+                      <div className="mt-3 space-y-2">
+                        {boardPages.some(page => page.items.length > 0) ? (
+                          boardPages.flatMap(page => page.items).slice(-4).reverse().map((item, idx) => (
+                            <div key={`${item.id}-${idx}`} className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-slate-300">
+                              <div className="text-[10px] uppercase tracking-[0.24em] text-slate-500">{item.type}</div>
+                              <p className="mt-1 line-clamp-3">{item.content}</p>
+                            </div>
+                          ))
+                        ) : (
+                          <div className="rounded-2xl border border-dashed border-white/10 bg-white/5 px-3 py-4 text-sm text-slate-400">
+                            The tutor will start shaping the lesson here as soon as you begin.
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
-
-              {/* Chalk / Marker Tray Ledge */}
-              {canvasTheme === 'chalk' && (
-                <div className="h-5 w-full bg-amber-800 border-t border-amber-950 flex items-center justify-center gap-10 px-6 shadow-md relative z-10 shrink-0 select-none">
-                  {/* Virtual Chalk sticks and Eraser resting on the tray */}
-                  <div className="flex items-center gap-3">
-                    <span 
-                      onClick={() => { setHighlightColor('white'); toast('Selected White Chalk stick', { icon: '🖍️' }); }}
-                      className={cn("w-8 h-2 bg-white rounded-sm rotate-12 shadow-sm opacity-90 cursor-pointer transition-all duration-300", 
-                        highlightColor === 'white' ? "translate-y-[-5px] scale-110 ring-2 ring-yellow-400" : "translate-y-[-2px] hover:translate-y-[-4px]"
-                      )} 
-                      title="White Chalk" 
-                    />
-                    <span 
-                      onClick={() => { setHighlightColor('yellow'); toast('Selected Yellow Chalk stick', { icon: '🖍️' }); }}
-                      className={cn("w-7 h-2 bg-yellow-200 rounded-sm -rotate-6 shadow-sm opacity-90 cursor-pointer transition-all duration-300", 
-                        highlightColor === 'yellow' ? "translate-y-[-4px] scale-110 ring-2 ring-yellow-400" : "translate-y-[-1px] hover:translate-y-[-3px]"
-                      )} 
-                      title="Yellow Chalk" 
-                    />
-                    <span 
-                      onClick={() => { setHighlightColor('cyan'); toast('Selected Blue Chalk stick', { icon: '🖍️' }); }}
-                      className={cn("w-8 h-2 bg-cyan-200 rounded-sm rotate-6 shadow-sm opacity-90 cursor-pointer transition-all duration-300", 
-                        highlightColor === 'cyan' ? "translate-y-[-5px] scale-110 ring-2 ring-cyan-400" : "translate-y-[-2px] hover:translate-y-[-4px]"
-                      )} 
-                      title="Blue Chalk" 
-                    />
-                  </div>
-                  {/* Eraser */}
-                  <div 
-                    onClick={() => { setHighlightColor('indigo'); toast('Erased board selection highlight', { icon: '🧼' }); }}
-                    className="w-16 h-3 bg-neutral-700 rounded-sm border border-neutral-800 shadow-sm flex flex-col justify-between hover:translate-y-[-2px] cursor-pointer transition-transform" 
-                    title="Board Eraser"
-                  >
-                    <div className="h-1 bg-amber-600 rounded-t-sm" />
-                    <div className="h-1 bg-neutral-500" />
-                  </div>
-                </div>
-              )}
-              {canvasTheme === 'studio' && (
-                <div className="h-5 w-full bg-slate-300 border-t border-slate-400 flex items-center justify-center gap-10 px-6 shadow-md relative z-10 shrink-0 select-none">
-                  <div className="flex items-center gap-4">
-                    <span 
-                      onClick={() => { setHighlightColor('indigo'); toast('Selected Black Marker stick', { icon: '🖊️' }); }}
-                      className={cn("w-10 h-2 bg-black rounded-full rotate-6 shadow-sm cursor-pointer transition-all duration-300", 
-                        highlightColor === 'indigo' ? "translate-y-[-5px] scale-110 ring-2 ring-white/50" : "translate-y-[-2px] hover:translate-y-[-4px]"
-                      )} 
-                      title="Black Marker" 
-                    />
-                    <span 
-                      onClick={() => { setHighlightColor('cyan'); toast('Selected Blue Marker stick', { icon: '🖊️' }); }}
-                      className={cn("w-10 h-2 bg-blue-600 rounded-full -rotate-12 shadow-sm cursor-pointer transition-all duration-300", 
-                        highlightColor === 'cyan' ? "translate-y-[-4px] scale-110 ring-2 ring-cyan-300" : "translate-y-[-1px] hover:translate-y-[-3px]"
-                      )} 
-                      title="Blue Marker" 
-                    />
-                    <span 
-                      onClick={() => { setHighlightColor('red'); toast('Selected Red Marker stick', { icon: '🖊️' }); }}
-                      className={cn("w-10 h-2 bg-red-600 rounded-full rotate-12 shadow-sm cursor-pointer transition-all duration-300", 
-                        highlightColor === 'red' ? "translate-y-[-5px] scale-110 ring-2 ring-red-400" : "translate-y-[-2px] hover:translate-y-[-4px]"
-                      )} 
-                      title="Red Marker" 
-                    />
-                  </div>
-                  <div 
-                    onClick={() => { setHighlightColor('indigo'); toast('Erased board selection highlight', { icon: '🧼' }); }}
-                    className="wood-grain w-14 h-3 bg-neutral-800 rounded-sm border border-slate-900 shadow-sm hover:translate-y-[-2px] cursor-pointer transition-transform" 
-                    title="Whiteboard Eraser" 
-                  />
-                </div>
-              )}
-              {canvasTheme === 'cyber' && (
-                <div className="h-4 w-full bg-indigo-950/40 border-t border-indigo-900/50 flex items-center justify-between px-6 shadow-md relative z-10 shrink-0 text-[8px] font-mono text-indigo-400/80 uppercase tracking-widest select-none">
-                  <span>HOLO-BUFFER DEPLOYED</span>
-                  <span>SYSTEM: SECURE TELEMETRY</span>
-                </div>
-              )}
-            </div>
-
-            {/* Flying Assistant */}
-            <div
-              ref={flyingRef}
-              className="absolute transition-all duration-700 ease-in-out z-50 pointer-events-none"
-              style={{ transitionProperty: 'transform' }}
-            >
-              <motion.div
-                animate={{
-                  y: [0, -8, 0],
-                  rotate: [0, 5, -5, 0],
-                }}
-                transition={{ repeat: Infinity, duration: 3, ease: 'easeInOut' }}
-                className="flex items-center gap-2 bg-card border border-border rounded-full px-3 py-1.5 shadow-lg"
-              >
-                <div className={cn('h-6 w-6 rounded-full flex items-center justify-center', `bg-${teacher.color}`, 'bg-primary')}>
-                  <Bot className="h-3.5 w-3.5 text-white" />
-                </div>
-                {currentSection && (
-                  <span className="text-xs text-muted-foreground max-w-[150px] truncate">{currentSection}</span>
-                )}
-              </motion.div>
             </div>
           </div>
 
-          {/* Unified Sidebar Workspace */}
           <AnimatePresence>
             {activeSidebarTab && !isWideView && (
               <motion.div
@@ -1930,11 +1838,13 @@ Keep the explanation focused and helpful. After answering, say "Ready to continu
                 <div className="h-full flex flex-col">
                   <div className="flex items-center justify-between p-4 border-b border-border">
                     <div className="flex items-center gap-2">
+                      {activeSidebarTab === 'chat' && <Bot className="h-4 w-4 text-primary" />}
                       {activeSidebarTab === 'doubt' && <MessageSquare className="h-4 w-4 text-primary" />}
                       {activeSidebarTab === 'notes' && <FileText className="h-4 w-4 text-primary" />}
                       {activeSidebarTab === 'timer' && <Clock className="h-4 w-4 text-primary" />}
                       {activeSidebarTab === 'calendar' && <CalendarIcon className="h-4 w-4 text-primary" />}
                       <span className="font-medium">
+                        {activeSidebarTab === 'chat' && `Live Chat with ${teacher.name}`}
                         {activeSidebarTab === 'doubt' && `Ask ${teacher.name}`}
                         {activeSidebarTab === 'notes' && 'Class Notes'}
                         {activeSidebarTab === 'timer' && 'Study Timer'}
@@ -1945,8 +1855,25 @@ Keep the explanation focused and helpful. After answering, say "Ready to continu
                       <X className="h-4 w-4" />
                     </Button>
                   </div>
-                  
-                  <div className="flex-1 overflow-y-auto p-4 scrollbar-thin">
+
+                  <div className={cn('flex-1 overflow-y-auto scrollbar-thin', activeSidebarTab === 'chat' ? '' : 'p-4')}>
+                    {activeSidebarTab === 'chat' && (
+                      <ChatPanel
+                        agentType="teacher"
+                        title={`Chat with ${teacher.name}`}
+                        context={{
+                          currentLesson: lessonTitle || topic,
+                          currentSlide: currentSection,
+                          slideIndex: currentPage,
+                          totalSlides: boardPages.length,
+                        }}
+                        voiceMode={voiceMode}
+                        onVoiceModeChange={setVoiceMode}
+                        speak={speakText}
+                        className="h-full"
+                      />
+                    )}
+
                     {activeSidebarTab === 'doubt' && (
                       <div className="h-full flex flex-col justify-between space-y-4 text-xs font-sans">
                         <div className="flex-1 overflow-y-auto space-y-4 pr-1 scrollbar-thin text-left">
@@ -1998,9 +1925,9 @@ Keep the explanation focused and helpful. After answering, say "Ready to continu
                     )}
 
                     {activeSidebarTab === 'notes' && (
-                      <NotesGenerator 
-                        boardPages={boardPages} 
-                        topic={lessonTitle || topic || 'Lecture Topic'} 
+                      <NotesGenerator
+                        boardPages={boardPages}
+                        topic={lessonTitle || topic || 'Lecture Topic'}
                         className="border-none bg-transparent backdrop-blur-none p-0"
                       />
                     )}

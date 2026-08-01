@@ -8,6 +8,7 @@ export const NAV_LINKS = [
   { label: 'AI Teacher', href: '/ai-teacher' },
   { label: 'Live Classroom', href: '/classroom' },
   { label: 'Coding Lab', href: '/coding-lab' },
+  { label: 'Resume Hub', href: '/resume-hub' },
   { label: 'Dashboard', href: '/dashboard' },
   { label: 'Career Roadmaps', href: '/roadmap' },
   { label: 'Certificates', href: '/certificates' },
@@ -70,72 +71,6 @@ export const AMBIENT_SOUNDS = [
   { id: 'coffee-shop', label: 'Coffee Shop', icon: 'Coffee' },
 ];
 
-export const SUBSCRIPTION_PLANS = [
-  {
-    id: 'free',
-    name: 'Free',
-    price: 0,
-    description: 'Get started with basic courses',
-    features: [
-      'Access to free courses',
-      'Basic AI teaching',
-      'Community access',
-      '1 project per month',
-    ],
-    limitations: ['Limited quizzes', 'No certificates', 'No voice narration'],
-    popular: false,
-  },
-  {
-    id: 'premium',
-    name: 'Premium',
-    price: 19.99,
-    description: 'Unlock unlimited learning',
-    features: [
-      'All courses included',
-      'Advanced AI teaching',
-      'Voice narration',
-      'Unlimited projects',
-      'Certificates',
-      'Priority support',
-    ],
-    limitations: [],
-    popular: true,
-  },
-  {
-    id: 'pro',
-    name: 'Pro',
-    price: 39.99,
-    description: 'For serious learners',
-    features: [
-      'Everything in Premium',
-      'Career mentorship',
-      'Interview preparation',
-      'Resume review',
-      '1-on-1 AI sessions',
-      'Early access features',
-    ],
-    limitations: [],
-    popular: false,
-  },
-  {
-    id: 'enterprise',
-    name: 'Enterprise',
-    price: 99.99,
-    description: 'For teams and organizations',
-    features: [
-      'Everything in Pro',
-      'Team management',
-      'Custom curriculum',
-      'API access',
-      'Dedicated support',
-      'Analytics dashboard',
-      'SSO integration',
-    ],
-    limitations: [],
-    popular: false,
-  },
-];
-
 export const MOCK_COURSES = [
   {
     id: '1',
@@ -164,7 +99,7 @@ export const MOCK_COURSES = [
     enrolledStudents: 8930,
     totalLessons: 85,
     totalDuration: 4800,
-    price: 49.99,
+    price: 0,
     tags: ['Deep Learning', 'Neural Networks', 'PyTorch', 'TensorFlow'],
   },
   {
@@ -179,7 +114,7 @@ export const MOCK_COURSES = [
     enrolledStudents: 12300,
     totalLessons: 150,
     totalDuration: 5400,
-    price: 29.99,
+    price: 0,
     tags: ['React', 'Next.js', 'Node.js', 'TypeScript', 'Full-Stack'],
   },
   {
@@ -209,7 +144,7 @@ export const MOCK_COURSES = [
     enrolledStudents: 7650,
     totalLessons: 70,
     totalDuration: 2800,
-    price: 39.99,
+    price: 0,
     tags: ['Cybersecurity', 'Network Security', 'Ethical Hacking'],
   },
   {
@@ -224,7 +159,7 @@ export const MOCK_COURSES = [
     enrolledStudents: 5430,
     totalLessons: 60,
     totalDuration: 2400,
-    price: 19.99,
+    price: 0,
     tags: ['Business', 'Strategy', 'Management', 'Leadership'],
   },
 ];

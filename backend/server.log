@@ -1,0 +1,4 @@
+INFO:     127.0.0.1:59036 - "GET /healt HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:59036 - "GET /favicon.ico HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:61134 - "GET / HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:61134 - "GET / HTTP/1.1" 404 Not Found

@@ -6,16 +6,17 @@ class Settings(BaseSettings):
     app_name: str = "AURA Learn API"
     debug: bool = False
 
-    firebase_project_id: str = "auralearn-d0548"
+    firebase_project_id: str = "aura-70a87"
     firebase_client_email: Optional[str] = None
     firebase_private_key: Optional[str] = None
 
     gemini_api_key: Optional[str] = None
-
-    stripe_secret_key: Optional[str] = None
-    stripe_webhook_secret: Optional[str] = None
-    stripe_price_monthly: str = "price_monthly"
-    stripe_price_yearly: str = "price_yearly"
+    google_tts_api_key: Optional[str] = None
+    groq_api_key: Optional[str] = None
+    nvidia_api_key: Optional[str] = None
+    nvidia_base_url: str = "https://openrouter.ai/api/v1"
+    nvidia_model: str = "nvidia/nemotron-3-super-120b-a12b:free"
+    llm_provider: str = "nvidia"
 
     database_url: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/auralearn"
     redis_url: str = "redis://localhost:6379"
@@ -23,7 +24,10 @@ class Settings(BaseSettings):
     backend_cors_origins: list[str] = ["http://localhost:3000", "https://auralearn.com", "https://www.auralearn.com"]
 
     class Config:
-        env_file = "../../.env.local"
+        # Try .env.local first (dev), then fall back to environment variables
+        env_file = "../.env.local"
+        env_file_encoding = "utf-8"
         case_sensitive = False
+        extra = "allow"
 
 settings = Settings()
