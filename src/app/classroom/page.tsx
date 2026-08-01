@@ -15,7 +15,7 @@ import { useAI } from '@/contexts/AIContext';
 import toast from 'react-hot-toast';
 import {
   Bot, Sparkles, ArrowLeft, Play, Pause, Square, Volume2, VolumeX,
-  ChevronLeft, ChevronRight, Download, ZoomIn, ZoomOut, Maximize, Minimize,
+  ChevronLeft, ChevronRight, Download, ZoomIn, ZoomOut, Maximize, Minimize, Maximize2, Minimize2,
   MessageSquare, HelpCircle, StickyNote, Timer, Calendar, CalendarIcon, Settings, Sun, Moon,
   Mic, MicOff, BookOpen, Brain, Code2, LayoutGrid, BarChart3, Trophy, Star,
   RefreshCw, Copy, Check, Lightbulb, AlertTriangle, CheckCircle, XCircle,
