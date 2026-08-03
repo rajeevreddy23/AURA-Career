@@ -149,6 +149,12 @@
     background-size: 200% 100%;
     animation: shimmer 2s linear infinite;
   }
+
+  .board-container {
+    flex-grow: 1; /* Tells the board to expand and fill the remaining vertical space */
+    min-height: 0; /* Allows the board to shrink inside a flex column so overflow-y works */
+    overflow-y: auto; /* Adds a scrollbar inside the board if your text gets too long */
+  }
 }
 
 @keyframes fadeIn {

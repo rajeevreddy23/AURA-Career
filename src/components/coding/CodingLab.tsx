@@ -46,6 +46,137 @@ const loadPyodideScript = () => {
   });
 };
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Real sandbox execution for Java / Go / Rust / C++ via Compiler Explorer API
+// (godbolt.org) — free, CORS-enabled, no API key required.
+// ─────────────────────────────────────────────────────────────────────────────
+const GODBOLT_COMPILERS: Record<string, string> = {
+  java: 'java1802', // OpenJDK 18.0.2
+  go: 'gl1190', // Go 1.19
+  rust: 'r1600', // Rust 1.60
+  cpp: 'g122', // GCC 12.2 (C++)
+};
+
+const stripJavaPublicModifiers = (code: string): string => {
+  // Godbolt compiles Java from a temp file named <source>. "public class X"
+  // requires X.java, so drop the public modifier on top-level classes only.
+  return code.replace(/public\s+class\s+([A-Za-z_$][\w$]*)/g, 'class $1');
+};
+
+const executeWithGodbolt = async (language: string, code: string): Promise<string> => {
+  const compilerId = GODBOLT_COMPILERS[language];
+  if (!compilerId) throw new Error(`No compiler configured for ${language}`);
+
+  let source = code;
+  if (language === 'java') source = stripJavaPublicModifiers(code);
+
+  const res = await fetch(`https://godbolt.org/api/compiler/${compilerId}/compile`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      source,
+      options: {
+        userArguments: '',
+        compilerOptions: { executorRequest: true, skipAsm: true },
+        filters: { execute: true },
+        tools: [],
+        libraries: [],
+        executeParameters: { args: [], stdin: '' },
+      },
+    }),
+  });
+
+  if (!res.ok) throw new Error(`Sandbox returned HTTP ${res.status}`);
+  const raw = await res.text();
+
+  // Response is a single text blob from godbolt — parse stdout / stderr / exit code.
+  const stdout = extractBetween(raw, 'Standard out:', '\nStandard error:');
+  const stderr = extractBetween(raw, 'Standard error:', undefined);
+  const exitMatch = raw.match(/Compiler exited with result code (\d+)/);
+  const timedOut = raw.includes('timed out after') || raw.includes('Execution timed out');
+  const killed = raw.includes('Executing program failed') || raw.includes('killed after');
+
+  const lines: string[] = [];
+  if (stdout) lines.push(stdout);
+  if (stderr) {
+    lines.push(`\n[Compilation / Runtime Error]`);
+    lines.push(stderr.split('\n').slice(0, 30).join('\n'));
+  }
+  if (exitMatch && exitMatch[1] !== '0') {
+    lines.push(`\n[Process exited with code ${exitMatch[1]}]`);
+  }
+  if (timedOut) lines.push('\n[Execution timed out — infinite loop detected]');
+  if (killed) lines.push('\n[Process was killed (resource limit reached)]');
+  if (!stdout && !stderr && !exitMatch && !timedOut && !killed) {
+    lines.push('Program finished with no output.');
+  }
+  return lines.join('\n').trim();
+};
+
+const extractBetween = (text: string, start: string, end?: string): string => {
+  const startIdx = text.indexOf(start);
+  if (startIdx === -1) return '';
+  let chunk = text.slice(startIdx + start.length);
+  if (end) {
+    const endIdx = chunk.indexOf(end);
+    if (endIdx !== -1) chunk = chunk.slice(0, endIdx);
+  }
+  return chunk.trim();
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Real SQL execution via sql.js — SQLite compiled to WebAssembly, runs in the
+// browser with zero server dependencies.
+// ─────────────────────────────────────────────────────────────────────────────
+let sqlJsModule: any = null;
+let sqlJsDb: any = null;
+
+const loadSqlJs = async (): Promise<any> => {
+  if (sqlJsModule) return sqlJsModule;
+  const win = window as any;
+  if (!win.initSqlJs) {
+    await new Promise<void>((resolve, reject) => {
+      const script = document.createElement('script');
+      script.src = 'https://cdn.jsdelivr.net/npm/sql.js@1.10.2/dist/sql-wasm.js';
+      script.onload = () => resolve();
+      script.onerror = () => reject(new Error('Failed to load SQLite WebAssembly engine'));
+      document.head.appendChild(script);
+    });
+  }
+  sqlJsModule = await win.initSqlJs({
+    locateFile: () => 'https://cdn.jsdelivr.net/npm/sql.js@1.10.2/dist/sql-wasm.wasm',
+  });
+  return sqlJsModule;
+};
+
+const executeSQL = async (code: string): Promise<string> => {
+  const SQL = await loadSqlJs();
+  if (!sqlJsDb) sqlJsDb = new SQL.Database();
+
+  const lines: string[] = [];
+  // db.exec runs each statement and returns result sets for SELECT etc.
+  const results = sqlJsDb.exec(code);
+  const lastStatement = code.trim().split(/;\s*$/)[0].trim().split(/\s+/)[0]?.toUpperCase();
+  if (results.length === 0) {
+    lines.push(
+      lastStatement && ['CREATE', 'INSERT', 'UPDATE', 'DELETE', 'DROP', 'ALTER', 'BEGIN', 'COMMIT'].includes(lastStatement)
+        ? `SQL executed successfully. ${results.length} result set(s).`
+        : 'SQL executed successfully (no result set returned).'
+    );
+  }
+  results.forEach((result: any, idx: number) => {
+    const { columns, values } = result;
+    lines.push(idx > 0 ? '' : '');
+    lines.push(`Result ${idx + 1} — ${columns.length} column(s), ${values.length} row(s)`);
+    lines.push(columns.map((c: string) => c.padEnd(Math.max(10, c.length))).join('  '));
+    lines.push(columns.map((c: string) => '-'.repeat(Math.max(10, c.length))).join('  '));
+    values.forEach((row: any[]) => {
+      lines.push(row.map(v => String(v ?? 'NULL').padEnd(Math.max(10, String(v ?? 'NULL').length))).join('  '));
+    });
+  });
+  return lines.join('\n');
+};
+
 const fallbackPythonEval = (pyCode: string): string => {
   const logs: string[] = [];
   const lines = pyCode.split('\n');
@@ -216,13 +347,23 @@ export const CodingLab: React.FC<CodingLabProps> = ({
         setPreviewDoc(srcDoc);
         setOutputTab('preview');
         simulatedOutput = 'HTML/CSS Rendered in Live Preview!';
+      } else if (selectedLang === 'sql') {
+        // Real SQLite execution in the browser (sql.js / WASM)
+        setOutput('Initializing SQLite engine (WASM)...\n');
+        simulatedOutput = await executeSQL(code);
+        setOutputTab('console');
+      } else if (GODBOLT_COMPILERS[selectedLang]) {
+        // Real sandboxed compilation + execution (Java / Go / Rust / C++)
+        setOutput(`Compiling ${selectedLang.toUpperCase()} in a sandboxed environment...\n`);
+        simulatedOutput = await executeWithGodbolt(selectedLang, code);
+        setOutputTab('console');
       } else {
         simulatedOutput = `[${selectedLang.toUpperCase()}]\nCode executed successfully.\n\nServer sandbox connections coming soon for ${selectedLang}.`;
         setOutputTab('console');
       }
       setOutput(simulatedOutput || 'Code executed successfully (no stdout)');
-    } catch {
-      setOutput('Error executing code. Check syntax for details.');
+    } catch (e: any) {
+      setOutput(`Execution Error: ${e?.message || 'Unexpected error while executing code. Please check your syntax and try again.'}`);
     } finally {
       setIsRunning(false);
     }
@@ -406,7 +547,14 @@ export const CodingLab: React.FC<CodingLabProps> = ({
                 className="w-full h-full border-0 bg-slate-900"
               />
             ) : output ? (
-              <pre className="flex-1 p-4 font-mono text-sm overflow-auto whitespace-pre-wrap">{output}</pre>
+              <pre
+                className={cn(
+                  "flex-1 p-4 font-mono text-sm overflow-auto whitespace-pre-wrap",
+                  output.includes('Compilation / Runtime Error') || output.startsWith('Execution Error') ? "text-red-400" : "text-emerald-300/90"
+                )}
+              >
+                {output}
+              </pre>
             ) : (
               <span className="p-4 text-muted-foreground font-mono text-sm">Run your code to see output here</span>
             )}

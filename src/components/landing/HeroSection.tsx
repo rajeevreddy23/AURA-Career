@@ -211,18 +211,23 @@ export const HeroSection: React.FC = () => {
                 </div>
 
                 {/* AI Assistant Floating */}
-                <div className="absolute bottom-4 right-4">
-                  <div className="h-16 w-16 rounded-full bg-gradient-to-br from-primary to-purple-500 flex items-center justify-center shadow-lg shadow-primary/30 animate-float">
+                <Link href="/ai-teacher" title="Meet the AI Teacher" className="absolute bottom-4 right-4 group/ai">
+                  <div className="h-16 w-16 rounded-full bg-gradient-to-br from-primary to-purple-500 flex items-center justify-center shadow-lg shadow-primary/30 animate-float group-hover/ai:scale-110 transition-transform">
                     <Sparkles className="h-8 w-8 text-white" />
                   </div>
-                </div>
+                </Link>
 
                 {/* Play button overlay */}
-                <div className="absolute inset-0 flex items-center justify-center bg-black/20 opacity-0 hover:opacity-100 transition-opacity cursor-pointer">
-                  <div className="h-16 w-16 rounded-full bg-white/90 flex items-center justify-center shadow-xl">
-                    <Play className="h-8 w-8 text-primary ml-1" />
+                <Link href="/classroom?course=1" className="absolute inset-0 flex items-center justify-center bg-black/20 opacity-0 hover:opacity-100 transition-opacity cursor-pointer group">
+                  <div className="flex flex-col items-center gap-3">
+                    <div className="h-16 w-16 rounded-full bg-white/90 flex items-center justify-center shadow-xl group-hover:scale-110 transition-transform">
+                      <Play className="h-8 w-8 text-primary ml-1" />
+                    </div>
+                    <span className="text-sm font-semibold text-white bg-black/50 rounded-full px-4 py-1.5 backdrop-blur-sm">
+                      Watch a live AI lesson →
+                    </span>
                   </div>
-                </div>
+                </Link>
               </div>
 
               {/* Bottom info bar */}

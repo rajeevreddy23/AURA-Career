@@ -121,10 +121,14 @@ export const Navbar: React.FC = () => {
               {user ? (
                 <>
                   {/* Notifications */}
-                  <button className="h-9 w-9 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-accent transition-colors relative">
+                  <Link
+                    href="/notifications"
+                    className="relative h-9 w-9 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+                    title="Notifications"
+                  >
                     <Bell className="h-4 w-4" />
                     <span className="absolute top-1.5 right-1.5 h-2 w-2 rounded-full bg-primary" />
-                  </button>
+                  </Link>
 
                   {/* Profile Dropdown */}
                   <div className="relative">

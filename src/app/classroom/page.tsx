@@ -31,6 +31,7 @@ import { PomodoroTimer } from '@/components/classroom/PomodoroTimer';
 import { StudentDashboard } from '@/components/classroom/StudentDashboard';
 import { CalendarIntegration } from '@/components/classroom/CalendarIntegration';
 import { AudioPlayer } from '@/components/classroom/AudioPlayer';
+import ReactMarkdown from 'react-markdown';
 
 
 export default function ClassroomPage() {
@@ -138,12 +139,12 @@ export default function ClassroomPage() {
   }, [setAssistantEmotion, setAssistantAnimation]);
 
   useEffect(() => {
-    boardEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [boardPages, currentPage]);
+    transcriptRef.current?.scrollTo({ top: transcriptRef.current.scrollHeight, behavior: 'smooth' });
+  }, [boardPages, isGenerating]);
 
   useEffect(() => {
-    transcriptRef.current?.scrollTo({ top: transcriptRef.current.scrollHeight, behavior: 'smooth' });
-  }, [boardPages, isGenerating, currentPage]);
+    transcriptRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [currentPage]);
 
   const startAmbientAudio = useCallback((type: 'off' | 'lofi' | 'rain' | 'coffee') => {
     if (typeof window === 'undefined') return;
@@ -1670,69 +1671,46 @@ Keep the explanation focused and helpful. After answering, say "Ready to continu
 
         {/* Main Classroom */}
         <div ref={classroomRef} className="flex-1 flex overflow-hidden relative">
-          <aside className="hidden w-[320px] shrink-0 flex-col border-r border-white/10 bg-[#0b1120] p-4 lg:flex">
-            <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-              <div className="flex items-center gap-3">
-                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/15 text-primary">
-                  <Bot className="h-6 w-6" />
+          <div className="hidden w-[30%] min-w-[280px] shrink-0 flex-col border-r border-white/10 bg-[#0b1120] lg:flex">
+            <div className="flex items-center gap-3 border-b border-white/10 p-4">
+              <div className="relative shrink-0">
+                <div className="h-10 w-10 rounded-2xl border border-indigo-500/20 bg-indigo-500/10 p-1.5">
+                  <TeacherAvatar
+                    styleId={teacher.id as 'professor' | 'coach' | 'friend' | 'expert' | 'simplifier'}
+                    state={teacherState}
+                    isFemale={true}
+                    className="h-full w-full"
+                  />
                 </div>
-                <div>
-                  <p className="text-sm font-semibold text-white">{teacher.name}</p>
-                  <p className="text-xs text-slate-400">{teacher.teachingApproach}</p>
-                </div>
+                <span className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-[#0b1120] bg-emerald-400 animate-pulse" />
               </div>
-
-              <div className="mt-4 rounded-xl border border-white/10 bg-slate-950/70 p-3">
-                <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-400">Live session</div>
-                <div className="mt-2 flex items-center gap-2 text-sm text-slate-200">
-                  <span className="h-2.5 w-2.5 rounded-full bg-emerald-400" />
-                  {isGenerating ? 'Teaching now' : 'Ready to teach'}
-                </div>
-                {lessonTitle && <p className="mt-2 text-sm text-slate-300">{lessonTitle}</p>}
-                {topic && <p className="mt-1 text-xs text-slate-500">Topic: {topic}</p>}
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-semibold text-white">{teacher.name} · AI Teacher Chat</p>
+                <p className="truncate text-xs text-slate-400">{teacher.teachingApproach}</p>
               </div>
-
-              <div className="mt-4 space-y-2">
-                {objectives.slice(0, 3).map((objective, idx) => (
-                  <div key={idx} className="flex gap-2 rounded-lg border border-white/10 bg-slate-900/70 px-3 py-2 text-sm text-slate-300">
-                    <span className="text-primary">{idx + 1}.</span>
-                    <span>{objective}</span>
-                  </div>
-                ))}
-              </div>
+              {lessonTitle && (
+                <span className="max-w-[110px] truncate text-[10px] font-mono text-indigo-300">{lessonTitle}</span>
+              )}
             </div>
+            <ChatPanel
+              agentType="teacher"
+              title={`Chat with ${teacher.name}`}
+              context={{
+                currentLesson: lessonTitle || topic,
+                currentSlide: currentSection,
+                slideIndex: currentPage,
+                totalSlides: boardPages.length,
+              }}
+              voiceMode={voiceMode}
+              onVoiceModeChange={setVoiceMode}
+              speak={speakText}
+              className="flex-1"
+            />
+          </div>
 
-            <div className="mt-4 rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-slate-300">
-              <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-400">Quick actions</div>
-              <div className="mt-3 space-y-2">
-                <button
-                  onClick={() => setActiveSidebarTab(activeSidebarTab === 'chat' ? null : 'chat')}
-                  className="flex w-full items-center justify-between rounded-lg border border-white/10 bg-slate-900/70 px-3 py-2 text-left"
-                >
-                  <span>Open live chat</span>
-                  <MessageSquare className="h-4 w-4 text-primary" />
-                </button>
-                <button
-                  onClick={() => setActiveSidebarTab(activeSidebarTab === 'notes' ? null : 'notes')}
-                  className="flex w-full items-center justify-between rounded-lg border border-white/10 bg-slate-900/70 px-3 py-2 text-left"
-                >
-                  <span>Notes</span>
-                  <FileText className="h-4 w-4 text-primary" />
-                </button>
-              </div>
-            </div>
-
-            {memoryInsight && (
-              <div className="mt-4 rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-3 text-sm text-emerald-200">
-                <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-emerald-300">Memory insight</div>
-                <p className="mt-2 text-sm leading-6">{memoryInsight}</p>
-              </div>
-            )}
-          </aside>
-
-          <div className="flex-1 bg-[radial-gradient(circle_at_top,_rgba(99,102,241,0.12),_transparent_45%),linear-gradient(180deg,_#0f172a,_#020617)]">
-            <div className="mx-auto flex h-full max-w-5xl flex-col px-4 py-4 sm:px-6 lg:px-8">
-              <div className="mb-4 rounded-2xl border border-white/10 bg-slate-900/80 p-4 shadow-2xl backdrop-blur">
+          <div className="flex-1 min-h-0 bg-[radial-gradient(circle_at_top,_rgba(99,102,241,0.12),_transparent_45%),linear-gradient(180deg,_#0f172a,_#020617)]">
+            <div className="mx-auto flex h-full min-h-0 max-w-5xl flex-col px-4 py-4 sm:px-6 lg:px-8">
+              <div className="mb-4 shrink-0 rounded-2xl border border-white/10 bg-slate-900/80 p-4 shadow-2xl backdrop-blur">
                 <div className="flex items-center justify-between gap-3">
                   <div>
                     <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-indigo-300">AI tutor studio</div>
@@ -1744,83 +1722,130 @@ Keep the explanation focused and helpful. After answering, say "Ready to continu
                 </div>
               </div>
 
-              <div ref={transcriptRef} className="flex-1 overflow-y-auto rounded-2xl border border-white/10 bg-slate-950/70 p-4 shadow-inner">
-                <div className="grid h-full gap-4 xl:grid-cols-[1.2fr_0.8fr]">
-                  <div className="min-h-[420px] overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-br from-slate-900 via-slate-900/95 to-indigo-950/60 shadow-2xl">
-                    <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
-                      <div>
-                        <div className="text-[10px] font-semibold uppercase tracking-[0.24em] text-indigo-300">Live tutor chat</div>
-                        <div className="text-sm font-semibold text-white">{teacher.name} is guiding this lesson in real time</div>
-                      </div>
-                      <div className="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2.5 py-1 text-[10px] font-semibold text-emerald-300">
-                        {isGenerating ? 'Streaming' : 'Listening'}
-                      </div>
+              {/* Slide navigation rail */}
+              {boardPages.length > 0 && currentBoard && currentBoard.items.length > 0 && (
+                <div className="mb-2 shrink-0 flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-slate-900/60 px-3 py-1.5 backdrop-blur">
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 px-2 text-[11px] text-slate-300 hover:bg-white/10"
+                      disabled={currentPage === 0}
+                      onClick={() => setCurrentPage(Math.max(0, currentPage - 1))}
+                      title="Previous slide"
+                    >
+                      <ChevronLeft className="h-3.5 w-3.5" /> Prev
+                    </Button>
+                    <span className="text-[10px] font-mono text-slate-400 whitespace-nowrap">
+                      Slide <span className="text-indigo-300 font-semibold">{currentPage + 1}</span> / {boardPages.length}
+                    </span>
+                    <div className="hidden md:flex items-center gap-1.5">
+                      {boardPages.map((page, idx) => (
+                        <button
+                          key={page.id}
+                          onClick={() => setCurrentPage(idx)}
+                          title={`Slide ${idx + 1}`}
+                          className={cn(
+                            "h-1.5 rounded-full transition-all",
+                            idx === currentPage
+                              ? "w-6 bg-indigo-400 shadow-[0_0_8px_rgba(99,102,241,0.6)]"
+                              : "w-1.5 bg-slate-600 hover:bg-slate-400"
+                          )}
+                        />
+                      ))}
                     </div>
-                    <div className="h-[calc(100%-56px)]">
-                      <ChatPanel
-                        agentType="teacher"
-                        title={`Chat with ${teacher.name}`}
-                        context={{
-                          currentLesson: lessonTitle || topic,
-                          currentSlide: currentSection,
-                          slideIndex: currentPage,
-                          totalSlides: boardPages.length,
-                        }}
-                        voiceMode={voiceMode}
-                        onVoiceModeChange={setVoiceMode}
-                        speak={speakText}
-                        className="h-full"
-                      />
-                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 px-2 text-[11px] text-slate-300 hover:bg-white/10"
+                      disabled={currentPage >= boardPages.length - 1}
+                      onClick={() => setCurrentPage(Math.min(boardPages.length - 1, currentPage + 1))}
+                      title="Next slide"
+                    >
+                      Next <ChevronRight className="h-3.5 w-3.5" />
+                    </Button>
                   </div>
-
-                  <div className="flex flex-col gap-4">
-                    <div className="rounded-3xl border border-white/10 bg-slate-900/70 p-4 shadow-lg">
-                      <div className="flex items-start gap-3">
-                        <div className="h-16 w-16 shrink-0 rounded-2xl border border-indigo-500/20 bg-indigo-500/10 p-2">
-                          <TeacherAvatar
-                            styleId={teacher.id as 'professor' | 'coach' | 'friend' | 'expert' | 'simplifier'}
-                            state={teacherState}
-                            isFemale={true}
-                            className="h-full w-full"
-                          />
-                        </div>
-                        <div className="min-w-0">
-                          <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-indigo-300">Current tutor</div>
-                          <div className="mt-1 text-base font-semibold text-white">{teacher.name}</div>
-                          <p className="mt-1 text-sm leading-6 text-slate-400">{teacher.description}</p>
-                        </div>
-                      </div>
-
-                      <div className="mt-4 space-y-2">
-                        {objectives.slice(0, 3).map((objective, idx) => (
-                          <div key={idx} className="flex gap-2 rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-slate-300">
-                            <span className="text-indigo-400">{idx + 1}</span>
-                            <span>{objective}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div className="rounded-3xl border border-white/10 bg-slate-900/70 p-4 shadow-lg">
-                      <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-400">Live guidance</div>
-                      <div className="mt-3 space-y-2">
-                        {boardPages.some(page => page.items.length > 0) ? (
-                          boardPages.flatMap(page => page.items).slice(-4).reverse().map((item, idx) => (
-                            <div key={`${item.id}-${idx}`} className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-slate-300">
-                              <div className="text-[10px] uppercase tracking-[0.24em] text-slate-500">{item.type}</div>
-                              <p className="mt-1 line-clamp-3">{item.content}</p>
-                            </div>
-                          ))
-                        ) : (
-                          <div className="rounded-2xl border border-dashed border-white/10 bg-white/5 px-3 py-4 text-sm text-slate-400">
-                            The tutor will start shaping the lesson here as soon as you begin.
-                          </div>
-                        )}
-                      </div>
-                    </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => {
+                        const next = boardStyle === 'blackboard' ? 'whiteboard' : 'blackboard';
+                        setBoardStyle(next);
+                        setCanvasTheme(next === 'whiteboard' ? 'studio' : 'cyber');
+                      }}
+                      title="Toggle blackboard / whiteboard"
+                      className={cn(
+                        "h-6 px-2.5 rounded-lg border text-[10px] font-semibold flex items-center gap-1.5 transition-all",
+                        boardStyle === 'blackboard'
+                          ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300"
+                          : "border-indigo-500/30 bg-indigo-500/10 text-indigo-300"
+                      )}
+                    >
+                      {boardStyle === 'blackboard' ? (
+                        <><Palette className="h-3 w-3" /> Blackboard</>
+                      ) : (
+                        <><Layers className="h-3 w-3" /> Whiteboard</>
+                      )}
+                    </button>
+                    {isPaused && (
+                      <Button
+                        variant="primary"
+                        size="sm"
+                        onClick={() => resumeLesson()}
+                        className="h-6 px-2.5 text-[10px] bg-emerald-600 hover:bg-emerald-500 text-white"
+                      >
+                        <Play className="h-3 w-3 mr-1" /> Resume
+                      </Button>
+                    )}
                   </div>
                 </div>
+              )}
+
+              <div ref={transcriptRef} className="board-container rounded-2xl border border-white/10 bg-slate-950/70 p-4 shadow-inner">
+                {memoryInsight && (
+                  <div className="mb-4 rounded-2xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-200">
+                    <div className="text-[10px] font-semibold uppercase tracking-[0.24em] text-emerald-300">Memory insight</div>
+                    <p className="mt-1 text-sm leading-6">{memoryInsight}</p>
+                  </div>
+                )}
+
+                {objectives.length > 0 && (
+                  <div className="mb-4 flex flex-wrap gap-2">
+                    {objectives.slice(0, 3).map((objective, idx) => (
+                      <span key={idx} className="rounded-full border border-indigo-500/20 bg-indigo-500/10 px-3 py-1 text-xs text-indigo-200">
+                        <span className="font-bold text-primary">{idx + 1}.</span> {objective}
+                      </span>
+                    ))}
+                  </div>
+                )}
+
+                {currentBoard && currentBoard.items.length > 0 ? (
+                  renderSlideContent(currentBoard.items)
+                ) : (
+                  <div className="flex h-full flex-col items-center justify-center text-center text-slate-500 space-y-3">
+                    <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10">
+                      <Sparkles className="h-7 w-7 text-primary/50" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-slate-400">
+                        {isGenerating ? 'AURA is preparing your lesson...' : 'The lesson board is empty'}
+                      </p>
+                      <p className="mt-1 max-w-xs text-xs leading-relaxed text-slate-600">
+                        {isGenerating
+                          ? 'Slides will stream here as your teacher explains each part.'
+                          : 'Type any topic below and press Teach to start your live lesson.'}
+                      </p>
+                    </div>
+                    {isGenerating && (
+                      <div className="flex items-center gap-1">
+                        <span className="h-1.5 w-1.5 rounded-full bg-primary/60 animate-bounce" style={{ animationDelay: '0ms' }} />
+                        <span className="h-1.5 w-1.5 rounded-full bg-primary/60 animate-bounce" style={{ animationDelay: '150ms' }} />
+                        <span className="h-1.5 w-1.5 rounded-full bg-primary/60 animate-bounce" style={{ animationDelay: '300ms' }} />
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                <div ref={boardEndRef} />
               </div>
             </div>
           </div>
@@ -1879,7 +1904,28 @@ Keep the explanation focused and helpful. After answering, say "Ready to continu
                         <div className="flex-1 overflow-y-auto space-y-4 pr-1 scrollbar-thin text-left">
                           {doubtAnswer && (
                             <div className="p-4 rounded-xl bg-white/[0.02] border border-white/5 text-slate-300 leading-relaxed whitespace-pre-wrap">
-                              {doubtAnswer}
+                              <ReactMarkdown
+                                components={{
+                                  p: ({ children }) => <p className="mb-2 text-[13px] leading-relaxed">{children}</p>,
+                                  ul: ({ children }) => <ul className="mb-2 space-y-1 pl-4 list-disc">{children}</ul>,
+                                  ol: ({ children }) => <ol className="mb-2 space-y-1 pl-4 list-decimal">{children}</ol>,
+                                  li: ({ children }) => <li className="text-[13px] leading-relaxed">{children}</li>,
+                                  code: ({ children }) => (
+                                    <code className="bg-white/10 text-emerald-300 px-1 py-0.5 rounded text-[11px] font-mono">
+                                      {children}
+                                    </code>
+                                  ),
+                                  pre: ({ children }) => (
+                                    <pre className="mb-2 p-3 rounded-lg bg-slate-950/80 border border-white/10 overflow-x-auto text-[11px] font-mono text-slate-100">
+                                      {children}
+                                    </pre>
+                                  ),
+                                  strong: ({ children }) => <strong className="font-semibold text-white">{children}</strong>,
+                                  h3: ({ children }) => <h3 className="mb-1 mt-2 text-sm font-bold text-white">{children}</h3>,
+                                }}
+                              >
+                                {doubtAnswer}
+                              </ReactMarkdown>
                             </div>
                           )}
                           {doubtLoading && (
