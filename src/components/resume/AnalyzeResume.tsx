@@ -1,925 +1,649 @@
 'use client';
 
-import React, { useState, useCallback, useRef, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Card, CardContent } from '@/components/ui/Card';
-import { Badge } from '@/components/ui/Badge';
-import { Button } from '@/components/ui/Button';
-import { Progress } from '@/components/ui/Progress';
-import { cn } from '@/lib/utils';
 import {
-  Upload,
-  FileText,
-  Loader2,
-  Briefcase,
-  ExternalLink,
-  TrendingUp,
-  UserCheck,
-  Star,
-  Target,
-  ArrowUp,
-  Sparkles,
-  MapPin,
-  Building2,
-  CalendarDays,
-  RefreshCw,
-  Bot,
-  Send,
-  Paperclip,
-  Brain,
-  ShieldCheck,
-  FileSearch,
-  Wand2,
-  CheckCircle,
-  Clock,
+  UploadCloud, FileText, CheckCircle2, XCircle, AlertCircle,
+  Sparkles, Briefcase, Award, TrendingUp, Layers, Check, RefreshCw,
+  Search, ExternalLink, ChevronRight, HelpCircle, ArrowRight, Zap
 } from 'lucide-react';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/Card';
+import { Button } from '@/components/ui/Button';
+import { Badge } from '@/components/ui/Badge';
+import { extractTextFromPdf } from '@/lib/pdfParser';
 
-interface ResumeAnalysis {
-  skills: string[];
-  experienceLevel: string;
-  suggestedRoles: string[];
-  summary: string;
-  strengths: string[];
-  improvements: string[];
-  searchKeywords: string[];
-  atsScore?: number;
-  atsGaps?: string[];
+// --- Data Types ---
+export interface ScoreBreakdown {
+  format_structure: number;
+  content_relevance: number;
+  keyword_matching: number;
+  skills: number;
+  experience: number;
 }
 
-interface Job {
+export interface ImprovementTip {
+  title: string;
+  detail: string;
+  section?: string;
+}
+
+export interface JobMatch {
   title: string;
   company: string;
   location: string;
-  source: string;
-  description: string;
-  url: string;
-  postedDate: string;
-  matchScore?: number;
+  match_pct: number;
 }
 
-interface ChatMessage {
-  id: string;
-  role: 'user' | 'bot';
-  kind: 'text' | 'typing' | 'analysis' | 'jobs';
-  content?: string;
-  analysis?: ResumeAnalysis;
-  jobs?: Job[];
+export interface AnalysisData {
+  ats_score: number;
+  ats_verdict: 'Excellent' | 'Good' | 'Needs Work' | string;
+  takeaway?: string;
+  score_breakdown: ScoreBreakdown;
+  matched_keywords: string[];
+  partially_matched_keywords?: string[];
+  missing_keywords: string[];
+  improvement_tips: ImprovementTip[];
+  job_matches: JobMatch[];
 }
 
-const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+const STORAGE_KEY = 'aura_resume_analysis_cache';
 
-let msgCounter = 0;
-const nextId = () => `msg-${++msgCounter}-${Date.now()}`;
+const PRESET_ROLES = [
+  'Full Stack Developer',
+  'Frontend Engineer',
+  'Backend Developer',
+  'Data Scientist',
+  'ML Engineer',
+  'DevOps Engineer',
+  'Product Manager',
+  'UI/UX Designer',
+  'Cloud Architect'
+];
 
-export const AnalyzeResume: React.FC = () => {
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [isBusy, setIsBusy] = useState(false);
-  const [file, setFile] = useState<File | null>(null);
-  const [fileName, setFileName] = useState('');
-  const [analysis, setAnalysis] = useState<ResumeAnalysis | null>(null);
-  const [rawText, setRawText] = useState('');
-  const [jobs, setJobs] = useState<Job[]>([]);
-  const [isUploading, setIsUploading] = useState(false);
-  const [quickReplies, setQuickReplies] = useState<string[]>([]);
-  const [isPastedMode, setIsPastedMode] = useState(false);
-  const [pasteContext, setPasteContext] = useState<'resume' | 'job'>('resume');
-  const [pastedText, setPastedText] = useState('');
-  const [chatInput, setChatInput] = useState('');
-  const scrollRef = useRef<HTMLDivElement>(null);
+export interface AnalyzeResumeProps {
+  onNavigateToJobs?: () => void;
+}
+
+export const AnalyzeResume: React.FC<AnalyzeResumeProps> = ({ onNavigateToJobs }) => {
+  // State
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [extractedText, setExtractedText] = useState<string>('');
+  const [targetRole, setTargetRole] = useState<string>('');
+  const [targetJobDescription, setTargetJobDescription] = useState<string>('');
+  const [isDragOver, setIsDragOver] = useState<boolean>(false);
+
+  const [isAnalyzing, setIsAnalyzing] = useState<boolean>(false);
+  const [loadingStep, setLoadingStep] = useState<string>('Scanning document...');
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  const [analysis, setAnalysis] = useState<AnalysisData | null>(null);
+  const [keywordFilter, setKeywordFilter] = useState<'all' | 'matched' | 'partial' | 'missing'>('all');
+
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const initializedRef = useRef(false);
 
+  // Load cached analysis on mount
   useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }
-  }, [messages, isUploading]);
-
-  useEffect(() => {
-    if (initializedRef.current) return;
-    initializedRef.current = true;
-    const t = setTimeout(() => {
-      setMessages([{
-        id: nextId(),
-        role: 'bot',
-        kind: 'text',
-        content:
-          "Hi! I'm your AURA career coach 👋\n\nUpload your resume (PDF or DOCX) and I'll analyze it for ATS compatibility, extract your skills, suggest roles, and even hunt down matching job openings for you.\n\nGo ahead — drop your file or paste your resume text below.",
-      }]);
-      setQuickReplies(['Upload resume', 'Paste resume text']);
-    }, 400);
-    return () => clearTimeout(t);
-  }, []);
-
-  const appendMessage = useCallback((msg: ChatMessage) => {
-    setMessages(prev => [...prev, msg]);
-  }, []);
-
-  const botTyping = useCallback(() => {
-    const typingMsg: ChatMessage = { id: nextId(), role: 'bot', kind: 'typing' };
-    appendMessage(typingMsg);
-    return typingMsg.id;
-  }, [appendMessage]);
-
-  const replaceTyping = useCallback((typingId: string, msg: Omit<ChatMessage, 'id' | 'role'>) => {
-    setMessages(prev => prev.map(m => (m.id === typingId ? { id: m.id, role: 'bot', ...msg } : m)));
-  }, []);
-
-  const botSay = useCallback(async (text: string, delay = 900) => {
-    const typingId = botTyping();
-    await sleep(delay);
-    replaceTyping(typingId, { kind: 'text', content: text });
-  }, [botTyping, replaceTyping]);
-
-  const botSaySequential = useCallback(async (steps: string[], perStep = 1100) => {
-    for (const step of steps) {
-      await botSay(step, perStep);
-    }
-  }, [botSay]);
-
-  const handleFileDrop = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    const droppedFile = e.dataTransfer.files[0];
-    if (droppedFile) {
-      setFile(droppedFile);
-      setFileName(droppedFile.name);
-    }
-  }, []);
-
-  const handleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const selectedFile = e.target.files?.[0];
-    if (selectedFile) {
-      setFile(selectedFile);
-      setFileName(selectedFile.name);
-    }
-  }, []);
-
-  const extractTextFromPDF = useCallback(async (file: File): Promise<string> => {
-    const pdfjsLib: any = await import('pdfjs-dist/build/pdf.mjs');
-    pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';
-    const buffer = await file.arrayBuffer();
-    const doc = await pdfjsLib.getDocument({ data: buffer }).promise;
-    let text = '';
-    for (let i = 1; i <= doc.numPages; i++) {
-      const page = await doc.getPage(i);
-      const content = await page.getTextContent();
-      text += content.items.map((item: any) => item.str).join(' ') + '\n';
-    }
-    return text.trim();
-  }, []);
-
-  const extractTextFromDOCX = useCallback(async (file: File): Promise<string> => {
-    const mammoth = await import('mammoth');
-    const buffer = await file.arrayBuffer();
-    const result = await mammoth.extractRawText({ arrayBuffer: buffer });
-    return result.value.trim();
-  }, []);
-
-  const analyzeText = useCallback(async (text: string) => {
-    setIsBusy(true);
-    setQuickReplies([]);
-    appendMessage({ id: nextId(), role: 'user', kind: 'text', content: fileName || 'Analyze my resume' });
-    setFileName('');
-
-    const typingId = botTyping();
-    const steps = [
-      'Reading your resume...',
-      'Extracting skills and experience signals...',
-      'Scoring against 200+ ATS rules...',
-    ];
-    for (const step of steps) {
-      await sleep(1100);
-      setMessages(prev => prev.map(m => (m.id === typingId ? { ...m, content: step } : m)));
-    }
-
     try {
-      const res = await fetch('/api/resume-hub/analyze', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text }),
-      });
-      const data = await res.json();
-      if (!data.success) throw new Error(data.error || 'Analysis failed');
-
-      const result: ResumeAnalysis = data.data.analysis;
-      setAnalysis(result);
-      setRawText(data.data.rawText);
-      replaceTyping(typingId, { kind: 'analysis', analysis: result });
-
-      const score = result.atsScore ?? 0;
-      const verdict =
-        score >= 80 ? 'strong resume — recruiters should notice it. 🎯' :
-        score >= 60 ? 'decent foundation, but ATS gaps are holding you back.' :
-        'struggling to pass ATS filters — let\'s fix that.';
-      await botSay(
-        `Analysis complete! Here's your profile at a glance. Your resume scores **${score}/100** for ATS compatibility — a ${verdict}\n\nWhat would you like to do next?`,
-        800
-      );
-      setQuickReplies([
-        'Find matching jobs',
-        'Improve my summary',
-        'Show ATS gaps',
-        'Score against a job description',
-      ]);
-    } catch (err: any) {
-      replaceTyping(typingId, {
-        kind: 'text',
-        content: `I ran into an issue analyzing that file: ${err.message || 'unknown error'}. Mind trying again?`,
-      });
-    } finally {
-      setIsBusy(false);
-      setIsUploading(false);
+      const cached = localStorage.getItem(STORAGE_KEY);
+      if (cached) {
+        setAnalysis(JSON.parse(cached));
+      }
+    } catch (e) {
+      console.error('Failed to load cached analysis:', e);
     }
-  }, [appendMessage, botTyping, replaceTyping, botSay, fileName]);
+  }, []);
 
-  const handleAnalyze = useCallback(async () => {
+  // Save analysis to cache when updated
+  const saveToCache = (data: AnalysisData) => {
+    setAnalysis(data);
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    } catch (e) {
+      console.error('Failed to save analysis to cache:', e);
+    }
+  };
+
+  const clearCache = () => {
+    localStorage.removeItem(STORAGE_KEY);
+    setAnalysis(null);
+    setSelectedFile(null);
+    setExtractedText('');
+    setErrorMsg(null);
+  };
+
+  // Handle File Selection
+  const handleFileChange = async (file: File | undefined) => {
     if (!file) return;
-    setIsUploading(true);
-    setFile(null);
-
-    const typingId = botTyping();
-    await sleep(700);
-    setMessages(prev => prev.map(m => (m.id === typingId ? { ...m, content: `Opening ${fileName} and extracting text...` } : m)));
+    if (file.type !== 'application/pdf' && !file.name.endsWith('.pdf')) {
+      setErrorMsg('Please upload a PDF file (.pdf).');
+      return;
+    }
+    setErrorMsg(null);
+    setSelectedFile(file);
 
     try {
-      let text = '';
-      const name = fileName.toLowerCase();
-      if (name.endsWith('.pdf')) {
-        text = await extractTextFromPDF(file);
-      } else if (name.endsWith('.docx')) {
-        text = await extractTextFromDOCX(file);
+      setLoadingStep('Extracting text from PDF...');
+      const text = await extractTextFromPdf(file);
+      if (!text || text.trim().length < 50) {
+        setErrorMsg('Could not extract readable text from PDF. It may be scanned or image-only. Please try another PDF or paste text directly.');
       } else {
-        text = await file.text();
+        setExtractedText(text);
       }
-      if (!text.trim()) throw new Error('No text content found in the file.');
-
-      replaceTyping(typingId, { kind: 'text', content: `📄 Got it — "**${fileName}**" contains ${text.length.toLocaleString()} characters. Analyzing now...` });
-      await analyzeText(text);
     } catch (err: any) {
-      replaceTyping(typingId, { kind: 'text', content: `Couldn't read that file: ${err.message}. Try a PDF or DOCX.` });
-      setIsUploading(false);
-      setIsBusy(false);
+      console.error('Parsing error:', err);
+      setErrorMsg(err.message || 'Failed to parse PDF file. Please ensure it is a valid text-based PDF.');
     }
-  }, [file, fileName, analyzeText, extractTextFromPDF, extractTextFromDOCX, botTyping, replaceTyping]);
+  };
 
-  const handlePastedAnalyze = useCallback(async () => {
-    const text = pastedText.trim();
-    if (!text) return;
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragOver(false);
+    const file = e.dataTransfer.files?.[0];
+    handleFileChange(file);
+  };
 
-    if (pasteContext === 'job') {
-      setIsPastedMode(false);
-      setIsBusy(true);
-      setQuickReplies([]);
-      appendMessage({ id: nextId(), role: 'user', kind: 'text', content: 'Score against a job description' });
-      const typingId = botTyping();
-      await sleep(900);
-      setMessages(prev => prev.map(m => (m.id === typingId ? { ...m, content: 'Comparing your resume against the job description keyword-by-keyword...' } : m)));
-
-      try {
-        const res = await fetch('/api/resume-hub/score', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ resume_text: rawText.slice(0, 15000), job_description: text }),
-        });
-        const data = await res.json();
-        if (!data.success) throw new Error(data.error || 'Scoring failed');
-        const scoreData = data.data || {};
-        const matchScore = scoreData.matchScore ?? 0;
-        const matched = Array.isArray(scoreData.matchedKeywords) ? scoreData.matchedKeywords : [];
-        const missing = Array.isArray(scoreData.missingKeywords) ? scoreData.missingKeywords : [];
-        const tips = Array.isArray(scoreData.tailoringSuggestions) ? scoreData.tailoringSuggestions : [];
-
-        let reply = `Here's how your resume matches that job description:\n\n**Match score: ${matchScore}/100**\n\n`;
-        reply += `✅ **Matched keywords (${matched.length}):** ${matched.slice(0, 12).join(', ') || 'none found'}\n\n`;
-        reply += `❌ **Missing keywords (${missing.length}):** ${missing.slice(0, 12).join(', ') || 'none — great coverage!'}\n\n`;
-        if (tips.length > 0) {
-          reply += `💡 **Tailoring suggestions:**\n`;
-          tips.slice(0, 5).forEach((tip: string, i: number) => { reply += `${i + 1}. ${tip}\n`; });
-        }
-        reply += `\nWant me to find jobs that fit this profile instead?`;
-        replaceTyping(typingId, { kind: 'text', content: reply });
-        setQuickReplies(['Find matching jobs', 'Improve my summary', 'Show ATS gaps', 'New resume analysis']);
-      } catch (err: any) {
-        replaceTyping(typingId, {
-          kind: 'text',
-          content: `I couldn't score against that description: ${err.message}. Make sure you've analyzed a resume first, then try again.`,
-        });
-        setQuickReplies(['Find matching jobs', 'New resume analysis']);
-      } finally {
-        setIsBusy(false);
-      }
+  // Start AI Analysis Flow
+  const runAnalysis = async () => {
+    if (!extractedText.trim()) {
+      setErrorMsg('Please upload a valid readable PDF resume first.');
       return;
     }
 
-    setIsPastedMode(false);
-    await analyzeText(text);
-  }, [pastedText, pasteContext, rawText, analyzeText, appendMessage, botTyping, replaceTyping]);
+    setIsAnalyzing(true);
+    setErrorMsg(null);
 
-  const handleFetchJobs = useCallback(async () => {
-    if (!analysis) return;
-    setIsBusy(true);
-    setQuickReplies([]);
-    appendMessage({ id: nextId(), role: 'user', kind: 'text', content: 'Find matching jobs' });
-
-    const typingId = botTyping();
-    const roles = analysis.suggestedRoles?.slice(0, 3).join(', ') || 'Software Engineer';
     const steps = [
-      `Searching job boards for "${roles}"...`,
-      'Cross-referencing your skills with live listings...',
-      'Ranking matches by relevance to your profile...',
+      'Scanning PDF Structure...',
+      'Evaluating ATS Formatting & Sections...',
+      'Comparing against Target Job Keywords...',
+      'Running AI Skill & Experience Evaluation...',
+      'Generating Custom Actionable Report...'
     ];
-    for (const step of steps) {
-      await sleep(1100);
-      setMessages(prev => prev.map(m => (m.id === typingId ? { ...m, content: step } : m)));
-    }
+
+    let currentStepIndex = 0;
+    const interval = setInterval(() => {
+      currentStepIndex = (currentStepIndex + 1) % steps.length;
+      setLoadingStep(steps[currentStepIndex]);
+    }, 2000);
 
     try {
-      const res = await fetch('/api/resume-hub/jobs', {
+      const res = await fetch('/api/resume/analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          roles: analysis.suggestedRoles,
-          skills: analysis.searchKeywords,
-        }),
+          resumeText: extractedText,
+          targetRole,
+          targetJobDescription
+        })
       });
+
       const data = await res.json();
-      if (!data.success) throw new Error(data.error || 'Job search failed');
+      clearInterval(interval);
 
-      const found: Job[] = data.data.jobs || [];
-      setJobs(found);
-      replaceTyping(typingId, { kind: 'jobs', jobs: found });
-      await botSay(
-        found.length > 0
-          ? `${data.data.summary || `I pulled **${found.length}** live openings for you.`}\n\nYour **top match** is "${found[0]?.title}" at ${found[0]?.company} (${found[0]?.matchScore}% fit) — tap it to apply directly, or ask me to refine the search.`
-          : 'I searched several boards but couldn\'t find live matches for those exact roles right now. Try "Improve my summary" or a different search, and I\'ll scan again.',
-        900
-      );
-      setQuickReplies(['Search with different location', 'Improve my summary', 'New resume analysis']);
-    } catch {
-      replaceTyping(typingId, { kind: 'text', content: 'The job boards are unreachable right now — the search service may be down. Please try again in a moment.' });
+      if (data.success && data.analysis) {
+        saveToCache(data.analysis);
+      } else {
+        setErrorMsg(data.error || 'Failed to analyze resume. Please try again.');
+      }
+    } catch (err: any) {
+      clearInterval(interval);
+      setErrorMsg(err.message || 'Connection error. Please check your network and try again.');
     } finally {
-      setIsBusy(false);
-    }
-  }, [analysis, botSay, botTyping, appendMessage, replaceTyping]);
-
-  const handleImproveSummary = useCallback(async () => {
-    if (!analysis || !rawText) return;
-    setIsBusy(true);
-    setQuickReplies([]);
-    appendMessage({ id: nextId(), role: 'user', kind: 'text', content: 'Improve my summary' });
-
-    const typingId = botTyping();
-    await sleep(800);
-    setMessages(prev => prev.map(m => (m.id === typingId ? { ...m, content: 'Rewriting your professional summary with ATS-friendly, impact-driven language...' } : m)));
-
-    try {
-      const res = await fetch('/api/resume-hub/improve', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          section: 'Professional Summary',
-          content: analysis.summary,
-          mode: 'improve',
-          background: rawText.slice(0, 3000),
-        }),
-      });
-      const data = await res.json();
-      const improved = data?.data?.improved || analysis.summary;
-      replaceTyping(typingId, {
-        kind: 'text',
-        content: `Here's a stronger, ATS-optimized version of your summary:\n\n${improved}\n\nSwap it into your resume and you'll rank higher for keyword scans. Want me to polish another section?`,
-      });
-      setQuickReplies(['Find matching jobs', 'Show ATS gaps', 'New resume analysis']);
-    } catch {
-      replaceTyping(typingId, { kind: 'text', content: 'I couldn\'t reach the AI writer this time. Try again shortly!' });
-    } finally {
-      setIsBusy(false);
-    }
-  }, [analysis, rawText, appendMessage, botTyping, replaceTyping]);
-
-  const handleShowGaps = useCallback(async () => {
-    if (!analysis) return;
-    setIsBusy(true);
-    setQuickReplies([]);
-    appendMessage({ id: nextId(), role: 'user', kind: 'text', content: 'Show ATS gaps' });
-
-    const typingId = botTyping();
-    await sleep(900);
-    const gaps = analysis.atsGaps?.length
-      ? analysis.atsGaps.map((g, i) => `${i + 1}. ${g}`).join('\n')
-      : 'No major ATS gaps detected — nice work!';
-    replaceTyping(typingId, {
-      kind: 'text',
-      content: `Here's what's hurting your ATS score (${analysis.atsScore ?? 'N/A'}/100):\n\n${gaps}\n\nWant me to fix the most impactful one first?`,
-    });
-    setQuickReplies(['Find matching jobs', 'Improve my summary', 'New resume analysis']);
-    setIsBusy(false);
-  }, [analysis, appendMessage, botTyping, replaceTyping]);
-
-  const handleQuickReply = useCallback((reply: string) => {
-    if (isBusy) return;
-    if (reply === 'Upload resume') {
-      fileInputRef.current?.click();
-    } else if (reply === 'Paste resume text') {
-      setPasteContext('resume');
-      setPastedText('');
-      setIsPastedMode(true);
-    } else if (reply === 'Find matching jobs') {
-      handleFetchJobs();
-    } else if (reply === 'Improve my summary') {
-      handleImproveSummary();
-    } else if (reply === 'Show ATS gaps') {
-      handleShowGaps();
-    } else if (reply === 'Search with different location') {
-      handleFetchJobs();
-    } else if (reply === 'New resume analysis') {
-      resetConversation();
-    } else if (reply === 'Score against a job description') {
-      appendMessage({ id: nextId(), role: 'user', kind: 'text', content: 'Score against a job description' });
-      setIsBusy(true);
-      setQuickReplies([]);
-      const typingId = botTyping();
-      sleep(1000).then(() => {
-        replaceTyping(typingId, {
-          kind: 'text',
-          content:
-            'Great idea! Paste the job description here and I\'ll score your resume against it — matched keywords, missing keywords, and tailoring suggestions. ✍️',
-        });
-        setPasteContext('job');
-        setPastedText('');
-        setIsPastedMode(true);
-        setIsBusy(false);
-      });
-    }
-  }, [isBusy, handleFetchJobs, handleImproveSummary, handleShowGaps, appendMessage, botTyping, replaceTyping]);
-
-  const resetConversation = useCallback(() => {
-    setAnalysis(null);
-    setJobs([]);
-    setRawText('');
-    setFile(null);
-    setFileName('');
-    setIsPastedMode(false);
-    setMessages([{
-      id: nextId(),
-      role: 'bot',
-      kind: 'text',
-      content: 'Fresh start! Upload a resume or paste its text and I\'ll run a full career analysis for you. 🚀',
-    }]);
-    setQuickReplies(['Upload resume', 'Paste resume text']);
-  }, []);
-
-  const getLevelColor = (level: string) => {
-    switch (level) {
-      case 'entry': return 'bg-green-500/10 text-green-500';
-      case 'mid': return 'bg-yellow-500/10 text-yellow-500';
-      case 'senior': return 'bg-orange-500/10 text-orange-500';
-      case 'lead': return 'bg-purple-500/10 text-purple-500';
-      default: return 'bg-primary/10 text-primary';
+      setIsAnalyzing(false);
     }
   };
 
-  const renderInline = (text: string) => {
-    const parts = text.split(/(\*\*[^*]+\*\*|`[^`]+`)/g);
-    return parts.map((part, i) => {
-      if (part.startsWith('**') && part.endsWith('**')) {
-        return <strong key={i} className="font-semibold text-foreground">{part.slice(2, -2)}</strong>;
-      }
-      if (part.startsWith('`') && part.endsWith('`')) {
-        return (
-          <code key={i} className="bg-muted text-primary px-1 py-0.5 rounded text-xs font-mono">
-            {part.slice(1, -1)}
-          </code>
-        );
-      }
-      return <React.Fragment key={i}>{part}</React.Fragment>;
-    });
+  // Verdict Styling Helpers
+  const getVerdictBadge = (verdict: string) => {
+    if (verdict === 'Excellent') {
+      return <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30 px-3 py-1 text-sm font-semibold">Excellent</Badge>;
+    } else if (verdict === 'Good') {
+      return <Badge className="bg-blue-500/20 text-blue-400 border-blue-500/30 px-3 py-1 text-sm font-semibold">Good</Badge>;
+    } else {
+      return <Badge className="bg-amber-500/20 text-amber-400 border-amber-500/30 px-3 py-1 text-sm font-semibold">Needs Work</Badge>;
+    }
   };
 
-  const renderMessage = (msg: ChatMessage) => {
-    if (msg.kind === 'typing') {
-      return (
-        <div className="flex items-center gap-1.5 py-1">
-          <span className="h-2 w-2 rounded-full bg-primary/70 animate-bounce" style={{ animationDelay: '0ms' }} />
-          <span className="h-2 w-2 rounded-full bg-primary/70 animate-bounce" style={{ animationDelay: '150ms' }} />
-          <span className="h-2 w-2 rounded-full bg-primary/70 animate-bounce" style={{ animationDelay: '300ms' }} />
-          <span className="text-xs text-muted-foreground ml-1">{msg.content || 'Thinking...'}</span>
-        </div>
-      );
-    }
-
-    if (msg.kind === 'analysis' && msg.analysis) {
-      const a = msg.analysis;
-      const score = a.atsScore ?? 0;
-      return (
-        <div className="space-y-3 w-full max-w-2xl">
-          <div className="flex items-center gap-4 p-4 rounded-xl border border-primary/20 bg-card">
-            <div className="relative h-16 w-16 shrink-0">
-              <svg viewBox="0 0 36 36" className="h-16 w-16 -rotate-90">
-                <circle cx="18" cy="18" r="15.5" fill="none" stroke="currentColor" strokeWidth="3.5" className="text-muted" />
-                <circle
-                  cx="18" cy="18" r="15.5" fill="none" stroke="currentColor" strokeWidth="3.5"
-                  strokeLinecap="round"
-                  strokeDasharray={`${(score / 100) * 97.4} 97.4`}
-                  className={score >= 80 ? 'text-green-500' : score >= 60 ? 'text-yellow-500' : 'text-red-500'}
-                />
-              </svg>
-              <span className="absolute inset-0 flex items-center justify-center text-sm font-bold">{score}</span>
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 flex-wrap">
-                <p className="font-semibold">ATS Score</p>
-                <Badge className={cn('capitalize', getLevelColor(a.experienceLevel))}>{a.experienceLevel} level</Badge>
-              </div>
-              <p className="text-sm text-muted-foreground mt-1 line-clamp-2">{a.summary}</p>
-            </div>
-            <ShieldCheck className="h-6 w-6 text-primary shrink-0" />
-          </div>
-
-          <div className="grid sm:grid-cols-2 gap-3">
-            <div className="p-3 rounded-xl border border-border bg-card">
-              <p className="text-xs font-medium flex items-center gap-1.5 mb-2 text-muted-foreground">
-                <Star className="h-3.5 w-3.5 text-yellow-500" /> Skills detected
-              </p>
-              <div className="flex flex-wrap gap-1.5">
-                {a.skills.slice(0, 10).map(s => (
-                  <span key={s} className="text-[11px] px-2 py-0.5 rounded-full bg-primary/10 text-primary">{s}</span>
-                ))}
-                {a.skills.length > 10 && <span className="text-[11px] px-2 py-0.5 text-muted-foreground">+{a.skills.length - 10} more</span>}
-              </div>
-            </div>
-            <div className="p-3 rounded-xl border border-border bg-card">
-              <p className="text-xs font-medium flex items-center gap-1.5 mb-2 text-muted-foreground">
-                <Target className="h-3.5 w-3.5 text-primary" /> Suggested roles
-              </p>
-              <div className="space-y-1.5">
-                {a.suggestedRoles.slice(0, 4).map((role, i) => (
-                  <div key={role} className="flex items-center justify-between text-xs">
-                    <span className="flex items-center gap-1.5">
-                      <Briefcase className="h-3 w-3 text-muted-foreground" /> {role}
-                    </span>
-                    <span className="font-mono text-muted-foreground">{Math.max(62, 90 - i * 9)}% match</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          <div className="p-3 rounded-xl border border-border bg-card space-y-2.5">
-            <div>
-              <p className="text-xs font-medium text-green-600 dark:text-green-400 flex items-center gap-1.5 mb-1">
-                <CheckCircle className="h-3.5 w-3.5" /> Strengths
-              </p>
-              <ul className="space-y-0.5">
-                {a.strengths.slice(0, 4).map(s => (
-                  <li key={s} className="text-xs text-muted-foreground flex gap-1.5">
-                    <span className="text-green-500">•</span> {s}
-                  </li>
-                ))}
-              </ul>
-            </div>
-            <div>
-              <p className="text-xs font-medium text-orange-500 flex items-center gap-1.5 mb-1">
-                <ArrowUp className="h-3.5 w-3.5" /> Improvements
-              </p>
-              <ul className="space-y-0.5">
-                {a.improvements.slice(0, 4).map(s => (
-                  <li key={s} className="text-xs text-muted-foreground flex gap-1.5">
-                    <span className="text-orange-500">•</span> {s}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          </div>
-        </div>
-      );
-    }
-
-    if (msg.kind === 'jobs' && msg.jobs) {
-      return (
-        <div className="space-y-2.5 w-full max-w-2xl">
-          <p className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
-            <FileSearch className="h-3.5 w-3.5" /> Live listings — {msg.jobs.length} found
-          </p>
-          {msg.jobs.map((job, i) => (
-            <motion.div
-              key={`${job.title}-${job.company}-${i}`}
-              initial={{ opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: i * 0.08 }}
-            >
-              <Card className="overflow-hidden hover:border-primary/40 transition-colors">
-                <CardContent className="p-3.5">
-                  <div className="flex items-start gap-3">
-                    <div className="h-9 w-9 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-                      <Building2 className="h-4.5 w-4.5 text-primary" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="min-w-0">
-                          <p className="text-sm font-medium truncate">{job.title}</p>
-                          <p className="text-xs text-muted-foreground truncate">{job.company}</p>
-                        </div>
-                        <div className="flex items-center gap-2 shrink-0">
-                          {typeof job.matchScore === 'number' && (
-                            <Badge
-                              variant={job.matchScore >= 75 ? 'success' : job.matchScore >= 50 ? 'warning' : 'outline'}
-                              size="sm"
-                              className="shrink-0"
-                            >
-                              {job.matchScore}% match
-                            </Badge>
-                          )}
-                          <Badge variant="outline" size="sm" className="shrink-0">{job.source}</Badge>
-                        </div>
-                      </div>
-                      <p className="text-xs text-muted-foreground mt-1.5 line-clamp-2">{job.description}</p>
-                      <div className="flex items-center gap-3 mt-2 text-[11px] text-muted-foreground">
-                        <span className="flex items-center gap-1">
-                          <MapPin className="h-3 w-3" /> {job.location}
-                        </span>
-                        <span className="flex items-center gap-1">
-                          <CalendarDays className="h-3 w-3" /> {job.postedDate}
-                        </span>
-                        {job.url && job.url !== '#' && (
-                          <a
-                            href={job.url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="ml-auto flex items-center gap-1 text-primary hover:underline font-medium"
-                          >
-                            Apply <ExternalLink className="h-3 w-3" />
-                          </a>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </motion.div>
-          ))}
-        </div>
-      );
-    }
+  // Render Score Circular Gauge
+  const renderCircularGauge = (score: number) => {
+    const radius = 52;
+    const circumference = 2 * Math.PI * radius;
+    const strokeDashoffset = circumference - (score / 100) * circumference;
+    const strokeColor = score >= 80 ? '#10b981' : score >= 60 ? '#3b82f6' : '#f59e0b';
 
     return (
-      <p className="text-sm leading-relaxed whitespace-pre-wrap">{renderInline(msg.content || '')}</p>
+      <div className="relative flex items-center justify-center w-36 h-36">
+        <svg className="transform -rotate-90 w-36 h-36">
+          <circle cx="72" cy="72" r={radius} stroke="currentColor" strokeWidth="10" fill="transparent" className="text-slate-800" />
+          <motion.circle
+            initial={{ strokeDashoffset: circumference }}
+            animate={{ strokeDashoffset }}
+            transition={{ duration: 1.5, ease: 'easeOut' }}
+            cx="72" cy="72" r={radius}
+            stroke={strokeColor}
+            strokeWidth="10"
+            fill="transparent"
+            strokeDasharray={circumference}
+            strokeLinecap="round"
+          />
+        </svg>
+        <div className="absolute flex flex-col items-center justify-center text-center">
+          <span className="text-4xl font-extrabold text-white tracking-tight">{score}</span>
+          <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Out of 100</span>
+        </div>
+      </div>
     );
   };
 
   return (
-    <div className="max-w-4xl mx-auto">
-      <Card className="overflow-hidden">
-        {/* Chat Header */}
-        <div className="flex items-center gap-3 p-4 border-b border-border bg-gradient-to-r from-primary/10 via-purple-500/10 to-transparent">
-          <div className="relative">
-            <div className="h-10 w-10 rounded-full bg-gradient-to-br from-primary to-purple-500 flex items-center justify-center shadow-lg shadow-primary/25">
-              <Bot className="h-5 w-5 text-white" />
-            </div>
-            <span className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-background bg-emerald-500" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2">
-              <p className="font-semibold">AURA Career Coach</p>
-              <Badge variant="primary" size="sm">
-                <Brain className="h-3 w-3 mr-1" /> AI
-              </Badge>
-            </div>
-            <p className="text-xs text-muted-foreground flex items-center gap-1.5">
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
-              Online · ATS expert & job matcher
-            </p>
-          </div>
-          <button
-            onClick={resetConversation}
-            className="h-8 w-8 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
-            title="Start a new session"
-          >
-            <RefreshCw className="h-4 w-4" />
+    <div className="space-y-8">
+      {/* ERROR ALERT */}
+      {errorMsg && (
+        <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="p-4 rounded-xl bg-red-950/60 border border-red-800 text-red-200 flex items-start gap-3">
+          <AlertCircle className="h-5 w-5 text-red-400 shrink-0 mt-0.5" />
+          <div className="flex-1 text-sm">{errorMsg}</div>
+          <button onClick={() => setErrorMsg(null)} className="text-red-400 hover:text-red-200">
+            <XCircle className="h-4 w-4" />
           </button>
-        </div>
+        </motion.div>
+      )}
 
-        {/* Messages */}
-        <div
-          ref={scrollRef}
-          className="h-[480px] overflow-y-auto px-4 py-5 space-y-4 bg-gradient-to-b from-background to-muted/30 scrollbar-thin"
-        >
-          {messages.map((msg) => (
-            <motion.div
-              key={msg.id}
-              initial={{ opacity: 0, y: 14 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.3 }}
-              className={cn('flex gap-2.5', msg.role === 'user' ? 'justify-end' : 'justify-start')}
-            >
-              {msg.role === 'bot' && (
-                <div className="h-7 w-7 rounded-full bg-gradient-to-br from-primary to-purple-500 flex items-center justify-center shrink-0 mt-1">
-                  <Bot className="h-4 w-4 text-white" />
+      {/* NO RESULTS STATE: UPLOAD FORM */}
+      {!analysis && (
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6 max-w-4xl mx-auto">
+          {/* Main Upload Card */}
+          <Card className="bg-slate-900/90 border-slate-800 shadow-xl overflow-hidden backdrop-blur">
+            <CardHeader className="border-b border-slate-800/60 pb-5">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 rounded-xl bg-primary/10 text-primary border border-primary/20">
+                  <Sparkles className="h-6 w-6" />
                 </div>
-              )}
-              <div
-                className={cn(
-                  'max-w-[85%] rounded-2xl px-4 py-3',
-                  msg.role === 'user'
-                    ? 'bg-primary text-primary-foreground rounded-br-md'
-                    : 'bg-card border border-border rounded-bl-md shadow-sm'
-                )}
-              >
-                {renderMessage(msg)}
+                <div>
+                  <CardTitle className="text-2xl font-bold">AI Resume Analyzer</CardTitle>
+                  <CardDescription className="text-slate-400">
+                    Scan your resume against real ATS criteria, uncover missing keywords, and get tailored recommendations.
+                  </CardDescription>
+                </div>
               </div>
-              {msg.role === 'user' && (
-                <div className="h-7 w-7 rounded-full bg-muted flex items-center justify-center shrink-0 mt-1">
-                  <UserCheck className="h-4 w-4 text-muted-foreground" />
-                </div>
-              )}
-            </motion.div>
-          ))}
+            </CardHeader>
 
-          {/* Paste text input */}
-          <AnimatePresence>
-            {isPastedMode && !isBusy && (
-              <motion.div
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: 10 }}
-                className="flex gap-2.5"
-              >
-                <div className="h-7 w-7 rounded-full bg-gradient-to-br from-primary to-purple-500 flex items-center justify-center shrink-0 mt-1">
-                  <Bot className="h-4 w-4 text-white" />
-                </div>
-                <div className="flex-1 max-w-[85%]">
-                  <textarea
-                    value={pastedText}
-                    onChange={(e) => setPastedText(e.target.value)}
-                    placeholder={
-                      pasteContext === 'job'
-                        ? 'Paste the job description here...'
-                        : 'Paste your resume text here... (at least a few lines)'
-                    }
-                    rows={6}
-                    className="w-full p-3 rounded-xl border border-border bg-card text-sm outline-none focus:border-primary/60 focus:ring-2 focus:ring-primary/20 resize-y scrollbar-thin"
-                  />
-                  <div className="flex items-center justify-end gap-2 mt-2">
-                    <Button variant="ghost" size="sm" onClick={() => setIsPastedMode(false)}>
-                      Cancel
-                    </Button>
-                    <Button variant="primary" size="sm" onClick={handlePastedAnalyze} disabled={!pastedText.trim()}>
-                      <Wand2 className="h-3.5 w-3.5 mr-1" />
-                      {pasteContext === 'job' ? 'Score It' : 'Analyze'}
-                    </Button>
-                  </div>
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-
-          {/* Upload zone */}
-          <AnimatePresence>
-            {!isPastedMode && !isUploading && !analysis && (
-              <motion.div
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: 10 }}
-                className="flex justify-start"
-              >
-                <div className="h-7 w-7 rounded-full bg-gradient-to-br from-primary to-purple-500 flex items-center justify-center shrink-0 mt-1">
-                  <Bot className="h-4 w-4 text-white" />
-                </div>
+            <CardContent className="pt-6 space-y-6">
+              {/* PDF Dropzone */}
+              <div>
+                <label className="block text-sm font-semibold mb-2 text-slate-200">
+                  1. Upload Resume (PDF) <span className="text-red-400">*</span>
+                </label>
                 <div
-                  onDragOver={(e) => e.preventDefault()}
-                  onDrop={handleFileDrop}
+                  onDragOver={(e) => { e.preventDefault(); setIsDragOver(true); }}
+                  onDragLeave={() => setIsDragOver(false)}
+                  onDrop={handleDrop}
                   onClick={() => fileInputRef.current?.click()}
-                  className="ml-2 flex-1 max-w-[85%] p-5 rounded-2xl border-2 border-dashed border-primary/30 bg-primary/5 hover:bg-primary/10 hover:border-primary/60 transition-colors cursor-pointer text-center"
+                  className={`border-2 border-dashed rounded-2xl p-8 text-center cursor-pointer transition-all duration-200 ${
+                    isDragOver
+                      ? 'border-primary bg-primary/10'
+                      : selectedFile
+                      ? 'border-emerald-500/50 bg-emerald-950/10'
+                      : 'border-slate-700 bg-slate-800/40 hover:border-slate-500 hover:bg-slate-800/70'
+                  }`}
                 >
-                  {file ? (
-                    <div className="flex items-center justify-center gap-3">
-                      <FileText className="h-6 w-6 text-primary" />
-                      <div className="text-left">
-                        <p className="text-sm font-medium">{fileName}</p>
-                        <p className="text-xs text-muted-foreground">{(file.size / 1024).toFixed(1)} KB — click to change</p>
-                      </div>
-                      <Button variant="primary" size="sm" onClick={(e) => { e.stopPropagation(); handleAnalyze(); }} isLoading={isUploading}>
-                        {isUploading ? 'Analyzing...' : 'Analyze'}
-                      </Button>
-                    </div>
-                  ) : (
-                    <div className="flex flex-col items-center gap-1.5">
-                      <Upload className="h-6 w-6 text-primary" />
-                      <p className="text-sm font-medium">Drop your resume here or click to browse</p>
-                      <p className="text-xs text-muted-foreground">PDF or DOCX</p>
-                    </div>
-                  )}
                   <input
-                    ref={fileInputRef}
                     type="file"
-                    accept=".pdf,.docx,.doc,.txt"
-                    onChange={handleFileSelect}
+                    ref={fileInputRef}
+                    accept=".pdf,application/pdf"
+                    onChange={(e) => handleFileChange(e.target.files?.[0])}
                     className="hidden"
                   />
+
+                  {selectedFile ? (
+                    <div className="flex flex-col items-center gap-2">
+                      <div className="p-3 bg-emerald-500/20 text-emerald-400 rounded-full">
+                        <FileText className="h-8 w-8" />
+                      </div>
+                      <p className="font-semibold text-emerald-400 text-lg">{selectedFile.name}</p>
+                      <p className="text-xs text-slate-400">{(selectedFile.size / 1024).toFixed(1)} KB — Click or drag to replace</p>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center gap-3">
+                      <div className="p-4 bg-slate-800 rounded-2xl border border-slate-700 text-primary">
+                        <UploadCloud className="h-10 w-10" />
+                      </div>
+                      <div>
+                        <p className="font-semibold text-slate-200 text-lg">
+                          Drag and drop your PDF resume here, or <span className="text-primary underline">browse</span>
+                        </p>
+                        <p className="text-xs text-slate-400 mt-1">Supports standard text-based PDF format</p>
+                      </div>
+                    </div>
+                  )}
                 </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
+              </div>
 
-        {/* Quick replies + input */}
-        <div className="p-3 border-t border-border bg-card/60">
-          {quickReplies.length > 0 && !isBusy && (
-            <div className="flex flex-wrap gap-2 mb-3">
-              {quickReplies.map((reply) => (
-                <button
-                  key={reply}
-                  onClick={() => handleQuickReply(reply)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-primary/30 bg-primary/5 text-xs font-medium text-primary hover:bg-primary/15 hover:scale-[1.03] transition-all"
+              {/* Optional Job Context */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
+                <div>
+                  <label className="block text-sm font-semibold mb-2 text-slate-200">
+                    Target Job Role <span className="text-slate-400 font-normal">(Optional)</span>
+                  </label>
+                  <select
+                    value={targetRole}
+                    onChange={(e) => setTargetRole(e.target.value)}
+                    className="w-full bg-slate-800/80 border border-slate-700 rounded-xl px-4 py-2.5 text-slate-200 focus:outline-none focus:border-primary text-sm"
+                  >
+                    <option value="">Select or type a role...</option>
+                    {PRESET_ROLES.map((role) => (
+                      <option key={role} value={role}>{role}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold mb-2 text-slate-200">
+                    Paste Target Job Description <span className="text-slate-400 font-normal">(Optional)</span>
+                  </label>
+                  <textarea
+                    value={targetJobDescription}
+                    onChange={(e) => setTargetJobDescription(e.target.value)}
+                    placeholder="Paste job posting text to perform targeted keyword matching..."
+                    rows={3}
+                    className="w-full bg-slate-800/80 border border-slate-700 rounded-xl px-4 py-2.5 text-slate-200 placeholder-slate-500 focus:outline-none focus:border-primary text-sm resize-none"
+                  />
+                </div>
+              </div>
+
+              {/* Action Button */}
+              <div className="pt-4 flex justify-end">
+                <Button
+                  onClick={runAnalysis}
+                  disabled={isAnalyzing || !selectedFile}
+                  size="lg"
+                  className="w-full sm:w-auto px-8 py-6 rounded-xl font-bold text-base shadow-lg shadow-primary/25"
                 >
-                  <Sparkles className="h-3 w-3" />
-                  {reply}
-                </button>
-              ))}
-            </div>
-          )}
+                  {isAnalyzing ? (
+                    <div className="flex items-center gap-3">
+                      <RefreshCw className="h-5 w-5 animate-spin" />
+                      <span>{loadingStep}</span>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <Zap className="h-5 w-5" />
+                      <span>Analyze Resume with AI</span>
+                    </div>
+                  )}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
+      )}
 
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              disabled={isBusy}
-              className="h-9 w-9 rounded-xl border border-border flex items-center justify-center text-muted-foreground hover:text-primary hover:border-primary/50 transition-colors shrink-0 disabled:opacity-50"
-              title="Attach a resume"
-            >
-              <Paperclip className="h-4 w-4" />
-            </button>
-            <div className="flex-1 relative">
-              <input
-                type="text"
-                value={chatInput}
-                onChange={(e) => setChatInput(e.target.value)}
-                placeholder={isBusy ? 'AURA is working on it...' : 'Ask me anything about your career...'}
-                disabled={isBusy}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !isBusy && chatInput.trim()) {
-                    const value = chatInput.trim();
-                    setChatInput('');
-                    if (value.toLowerCase().includes('job') || value.toLowerCase().includes('match')) {
-                      handleFetchJobs();
-                    } else {
-                      appendMessage({ id: nextId(), role: 'user', kind: 'text', content: value });
-                      setIsBusy(true);
-                      setQuickReplies([]);
-                      const typingId = botTyping();
-                      sleep(1000).then(() => {
-                        replaceTyping(typingId, {
-                          kind: 'text',
-                          content:
-                            'I\'m focused on resume analysis and job matching right now. Try one of these: **Find matching jobs**, **Improve my summary**, **Show ATS gaps**, or upload a new resume.',
-                        });
-                        setQuickReplies(['Find matching jobs', 'Improve my summary', 'Show ATS gaps', 'New resume analysis']);
-                        setIsBusy(false);
-                      });
-                    }
-                  }
-                }}
-                className={cn(
-                  'w-full h-9 px-3.5 pr-2 rounded-xl border text-sm transition-all outline-none',
-                  'bg-muted/40 border-border placeholder:text-muted-foreground',
-                  'focus:border-primary/50 focus:ring-2 focus:ring-primary/20',
-                  isBusy && 'opacity-60'
-                )}
-              />
+      {/* ANALYZING LOADING MODAL / OVERLAY */}
+      {isAnalyzing && (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
+          <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-slate-900 border border-slate-800 p-8 rounded-2xl max-w-md w-full text-center space-y-6 shadow-2xl">
+            <div className="relative flex items-center justify-center w-20 h-20 mx-auto">
+              <div className="absolute inset-0 rounded-full border-4 border-primary/20 animate-ping" />
+              <div className="p-4 bg-primary/10 text-primary rounded-full border border-primary/30">
+                <Sparkles className="h-10 w-10 animate-pulse" />
+              </div>
             </div>
-            <button
-              disabled={isBusy || !chatInput.trim()}
-              onClick={() => {
-                const value = chatInput.trim();
-                setChatInput('');
-                if (value.toLowerCase().includes('job') || value.toLowerCase().includes('match')) {
-                  handleFetchJobs();
-                } else {
-                  appendMessage({ id: nextId(), role: 'user', kind: 'text', content: value });
-                  setIsBusy(true);
-                  setQuickReplies([]);
-                  const typingId = botTyping();
-                  sleep(1000).then(() => {
-                    replaceTyping(typingId, {
-                      kind: 'text',
-                      content:
-                        'I\'m focused on resume analysis and job matching right now. Try one of these: **Find matching jobs**, **Improve my summary**, **Show ATS gaps**, or upload a new resume.',
-                    });
-                    setQuickReplies(['Find matching jobs', 'Improve my summary', 'Show ATS gaps', 'New resume analysis']);
-                    setIsBusy(false);
-                  });
-                }
-              }}
-              className="h-9 w-9 rounded-xl bg-primary text-primary-foreground flex items-center justify-center hover:bg-primary/90 transition-colors shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
-              title="Send"
-            >
-              {isBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-            </button>
-          </div>
-          <p className="text-[10px] text-muted-foreground mt-2 flex items-center gap-1">
-            <Clock className="h-3 w-3" /> Try: "Find matching jobs" · "Improve my summary" · "Score against a job description"
-          </p>
+            <div>
+              <h3 className="text-xl font-bold text-white mb-2">AI Scanning in Progress</h3>
+              <p className="text-sm text-primary font-medium animate-pulse">{loadingStep}</p>
+            </div>
+            <div className="w-full bg-slate-800 h-2 rounded-full overflow-hidden">
+              <div className="bg-primary h-full rounded-full animate-pulse w-3/4" />
+            </div>
+            <p className="text-xs text-slate-400">This usually takes under 10 seconds.</p>
+          </motion.div>
         </div>
-      </Card>
+      )}
+
+      {/* RESULTS DISPLAY UI */}
+      {analysis && !isAnalyzing && (
+        <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} className="space-y-8">
+          {/* Header Bar */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-900/80 border border-slate-800 rounded-2xl p-6 shadow-lg">
+            <div>
+              <div className="flex items-center gap-3 mb-1">
+                <h2 className="text-2xl font-bold text-white">Analysis Results</h2>
+                {getVerdictBadge(analysis.ats_verdict)}
+              </div>
+              <p className="text-sm text-slate-400">
+                {selectedFile ? `File: ${selectedFile.name}` : 'Resume evaluation complete'}
+              </p>
+            </div>
+            <div className="flex items-center gap-3">
+              {onNavigateToJobs && (
+                <Button onClick={onNavigateToJobs} className="gap-2 font-bold shadow-lg shadow-primary/20">
+                  <Briefcase className="h-4 w-4" />
+                  <span>Search Live Jobs</span>
+                </Button>
+              )}
+              <Button onClick={clearCache} variant="outline" className="border-slate-700 hover:bg-slate-800 text-slate-200 gap-2">
+                <RefreshCw className="h-4 w-4" />
+                <span>Upload New Resume</span>
+              </Button>
+            </div>
+          </div>
+
+          {/* Section 1: ATS Score Card & Score Breakdown */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            {/* ATS Score Card */}
+            <Card className="lg:col-span-5 bg-slate-900 border-slate-800 shadow-xl flex flex-col justify-between">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-lg font-semibold text-slate-300 flex items-center justify-between">
+                  <span>Overall ATS Score</span>
+                  <Award className="h-5 w-5 text-primary" />
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="pt-2 flex flex-col items-center text-center space-y-4">
+                {renderCircularGauge(analysis.ats_score)}
+                <div>
+                  <p className="text-xl font-bold text-white mb-1">Verdict: {analysis.ats_verdict}</p>
+                  <p className="text-xs text-slate-400 max-w-xs leading-relaxed">
+                    {analysis.takeaway || 'Your resume has strong foundations and can be further optimized for top recruiter matches.'}
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Score Breakdown (Horizontal Progress Bars) */}
+            <Card className="lg:col-span-7 bg-slate-900 border-slate-800 shadow-xl">
+              <CardHeader className="pb-4">
+                <CardTitle className="text-lg font-semibold text-slate-300 flex items-center justify-between">
+                  <span>Detailed Score Breakdown</span>
+                  <TrendingUp className="h-5 w-5 text-primary" />
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {[
+                  { label: 'Format & Structure', value: analysis.score_breakdown.format_structure, icon: Layers },
+                  { label: 'Content Relevance', value: analysis.score_breakdown.content_relevance, icon: FileText },
+                  { label: 'Keyword Matching', value: analysis.score_breakdown.keyword_matching, icon: Search },
+                  { label: 'Skills Coverage', value: analysis.score_breakdown.skills, icon: CheckCircle2 },
+                  { label: 'Experience Impact', value: analysis.score_breakdown.experience, icon: Briefcase }
+                ].map((item) => (
+                  <div key={item.label} className="space-y-1.5">
+                    <div className="flex items-center justify-between text-xs font-semibold">
+                      <span className="flex items-center gap-1.5 text-slate-300">
+                        <item.icon className="h-3.5 w-3.5 text-primary" />
+                        {item.label}
+                      </span>
+                      <span className="text-slate-200">{item.value} / 100</span>
+                    </div>
+                    <div className="w-full bg-slate-800 h-2.5 rounded-full overflow-hidden">
+                      <motion.div
+                        initial={{ width: 0 }}
+                        animate={{ width: `${item.value}%` }}
+                        transition={{ duration: 1, ease: 'easeOut' }}
+                        className={`h-full rounded-full ${
+                          item.value >= 80 ? 'bg-emerald-500' : item.value >= 60 ? 'bg-blue-500' : 'bg-amber-500'
+                        }`}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Section 2: 4 Summary Stat Cards */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <Card className="bg-slate-900 border-slate-800 p-4 flex items-center gap-4">
+              <div className="p-3 bg-emerald-500/10 text-emerald-400 rounded-xl">
+                <CheckCircle2 className="h-6 w-6" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold text-white">{analysis.matched_keywords.length}</p>
+                <p className="text-xs text-slate-400 font-medium">Matched Keywords</p>
+              </div>
+            </Card>
+
+            <Card className="bg-slate-900 border-slate-800 p-4 flex items-center gap-4">
+              <div className="p-3 bg-red-500/10 text-red-400 rounded-xl">
+                <XCircle className="h-6 w-6" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold text-white">{analysis.missing_keywords.length}</p>
+                <p className="text-xs text-slate-400 font-medium">Missing Keywords</p>
+              </div>
+            </Card>
+
+            <Card className="bg-slate-900 border-slate-800 p-4 flex items-center gap-4">
+              <div className="p-3 bg-amber-500/10 text-amber-400 rounded-xl">
+                <Sparkles className="h-6 w-6" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold text-white">{analysis.improvement_tips.length}</p>
+                <p className="text-xs text-slate-400 font-medium">Actionable Tips</p>
+              </div>
+            </Card>
+
+            <Card className="bg-slate-900 border-slate-800 p-4 flex items-center gap-4">
+              <div className="p-3 bg-blue-500/10 text-blue-400 rounded-xl">
+                <Briefcase className="h-6 w-6" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold text-white">{analysis.job_matches.length}</p>
+                <p className="text-xs text-slate-400 font-medium">Job Matches</p>
+              </div>
+            </Card>
+          </div>
+
+          {/* Section 3: Keyword Match Panel */}
+          <Card className="bg-slate-900 border-slate-800 shadow-xl">
+            <CardHeader className="pb-3 border-b border-slate-800/80">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div>
+                  <CardTitle className="text-lg font-semibold text-slate-200">Keyword Match Analysis</CardTitle>
+                  <CardDescription className="text-xs text-slate-400">
+                    ATS scanners parse resumes for exact skill keywords. Review matched vs missing terms.
+                  </CardDescription>
+                </div>
+                {/* Legend */}
+                <div className="flex items-center gap-4 text-xs">
+                  <span className="flex items-center gap-1.5 text-emerald-400">
+                    <span className="h-2.5 w-2.5 rounded-full bg-emerald-500" /> Matched
+                  </span>
+                  <span className="flex items-center gap-1.5 text-amber-400">
+                    <span className="h-2.5 w-2.5 rounded-full bg-amber-500" /> Partial
+                  </span>
+                  <span className="flex items-center gap-1.5 text-red-400">
+                    <span className="h-2.5 w-2.5 rounded-full bg-red-500" /> Missing
+                  </span>
+                </div>
+              </div>
+            </CardHeader>
+
+            <CardContent className="pt-4 space-y-4">
+              {/* Keyword Chips */}
+              <div className="flex flex-wrap gap-2">
+                {analysis.matched_keywords.map((kw) => (
+                  <Badge key={kw} className="bg-emerald-500/15 text-emerald-300 border-emerald-500/30 px-3 py-1 text-xs">
+                    ✓ {kw}
+                  </Badge>
+                ))}
+
+                {analysis.partially_matched_keywords?.map((kw) => (
+                  <Badge key={kw} className="bg-amber-500/15 text-amber-300 border-amber-500/30 px-3 py-1 text-xs">
+                    ~ {kw}
+                  </Badge>
+                ))}
+
+                {analysis.missing_keywords.map((kw) => (
+                  <Badge key={kw} className="bg-red-500/15 text-red-300 border-red-500/30 px-3 py-1 text-xs">
+                    + {kw}
+                  </Badge>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Section 4: Improvement Suggestions Panel */}
+          <Card className="bg-slate-900 border-slate-800 shadow-xl">
+            <CardHeader className="pb-3 border-b border-slate-800/80">
+              <CardTitle className="text-lg font-semibold text-slate-200 flex items-center justify-between">
+                <span>Tailored Improvement Suggestions</span>
+                <Sparkles className="h-5 w-5 text-amber-400" />
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="pt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+              {analysis.improvement_tips.map((tip, idx) => (
+                <div key={idx} className="p-4 rounded-xl bg-slate-800/50 border border-slate-700/60 flex items-start gap-3.5">
+                  <div className="p-2 bg-amber-500/10 text-amber-400 rounded-lg shrink-0 mt-0.5">
+                    <Sparkles className="h-4 w-4" />
+                  </div>
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between gap-2">
+                      <h4 className="font-semibold text-sm text-slate-100">{tip.title}</h4>
+                      {tip.section && (
+                        <Badge variant="outline" className="text-[10px] border-slate-600 text-slate-400 uppercase">
+                          {tip.section}
+                        </Badge>
+                      )}
+                    </div>
+                    <p className="text-xs text-slate-300 leading-relaxed">{tip.detail}</p>
+                  </div>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+
+          {/* Section 5: Top Job Recommendations */}
+          <Card className="bg-slate-900 border-slate-800 shadow-xl">
+            <CardHeader className="pb-3 border-b border-slate-800/80">
+              <CardTitle className="text-lg font-semibold text-slate-200 flex items-center justify-between">
+                <span>Top Job Matches</span>
+                <Briefcase className="h-5 w-5 text-primary" />
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="pt-4">
+              <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-thin scrollbar-thumb-slate-700">
+                {analysis.job_matches.map((job, idx) => (
+                  <div key={idx} className="min-w-[260px] max-w-[280px] p-4 rounded-xl bg-slate-800/70 border border-slate-700/80 space-y-3 shrink-0 flex flex-col justify-between">
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="w-9 h-9 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center font-bold text-primary text-sm">
+                          {job.company.substring(0, 2).toUpperCase()}
+                        </div>
+                        <Badge className="bg-emerald-500/20 text-emerald-300 border-emerald-500/30 text-xs font-semibold">
+                          {job.match_pct}% Match
+                        </Badge>
+                      </div>
+                      <h4 className="font-bold text-slate-100 text-sm line-clamp-1">{job.title}</h4>
+                      <p className="text-xs text-slate-400">{job.company} • {job.location}</p>
+                    </div>
+                    <Button variant="outline" size="sm" className="w-full text-xs border-slate-700 hover:bg-slate-700 text-slate-200 justify-between">
+                      <span>View Role</span>
+                      <ChevronRight className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
+      )}
     </div>
   );
 };

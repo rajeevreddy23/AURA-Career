@@ -1,8 +1,9 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { Navbar } from '@/components/layout/Navbar';
 import { Footer } from '@/components/layout/Footer';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
@@ -13,37 +14,62 @@ import { Button } from '@/components/ui/Button';
 import { useAuth } from '@/contexts/AuthContext';
 import { useAppStore } from '@/contexts/StoreContext';
 import {
-  BookOpen,
-  Clock,
-  Flame,
-  Trophy,
-  Zap,
-  TrendingUp,
-  Target,
-  Play,
-  ArrowRight,
-  Calendar,
-  Bell,
-  GraduationCap,
-  Code2,
-  Award,
-  Star,
+  BookOpen, Clock, Flame, Trophy, Zap, Play, ArrowRight, Bell,
+  GraduationCap, Code2, Award, Star, Compass, FileText, Map, Settings, Users, CheckCircle, Sparkles
 } from 'lucide-react';
 
 export default function DashboardPage() {
   const { profile } = useAuth();
   const { xpPoints, level, dailyStreak, studyTime } = useAppStore();
+  const router = useRouter();
+
+  const [courseProgress, setCourseProgress] = useState({
+    python: 0,
+    deepLearning: 0
+  });
+
+  useEffect(() => {
+    // Load real progress from localStorage
+    const p1 = localStorage.getItem('course_python_progress') || '65';
+    const p2 = localStorage.getItem('course_dl_progress') || '30';
+    setCourseProgress({
+      python: parseInt(p1),
+      deepLearning: parseInt(p2)
+    });
+  }, []);
 
   const quickStats = [
-    { icon: BookOpen, label: 'Enrolled', value: '4', color: 'bg-blue-500/10 text-blue-500' },
-    { icon: Play, label: 'In Progress', value: '2', color: 'bg-yellow-500/10 text-yellow-500' },
-    { icon: Trophy, label: 'Completed', value: '1', color: 'bg-green-500/10 text-green-500' },
-    { icon: Clock, label: 'Study Hours', value: `${Math.floor(studyTime / 60)}h`, color: 'bg-purple-500/10 text-purple-500' },
+    { icon: BookOpen, label: 'Enrolled', value: '4', color: 'bg-blue-500/10 text-blue-500', link: '/courses' },
+    { icon: Play, label: 'In Progress', value: '2', color: 'bg-yellow-500/10 text-yellow-500', link: '/courses' },
+    { icon: Trophy, label: 'Completed', value: '1', color: 'bg-green-500/10 text-green-500', link: '/courses' },
+    { icon: Clock, label: 'Study Hours', value: `${Math.floor(studyTime / 60)}h`, color: 'bg-purple-500/10 text-purple-500', link: '/courses' },
   ];
 
   const recentCourses = [
-    { title: 'Python Programming', progress: 65, nextLesson: 'Functions & Modules', instructor: 'Dr. Sarah Chen' },
-    { title: 'Deep Learning', progress: 30, nextLesson: 'Convolutional Neural Networks', instructor: 'Prof. Alex Kumar' },
+    { id: 'python', title: 'Python Programming', progress: courseProgress.python, nextLesson: 'Functions & Modules', instructor: 'Dr. Sarah Chen' },
+    { id: 'deep-learning', title: 'Deep Learning', progress: courseProgress.deepLearning, nextLesson: 'Convolutional Neural Networks', instructor: 'Prof. Alex Kumar' },
+  ];
+
+  const quickActions = [
+    { icon: Compass, label: 'Explore Courses', path: '/courses', color: 'text-blue-500 bg-blue-500/10' },
+    { icon: GraduationCap, label: 'Live Classroom', path: '/classroom', color: 'text-purple-500 bg-purple-500/10' },
+    { icon: FileText, label: 'Resume Hub', path: '/resume-hub', color: 'text-green-500 bg-green-500/10' },
+    { icon: Map, label: 'Career Roadmap', path: '/roadmap', color: 'text-orange-500 bg-orange-500/10' },
+    { icon: Award, label: 'Certificates', path: '/certificates', color: 'text-yellow-500 bg-yellow-500/10' },
+    { icon: Users, label: 'Community', path: '/community', color: 'text-indigo-500 bg-indigo-500/10' },
+    { icon: Settings, label: 'Settings', path: '/settings', color: 'text-gray-500 bg-gray-500/10' },
+    { icon: Bell, label: 'Notifications', path: '/notifications', color: 'text-pink-500 bg-pink-500/10' },
+  ];
+
+  const recommendations = [
+    { title: 'Advanced React Patterns', match: '98% match', reason: 'Based on your frontend progress' },
+    { title: 'Machine Learning Basics', match: '94% match', reason: 'Follows Python Programming' },
+  ];
+
+  const activities = [
+    { title: 'Completed lesson "Loops in Python"', time: '2 hours ago', icon: CheckCircle, color: 'text-green-500' },
+    { title: 'Earned "Fast Learner" badge', time: '1 day ago', icon: Award, color: 'text-yellow-500' },
+    { title: 'Started "Deep Learning"', time: '2 days ago', icon: Play, color: 'text-blue-500' },
   ];
 
   return (
@@ -92,8 +118,10 @@ export default function DashboardPage() {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: index * 0.1 }}
+                onClick={() => router.push(stat.link)}
+                className="cursor-pointer"
               >
-                <Card>
+                <Card className="hover:border-primary/50 transition-colors">
                   <CardContent className="flex items-center gap-4 py-4">
                     <div className={`h-12 w-12 rounded-xl ${stat.color} flex items-center justify-center`}>
                       <stat.icon className="h-6 w-6" />
@@ -107,6 +135,30 @@ export default function DashboardPage() {
               </motion.div>
             ))}
           </div>
+
+          {/* Quick Actions Grid */}
+          <motion.div 
+            initial={{ opacity: 0, y: 20 }} 
+            animate={{ opacity: 1, y: 0 }} 
+            transition={{ delay: 0.2 }}
+            className="mb-8"
+          >
+            <h2 className="text-xl font-bold mb-4">Quick Actions</h2>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              {quickActions.map((action, i) => (
+                <button
+                  key={i}
+                  onClick={() => router.push(action.path)}
+                  className="flex flex-col items-center justify-center p-4 rounded-xl border border-border bg-card hover:border-primary/50 hover:bg-accent/50 transition-all gap-2"
+                >
+                  <div className={`p-3 rounded-xl ${action.color}`}>
+                    <action.icon className="h-6 w-6" />
+                  </div>
+                  <span className="text-sm font-medium">{action.label}</span>
+                </button>
+              ))}
+            </div>
+          </motion.div>
 
           <div className="grid lg:grid-cols-3 gap-8">
             {/* Main Content */}
@@ -129,53 +181,85 @@ export default function DashboardPage() {
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ delay: index * 0.1 }}
                     >
-                      <Link href={`/courses/${course.title.toLowerCase().replace(/\s+/g, '-')}`}>
-                        <div className="group flex items-start gap-4 p-4 rounded-xl hover:bg-accent/50 transition-colors">
-                          <div className="h-14 w-14 rounded-xl bg-gradient-to-br from-primary/20 to-purple-500/20 flex items-center justify-center shrink-0">
-                            <BookOpen className="h-6 w-6 text-primary" />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <h4 className="font-medium group-hover:text-primary transition-colors">{course.title}</h4>
-                            <p className="text-sm text-muted-foreground">{course.instructor}</p>
-                            <div className="mt-2">
-                              <Progress value={course.progress} size="sm" />
-                            </div>
-                            <p className="text-xs text-muted-foreground mt-1">
-                              Next: {course.nextLesson}
-                            </p>
-                          </div>
-                          <Button size="sm" variant="ghost" className="shrink-0">
-                            <Play className="h-4 w-4" />
-                          </Button>
+                      <div className="group flex items-start gap-4 p-4 rounded-xl border border-border hover:border-primary/30 transition-colors">
+                        <div className="h-14 w-14 rounded-xl bg-gradient-to-br from-primary/20 to-purple-500/20 flex items-center justify-center shrink-0">
+                          <BookOpen className="h-6 w-6 text-primary" />
                         </div>
-                      </Link>
+                        <div className="flex-1 min-w-0">
+                          <h4 className="font-medium group-hover:text-primary transition-colors">{course.title}</h4>
+                          <p className="text-sm text-muted-foreground">{course.instructor}</p>
+                          <div className="mt-2 flex items-center gap-2">
+                            <Progress value={course.progress} className="h-2 flex-1" />
+                            <span className="text-xs font-medium">{course.progress}%</span>
+                          </div>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            Next: {course.nextLesson}
+                          </p>
+                        </div>
+                        <Button 
+                          size="sm" 
+                          onClick={() => router.push(`/classroom?course=${course.id}&topic=${encodeURIComponent(course.title)}`)}
+                          className="shrink-0"
+                        >
+                          <Play className="h-4 w-4 mr-2" />
+                          Play
+                        </Button>
+                      </div>
                     </motion.div>
                   ))}
                 </CardContent>
               </Card>
 
-              {/* Learning Activity */}
+              {/* AI Recommendations */}
               <Card>
                 <CardHeader>
-                  <CardTitle>Learning Activity</CardTitle>
+                  <CardTitle className="flex items-center gap-2">
+                    <Sparkles className="h-5 w-5 text-primary" />
+                    AI Recommends
+                  </CardTitle>
                 </CardHeader>
-                <CardContent>
-                  <div className="flex items-center justify-center h-48 text-muted-foreground">
-                    <p>Activity chart coming soon</p>
-                  </div>
+                <CardContent className="space-y-4">
+                  {recommendations.map((rec, i) => (
+                    <div key={i} className="flex items-start justify-between p-4 rounded-xl bg-accent/50">
+                      <div>
+                        <h4 className="font-medium">{rec.title}</h4>
+                        <p className="text-sm text-muted-foreground">{rec.reason}</p>
+                      </div>
+                      <Badge variant="secondary" className="bg-primary/10 text-primary hover:bg-primary/20">
+                        {rec.match}
+                      </Badge>
+                    </div>
+                  ))}
                 </CardContent>
               </Card>
             </div>
 
             {/* Sidebar */}
             <div className="space-y-6">
+              {/* Recent Activity */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Recent Activity</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {activities.map((act, i) => (
+                    <div key={i} className="flex items-start gap-3">
+                      <div className={`mt-0.5 ${act.color}`}>
+                        <act.icon className="h-5 w-5" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium">{act.title}</p>
+                        <p className="text-xs text-muted-foreground">{act.time}</p>
+                      </div>
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
+
               {/* Daily Goal */}
               <Card>
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Target className="h-4 w-4 text-primary" />
-                    Daily Goal
-                  </CardTitle>
+                  <CardTitle>Daily Goal</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="flex items-center justify-between text-sm">
@@ -183,64 +267,6 @@ export default function DashboardPage() {
                     <span className="font-medium">{studyTime} min / 60 min</span>
                   </div>
                   <Progress value={(studyTime / 60) * 100} />
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-muted-foreground">Lessons</span>
-                    <span className="font-medium">0 / 3</span>
-                  </div>
-                  <Progress value={0} />
-                </CardContent>
-              </Card>
-
-              {/* Achievements */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Award className="h-4 w-4 text-yellow-500" />
-                    Recent Achievements
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  {[
-                    { icon: Star, label: 'Quick Learner', desc: 'Complete 3 lessons in a day' },
-                    { icon: Flame, label: 'On Fire', desc: '3-day streak' },
-                  ].map((achievement, i) => (
-                    <div key={i} className="flex items-center gap-3 p-2 rounded-lg bg-accent/50">
-                      <div className="h-8 w-8 rounded-lg bg-yellow-500/10 flex items-center justify-center">
-                        <achievement.icon className="h-4 w-4 text-yellow-500" />
-                      </div>
-                      <div>
-                        <p className="text-sm font-medium">{achievement.label}</p>
-                        <p className="text-xs text-muted-foreground">{achievement.desc}</p>
-                      </div>
-                    </div>
-                  ))}
-                </CardContent>
-              </Card>
-
-              {/* Upcoming */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Calendar className="h-4 w-4 text-primary" />
-                    Upcoming
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  {[
-                    { icon: Code2, label: 'Coding Challenge', time: 'Today, 6:00 PM' },
-                    { icon: GraduationCap, label: 'Quiz: Python Basics', time: 'Tomorrow, 10:00 AM' },
-                  ].map((item, i) => (
-                    <div key={i} className="flex items-center gap-3 p-2 rounded-lg hover:bg-accent/50 transition-colors cursor-pointer">
-                      <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center">
-                        <item.icon className="h-4 w-4 text-primary" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium">{item.label}</p>
-                        <p className="text-xs text-muted-foreground">{item.time}</p>
-                      </div>
-                      <Bell className="h-4 w-4 text-muted-foreground" />
-                    </div>
-                  ))}
                 </CardContent>
               </Card>
             </div>

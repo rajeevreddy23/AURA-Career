@@ -5,13 +5,14 @@ import { motion } from 'framer-motion';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/Tabs';
 import { AnalyzeResume } from './AnalyzeResume';
 import { CreateResume } from './CreateResume';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
+import { LiveJobSearch } from './LiveJobSearch';
+import { SkillImprovementPlan } from './SkillImprovementPlan';
+import { Card, CardContent } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
-import { FileText, Briefcase, Sparkles, Brain, Upload, Download } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { FileText, Briefcase, Sparkles, Brain, Upload, Globe, TrendingUp } from 'lucide-react';
 
 export const ResumeHub: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'analyze' | 'create'>('analyze');
+  const [activeTab, setActiveTab] = useState<'analyze' | 'jobs' | 'skills' | 'create'>('analyze');
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -28,10 +29,10 @@ export const ResumeHub: React.FC = () => {
               Resume Hub
             </Badge>
             <h1 className="text-3xl sm:text-4xl font-bold mb-2">
-              Your <span className="text-gradient">Career Toolkit</span>
+              Your <span className="text-gradient">Career & Job Toolkit</span>
             </h1>
             <p className="text-lg text-muted-foreground max-w-2xl">
-              Analyze your existing resume with AI or build a new one from scratch with intelligent guidance
+              Analyze your resume, discover live matching web jobs with AI compatibility scoring, view skill improvement roadmaps, and craft tailored cover letters.
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -40,35 +41,59 @@ export const ResumeHub: React.FC = () => {
               AI Powered
             </Badge>
             <Badge variant="outline" className="text-xs">
-              <FileText className="h-3 w-3 mr-1" />
-              PDF & DOCX
+              <Globe className="h-3 w-3 mr-1 text-emerald-400" />
+              Live Web APIs
             </Badge>
             <Badge variant="outline" className="text-xs">
               <Briefcase className="h-3 w-3 mr-1" />
-              Live Jobs
+              Auto Job Matcher
             </Badge>
           </div>
         </div>
 
         {/* Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab as (value: string) => void}>
-          <TabsList className="grid w-full max-w-md grid-cols-2">
+          <TabsList className="grid w-full max-w-2xl grid-cols-4">
             <TabsTrigger value="analyze">
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5">
                 <FileText className="h-4 w-4" />
-                <span>Analyze Resume</span>
+                <span className="hidden sm:inline">ATS Analysis</span>
+                <span className="sm:hidden">Analyze</span>
+              </div>
+            </TabsTrigger>
+            <TabsTrigger value="jobs">
+              <div className="flex items-center gap-1.5">
+                <Briefcase className="h-4 w-4 text-primary" />
+                <span className="hidden sm:inline">Live Job Matcher</span>
+                <span className="sm:hidden">Jobs</span>
+              </div>
+            </TabsTrigger>
+            <TabsTrigger value="skills">
+              <div className="flex items-center gap-1.5">
+                <TrendingUp className="h-4 w-4 text-amber-400" />
+                <span className="hidden sm:inline">Skill Upgrade Plan</span>
+                <span className="sm:hidden">Skills</span>
               </div>
             </TabsTrigger>
             <TabsTrigger value="create">
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5">
                 <Sparkles className="h-4 w-4" />
-                <span>Create Resume</span>
+                <span className="hidden sm:inline">Resume Builder</span>
+                <span className="sm:hidden">Builder</span>
               </div>
             </TabsTrigger>
           </TabsList>
 
           <TabsContent value="analyze">
-            <AnalyzeResume />
+            <AnalyzeResume onNavigateToJobs={() => setActiveTab('jobs')} />
+          </TabsContent>
+
+          <TabsContent value="jobs">
+            <LiveJobSearch />
+          </TabsContent>
+
+          <TabsContent value="skills">
+            <SkillImprovementPlan />
           </TabsContent>
 
           <TabsContent value="create">
@@ -89,9 +114,20 @@ export const ResumeHub: React.FC = () => {
             <div className="h-12 w-12 rounded-xl bg-primary/10 flex items-center justify-center mx-auto mb-4">
               <Upload className="h-6 w-6 text-primary" />
             </div>
-            <h3 className="font-semibold mb-1">Smart Analysis</h3>
+            <h3 className="font-semibold mb-1">Smart ATS Analysis</h3>
             <p className="text-sm text-muted-foreground">
-              Upload your resume and get detailed AI analysis with skills, experience level, and improvement suggestions
+              Upload your PDF resume and get instant AI evaluation, breakdown scores, and keyword missing alerts.
+            </p>
+          </CardContent>
+        </Card>
+        <Card hover className="border-primary/20">
+          <CardContent className="py-6 text-center">
+            <div className="h-12 w-12 rounded-xl bg-primary/10 flex items-center justify-center mx-auto mb-4">
+              <Globe className="h-6 w-6 text-primary" />
+            </div>
+            <h3 className="font-semibold mb-1">Live Multi-API Job Matcher</h3>
+            <p className="text-sm text-muted-foreground">
+              Search real-time remote & on-site job boards (Remotive, RemoteOK, Arbeitnow, Adzuna) auto-scored against your resume.
             </p>
           </CardContent>
         </Card>
@@ -100,20 +136,9 @@ export const ResumeHub: React.FC = () => {
             <div className="h-12 w-12 rounded-xl bg-primary/10 flex items-center justify-center mx-auto mb-4">
               <Brain className="h-6 w-6 text-primary" />
             </div>
-            <h3 className="font-semibold mb-1">AI Writing Assistant</h3>
+            <h3 className="font-semibold mb-1">1-Click AI Cover Letter</h3>
             <p className="text-sm text-muted-foreground">
-              Improve each section with ATS-friendly wording or generate complete sections from your background
-            </p>
-          </CardContent>
-        </Card>
-        <Card hover className="border-primary/20">
-          <CardContent className="py-6 text-center">
-            <div className="h-12 w-12 rounded-xl bg-primary/10 flex items-center justify-center mx-auto mb-4">
-              <Briefcase className="h-6 w-6 text-primary" />
-            </div>
-            <h3 className="font-semibold mb-1">Live Job Matching</h3>
-            <p className="text-sm text-muted-foreground">
-              Get matched with real job listings from multiple sources based on your skills and experience
+              Instantly generate customized, high-converting cover letters tailored to any job posting in seconds.
             </p>
           </CardContent>
         </Card>

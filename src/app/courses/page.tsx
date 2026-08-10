@@ -167,16 +167,33 @@ export default function CoursesPage() {
                   <Link href={`/courses/${course.id}`}>
                     <Card hover className={cn('h-full overflow-hidden', viewMode === 'list' && 'flex')}>
                       <div className={cn(
-                        'aspect-video bg-gradient-to-br from-primary/20 via-purple-500/20 to-cyan-500/20 relative overflow-hidden',
+                        'aspect-video relative overflow-hidden group',
                         viewMode === 'list' && 'w-48 shrink-0 aspect-auto'
-                      )}>
+                      )}
+                      style={{ backgroundColor: `${course.color}15` }}>
+                        <div 
+                          className="absolute inset-0 opacity-80 group-hover:opacity-100 transition-opacity duration-500"
+                          style={{
+                            background: `linear-gradient(135deg, ${course.color}40, ${course.color}00)`,
+                          }}
+                        />
                         <div className="absolute inset-0 flex items-center justify-center">
-                          <div className="text-4xl font-bold text-primary/30">{course.title[0]}</div>
+                          <motion.div 
+                            initial={{ y: 0 }}
+                            animate={{ y: [-5, 5, -5] }}
+                            transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
+                            className="text-5xl group-hover:scale-125 transition-transform duration-500 drop-shadow-md"
+                          >
+                            {course.emoji}
+                          </motion.div>
                         </div>
-                        <div className="absolute inset-0 bg-gradient-to-t from-card/80 to-transparent" />
-                        <div className="absolute top-3 left-3 flex gap-2">
-                          <Badge variant="default" size="sm">{course.category.split('-')[0]}</Badge>
-                          <Badge variant="default" size="sm">{course.level}</Badge>
+                        {/* Shimmer overlay */}
+                        <div className="absolute inset-0 -translate-x-full group-hover:translate-x-full bg-gradient-to-r from-transparent via-white/20 to-transparent transition-transform duration-1000 ease-in-out pointer-events-none" />
+                        
+                        <div className="absolute inset-0 bg-gradient-to-t from-card/80 to-transparent pointer-events-none" />
+                        <div className="absolute top-3 left-3 flex gap-2 z-10">
+                          <Badge variant="default" size="sm" className="bg-background/80 backdrop-blur-sm border-none shadow-sm">{course.category.split('-')[0]}</Badge>
+                          <Badge variant="default" size="sm" className="bg-background/80 backdrop-blur-sm border-none shadow-sm">{course.level}</Badge>
                         </div>
                       </div>
                       <div className="flex-1 flex flex-col">

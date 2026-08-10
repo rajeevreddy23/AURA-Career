@@ -1,11 +1,80 @@
 'use client';
 
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { Sparkles, Play, ArrowRight, Star, Users, BookOpen, GraduationCap } from 'lucide-react';
+
+const DEMO_MESSAGES = [
+  { role: 'ai', text: "Hello! I'm your AI Teacher. Let's explore some code." },
+  { role: 'user', text: "Can you explain React state?" },
+  { role: 'ai', text: "State represents data that changes over time.\n\n```tsx\nconst [count, setCount] = useState(0);\n```\n\nWhen state updates, React re-renders the component to show the new data!" },
+];
+
+const TypingChat = () => {
+  const [messages, setMessages] = useState<{role: string, text: string}[]>([]);
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [isTyping, setIsTyping] = useState(true);
+
+  useEffect(() => {
+    if (currentIndex >= DEMO_MESSAGES.length) {
+      const reset = setTimeout(() => {
+        setMessages([]);
+        setCurrentIndex(0);
+      }, 5000);
+      return () => clearTimeout(reset);
+    }
+
+    setIsTyping(true);
+    const timer = setTimeout(() => {
+      setMessages(prev => [...prev, DEMO_MESSAGES[currentIndex]]);
+      setIsTyping(false);
+      
+      const nextTimer = setTimeout(() => {
+        setCurrentIndex(prev => prev + 1);
+      }, 1500);
+      return () => clearTimeout(nextTimer);
+    }, 1200);
+
+    return () => clearTimeout(timer);
+  }, [currentIndex]);
+
+  return (
+    <div className="space-y-4 font-sans flex flex-col justify-end h-full pb-2">
+      {messages.map((msg, i) => (
+        <motion.div
+          key={i}
+          initial={{ opacity: 0, y: 10, scale: 0.95 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+        >
+          <div className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm shadow-sm ${
+            msg.role === 'user' 
+              ? 'bg-primary text-primary-foreground rounded-tr-sm'
+              : 'bg-white dark:bg-slate-800 border border-border rounded-tl-sm text-foreground whitespace-pre-wrap'
+          }`}>
+            {msg.text}
+          </div>
+        </motion.div>
+      ))}
+      {isTyping && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="flex justify-start"
+        >
+          <div className="bg-white dark:bg-slate-800 border border-border rounded-2xl rounded-tl-sm px-4 py-3 shadow-sm flex items-center gap-1.5 h-10">
+            <span className="w-1.5 h-1.5 rounded-full bg-primary/60 animate-bounce" style={{ animationDelay: '0ms' }} />
+            <span className="w-1.5 h-1.5 rounded-full bg-primary/60 animate-bounce" style={{ animationDelay: '150ms' }} />
+            <span className="w-1.5 h-1.5 rounded-full bg-primary/60 animate-bounce" style={{ animationDelay: '300ms' }} />
+          </div>
+        </motion.div>
+      )}
+    </div>
+  );
+};
 
 export const HeroSection: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -185,63 +254,46 @@ export const HeroSection: React.FC = () => {
             className="hidden lg:block relative"
           >
             <div className="relative rounded-2xl overflow-hidden border border-border bg-card/50 backdrop-blur-sm shadow-2xl shadow-primary/10">
-              <div className="aspect-[4/3] relative">
-                {/* Whiteboard Preview */}
-                <div className="absolute inset-0 bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800">
-                  {/* Board content simulation */}
-                  <div className="p-8 space-y-4">
-                    <div className="h-2 w-24 bg-primary/60 rounded" />
-                    <div className="space-y-2">
-                      <div className="h-2 w-full bg-foreground/10 rounded" />
-                      <div className="h-2 w-3/4 bg-foreground/10 rounded" />
-                      <div className="h-2 w-5/6 bg-foreground/10 rounded" />
-                    </div>
-                    <div className="grid grid-cols-2 gap-4 pt-4">
-                      <div className="space-y-2">
-                        <div className="h-8 w-full rounded bg-primary/10" />
-                        <div className="h-8 w-full rounded bg-primary/10" />
-                      </div>
-                      <div className="space-y-2">
-                        <div className="h-8 w-full rounded bg-purple-500/10" />
-                        <div className="h-8 w-full rounded bg-purple-500/10" />
+              <div className="aspect-[4/3] relative flex flex-col bg-slate-50 dark:bg-slate-900/50">
+                {/* AI Avatar Header */}
+                <div className="p-4 border-b border-border/50 flex items-center justify-between bg-background/50 backdrop-blur-md relative z-10">
+                  <div className="flex items-center gap-4">
+                    <div className="relative w-12 h-12 flex items-center justify-center">
+                      {/* Orbit Rings & Avatar */}
+                      <div className="absolute inset-0 rounded-full border-2 border-primary/20 animate-[spin_4s_linear_infinite]" />
+                      <div className="absolute -inset-1 rounded-full border border-purple-500/20 animate-[spin_5s_linear_infinite_reverse]" />
+                      <div className="h-10 w-10 rounded-full bg-gradient-to-br from-primary to-purple-600 flex items-center justify-center shadow-lg shadow-primary/30 relative z-10 animate-pulse-soft">
+                        <Sparkles className="h-5 w-5 text-white" />
                       </div>
                     </div>
-                    <div className="h-20 w-full rounded bg-cyan-500/5 border border-cyan-500/10" />
+                    <div>
+                      <h3 className="font-semibold flex items-center gap-2">
+                        Aura AI Teacher
+                        <Badge variant="success" dot className="animate-pulse">Live</Badge>
+                      </h3>
+                      <p className="text-xs text-muted-foreground">Teaching: React Fundamentals</p>
+                    </div>
                   </div>
                 </div>
 
-                {/* AI Assistant Floating */}
-                <Link href="/ai-teacher" title="Meet the AI Teacher" className="absolute bottom-4 right-4 group/ai">
-                  <div className="h-16 w-16 rounded-full bg-gradient-to-br from-primary to-purple-500 flex items-center justify-center shadow-lg shadow-primary/30 animate-float group-hover/ai:scale-110 transition-transform">
-                    <Sparkles className="h-8 w-8 text-white" />
-                  </div>
-                </Link>
+                {/* Chat Area */}
+                <div className="flex-1 p-4 overflow-hidden relative flex flex-col">
+                  <TypingChat />
+                  
+                  {/* Fade out top */}
+                  <div className="absolute top-0 left-0 right-0 h-12 bg-gradient-to-b from-slate-50 dark:from-slate-900/50 to-transparent pointer-events-none" />
+                </div>
 
-                {/* Play button overlay */}
-                <Link href="/classroom?course=1" className="absolute inset-0 flex items-center justify-center bg-black/20 opacity-0 hover:opacity-100 transition-opacity cursor-pointer group">
-                  <div className="flex flex-col items-center gap-3">
-                    <div className="h-16 w-16 rounded-full bg-white/90 flex items-center justify-center shadow-xl group-hover:scale-110 transition-transform">
-                      <Play className="h-8 w-8 text-primary ml-1" />
-                    </div>
-                    <span className="text-sm font-semibold text-white bg-black/50 rounded-full px-4 py-1.5 backdrop-blur-sm">
-                      Watch a live AI lesson →
-                    </span>
-                  </div>
-                </Link>
-              </div>
-
-              {/* Bottom info bar */}
-              <div className="p-4 border-t border-border flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="h-8 w-8 rounded-full bg-gradient-to-br from-primary to-purple-500 flex items-center justify-center text-white text-xs font-bold">
-                    AI
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium">AI Teacher Live</p>
-                    <p className="text-xs text-muted-foreground">Python Programming • Intermediate</p>
+                {/* Bottom Chips */}
+                <div className="p-4 bg-background/50 backdrop-blur-md border-t border-border/50 relative z-10">
+                  <div className="flex gap-2">
+                    {["Explain more", "Show example", "Next topic"].map((chip) => (
+                      <div key={chip} className="px-3 py-1.5 rounded-full bg-primary/10 text-primary text-xs font-medium cursor-pointer hover:bg-primary/20 transition-colors border border-primary/20">
+                        {chip}
+                      </div>
+                    ))}
                   </div>
                 </div>
-                <Badge variant="success" dot>Live</Badge>
               </div>
             </div>
           </motion.div>
