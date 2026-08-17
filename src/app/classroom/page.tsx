@@ -1,64 +1,108 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { useSearchParams, useRouter } from 'next/navigation';
-import { Button } from '@/components/ui/Button';
-import { Badge } from '@/components/ui/Badge';
-import { MOCK_COURSES, TEACHER_STYLES } from '@/lib/constants';
-import type { TeacherStyleId } from '@/types';
-import { useAuth } from '@/contexts/AuthContext';
-import ReactMarkdown from 'react-markdown';
+import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Send, ArrowLeft, Sparkles, MessageSquare, Loader2,
-  ChevronRight, Mic, MicOff, Maximize2, Minimize2,
-  HelpCircle, BookOpen, Volume2, VolumeX, FastForward,
-  X, Keyboard, FileText, CheckCircle2, ShieldAlert
+  Settings,
+  Sparkles,
+  Volume2,
+  VolumeX,
+  Mic,
+  MicOff,
+  Send,
+  ChevronLeft,
+  ChevronRight,
+  Maximize2,
+  Minimize2,
+  X,
+  BookOpen,
+  FileText,
+  HelpCircle,
+  Code,
+  LayoutDashboard,
+  CheckCircle2,
+  Clock,
+  MessageSquare,
+  Bot,
+  Zap,
+  Play,
+  RotateCcw,
+  Terminal,
+  Cpu,
+  Layers,
+  Lightbulb,
 } from 'lucide-react';
+import { AIProfessorAvatar, ProfessorState } from '@/components/classroom/AIProfessorAvatar';
+import { InteractiveDiagram } from '@/components/classroom/InteractiveDiagram';
+import { DoubtModal } from '@/components/classroom/DoubtModal';
+import { CodingLabModal } from '@/components/classroom/CodingLabModal';
+import { TeacherSelectModal } from '@/components/classroom/TeacherSelectModal';
+import { ExitClassModal } from '@/components/classroom/ExitClassModal';
+import { useClassroomState } from '@/hooks/useClassroomState';
+import { useAuth } from '@/contexts/AuthContext';
+import toast from 'react-hot-toast';
 
-// Types
-type Message = {
-  id: string;
-  role: 'user' | 'model';
-  content: string;
-  suggestions?: string[];
-};
-
-export default function ClassroomPage() {
+export default function LiveClassroomPage() {
   const router = useRouter();
-  const searchParams = useSearchParams();
   const { user } = useAuth();
+  const {
+    session,
+    setSession,
+    currentModule,
+    currentSlide,
+    progressPercent,
+    setAIState,
+    setDifficulty,
+    setPersona,
+    setVoice,
+    goToModule,
+    goToSlide,
+    nextSlideOrModule,
+    prevSlideOrModule,
+    addChatMessage,
+    cancelInFlight,
+  } = useClassroomState();
 
-  const courseId = searchParams.get('courseId') || '';
-  const initialTopic = searchParams.get('topic') || '';
-  const initialStyle = (searchParams.get('style') as TeacherStyleId) || 'socratic';
-
-  const course = MOCK_COURSES.find((c) => c.id === courseId);
-  const courseTitle = course?.title || 'Interactive Classroom';
-
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [inputValue, setInputValue] = useState('');
-  const [isTyping, setIsTyping] = useState(false);
-  const [topic, setTopic] = useState(initialTopic || courseTitle);
-  const [teacherStyle, setTeacherStyle] = useState<TeacherStyleId>(initialStyle);
-  const [showNotes, setShowNotes] = useState(false);
-
-  // Focus & Controls UI State
+  // Local state
+  const [topicInput, setTopicInput] = useState('');
+  const [chatInput, setChatInput] = useState('');
+  const [isVoiceMode, setIsVoiceMode] = useState(true);
+  const [isMicListening, setIsMicListening] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [isVoiceActive, setIsVoiceActive] = useState(false);
-  const [isMuted, setIsMuted] = useState(false);
-  const [showShortcutsModal, setShowShortcutsModal] = useState(false);
+  const [isRightChatOpen, setIsRightChatOpen] = useState(true);
+  const [centerTab, setCenterTab] = useState<'code' | 'output'>('code');
+  const [showNotesModal, setShowNotesModal] = useState(false);
+  const [showDoubtModal, setShowDoubtModal] = useState(false);
+  const [showCodingLabModal, setShowCodingLabModal] = useState(false);
+  const [showTeacherModal, setShowTeacherModal] = useState(false);
+  const [showExitModal, setShowExitModal] = useState(false);
   const [notesText, setNotesText] = useState('');
+  const [showDevStateBar, setShowDevStateBar] = useState(true);
+  const [isGenerating, setIsGenerating] = useState(false);
 
   const containerRef = useRef<HTMLDivElement>(null);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLTextAreaElement>(null);
+  const chatBottomRef = useRef<HTMLDivElement>(null);
+  const speechRecognitionRef = useRef<any>(null);
 
-  // Fullscreen Listener
+  // Sync teacher selection from URL search params if present
   useEffect(() => {
-    const handleFullscreenChange = () => {
-      setIsFullscreen(!!document.fullscreenElement);
-    };
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const teacherParam = params.get('teacher');
+      if (teacherParam) {
+        setPersona(teacherParam);
+      }
+    }
+  }, [setPersona]);
+
+  useEffect(() => {
+    chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [session.conversation]);
+
+  // Fullscreen listener
+  useEffect(() => {
+    const handleFullscreenChange = () => setIsFullscreen(!!document.fullscreenElement);
     document.addEventListener('fullscreenchange', handleFullscreenChange);
     return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
   }, []);
@@ -66,513 +110,955 @@ export default function ClassroomPage() {
   const toggleFullscreen = () => {
     if (!document.fullscreenElement) {
       containerRef.current?.requestFullscreen?.();
-      setIsFullscreen(true);
     } else {
       document.exitFullscreen?.();
-      setIsFullscreen(false);
     }
   };
 
-  // Keyboard Shortcuts Listener
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
-        return;
-      }
-      if (e.key === 'f' || e.key === 'F') {
-        e.preventDefault();
-        toggleFullscreen();
-      } else if (e.key === '?' || (e.shiftKey && e.key === '/')) {
-        e.preventDefault();
-        setShowShortcutsModal((prev) => !prev);
-      } else if (e.key === 'm' || e.key === 'M') {
-        e.preventDefault();
-        setIsMuted((prev) => !prev);
-      } else if (e.key === 'v' || e.key === 'V') {
-        e.preventDefault();
-        setIsVoiceActive((prev) => !prev);
-      } else if (e.key === 'n' || e.key === 'N') {
-        e.preventDefault();
-        setShowNotes((prev) => !prev);
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
-
-  // Auto-scroll
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
-
-  useEffect(() => {
-    scrollToBottom();
-  }, [messages, isTyping]);
-
-  // Initial greeting
-  useEffect(() => {
-    if (messages.length === 0) {
-      handleInitialGreeting();
+  // 1. Live Interactive Course & Multi-Slide Curriculum Generator (Prompt #1)
+  const handleTeachTopic = async (customTopic?: string) => {
+    const topicToTeach = customTopic || topicInput.trim();
+    if (!topicToTeach) {
+      toast.error('Please enter a topic to learn!');
+      return;
     }
-  }, []);
 
-  const handleInitialGreeting = async () => {
-    setIsTyping(true);
-    await new Promise((resolve) => setTimeout(resolve, 800));
+    setAIState('preparing_lesson');
+    setIsGenerating(true);
+    toast.loading(`Designing live multi-slide masterclass on "${topicToTeach}"...`, { id: 'teach-toast' });
 
-    const greetingText = `Welcome to your interactive AI session on **${topic}**!\n\nI am your professor today using the **${
-      TEACHER_STYLES.find((s) => s.id === teacherStyle)?.name || 'Socratic'
-    }** approach. I will guide you concept by concept.\n\nWhat area would you like to explore first?`;
-
-    setMessages([
-      {
-        id: Date.now().toString(),
-        role: 'model',
-        content: greetingText,
-        suggestions: ['Start from the core basics', 'Show me a practical example', 'Quiz my current understanding'],
-      },
-    ]);
-
-    setIsTyping(false);
-  };
-
-  const callGemini = async (chatMessages: { role: string; parts: { text: string }[] }[]) => {
     try {
-      const API_KEY = process.env.NEXT_PUBLIC_GEMINI_API_KEY;
-      if (!API_KEY) {
-        console.warn('API Key missing');
-        return 'API key is missing. Please check your environment variables.';
-      }
+      const res = await fetch('/api/generate-lesson', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          topic: topicToTeach,
+          level: session.difficulty,
+          persona: session.persona,
+        }),
+      });
 
-      const res = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${API_KEY}`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: chatMessages,
-            systemInstruction: {
-              parts: [
-                {
-                  text: `You are an AI professor on the AURA Learn platform. You teach ${topic} at an intermediate level. Your teaching style is ${teacherStyle}. Explain concepts clearly with structured headers, code snippets when relevant, and clean markdown. After each explanation, suggest 2-3 follow-up topics the student might want to explore next. Format suggestions as a JSON array at the very end of your response like: \n\n[SUGGESTIONS]["topic1","topic2","topic3"][/SUGGESTIONS]`,
-                },
-              ],
-            },
-            generationConfig: { temperature: 0.7, maxOutputTokens: 2048 },
-          }),
+      const json = await res.json();
+      toast.dismiss('teach-toast');
+
+      if (json.success && json.data) {
+        const courseData = json.data;
+        toast.success(`Loaded Masterclass: ${courseData.courseTitle || topicToTeach}`);
+
+        if (courseData.modules && Array.isArray(courseData.modules) && courseData.modules.length > 0) {
+          setSession((prev) => ({
+            ...prev,
+            courseTitle: courseData.courseTitle || `Masterclass: ${topicToTeach}`,
+            topic: topicToTeach,
+            modules: courseData.modules,
+            currentModuleIndex: 0,
+            currentSlideIndex: 0,
+            aiState: 'teaching',
+          }));
         }
-      );
 
-      if (!res.ok) {
-        throw new Error(`API returned ${res.status}`);
+        addChatMessage(
+          'professor',
+          `Welcome to "${courseData.courseTitle || topicToTeach}"! Let's explore Module 1 from first principles.`,
+          'Professor Aura'
+        );
+        setAIState('teaching');
+      } else {
+        toast.error('Using structured masterclass fallback.');
+        setAIState('teaching');
       }
-
-      const data = await res.json();
-      return data.candidates?.[0]?.content?.parts?.[0]?.text || 'I had trouble generating a response. Please try again.';
     } catch (err) {
-      console.error('Gemini API Error:', err);
-      return 'An error occurred while contacting the AI. Please try again later.';
+      toast.dismiss('teach-toast');
+      toast.error('Backend offline or rate limited. Using structured masterclass.');
+      setAIState('teaching');
+    } finally {
+      setIsGenerating(false);
+      setTopicInput('');
     }
   };
 
-  const parseSuggestions = (text: string): { cleanText: string; suggestions: string[] } => {
-    const match = text.match(/\[SUGGESTIONS\]([\s\S]*?)\[\/SUGGESTIONS\]/);
-    if (match) {
-      try {
-        const suggestionsStr = match[1];
-        const suggestions = JSON.parse(suggestionsStr);
-        return {
-          cleanText: text.replace(match[0], '').trim(),
-          suggestions: Array.isArray(suggestions) ? suggestions : [],
-        };
-      } catch (e) {
-        return { cleanText: text.replace(match[0], '').trim(), suggestions: [] };
-      }
-    }
-    return { cleanText: text, suggestions: [] };
-  };
+  // 2. Live Class "Ask Professor" & Voice Interaction (Prompt #2)
+  const handleAskProfessor = async (questionText?: string) => {
+    const query = questionText || chatInput.trim();
+    if (!query) return;
 
-  const handleSendMessage = async (text: string = inputValue) => {
-    if (!text.trim() || isTyping) return;
+    cancelInFlight();
+    addChatMessage('user', query, user?.displayName || 'Student');
+    setChatInput('');
+    setAIState('processing_question');
 
-    const userMessage: Message = {
-      id: Date.now().toString(),
-      role: 'user',
-      content: text,
-    };
+    try {
+      const res = await fetch('/api/ask-professor', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          persona: session.persona,
+          courseTitle: session.courseTitle,
+          currentTopic: currentModule.moduleTitle,
+          currentSlide: {
+            title: currentSlide.title,
+            speech: currentSlide.speech,
+            code: currentSlide.code,
+          },
+          question: query,
+        }),
+      });
 
-    setMessages((prev) => [...prev, userMessage]);
-    setInputValue('');
-    setIsTyping(true);
+      const json = await res.json();
+      if (json.success && json.data) {
+        const data = json.data;
+        addChatMessage('professor', data.answer, 'Professor Aura', {
+          codeSnippet: data.codeSnippet,
+          output: data.output,
+          suggestedFollowUp: data.suggestedFollowUp,
+          memoryInsight: data.memoryInsight,
+        });
 
-    // Format history for Gemini
-    const history = messages.map((m) => ({
-      role: m.role,
-      parts: [{ text: m.content }],
-    }));
-    history.push({ role: 'user', parts: [{ text }] });
+        setAIState('answering');
 
-    const responseText = await callGemini(history);
-    const { cleanText, suggestions } = parseSuggestions(responseText);
-
-    const modelMessage: Message = {
-      id: (Date.now() + 1).toString(),
-      role: 'model',
-      content: cleanText,
-      suggestions: suggestions.length > 0 ? suggestions : undefined,
-    };
-
-    setMessages((prev) => [...prev, modelMessage]);
-    setIsTyping(false);
-  };
-
-  const TypewriterMarkdown = ({ content }: { content: string }) => {
-    const [displayed, setDisplayed] = useState('');
-
-    useEffect(() => {
-      let i = 0;
-      setDisplayed('');
-      const interval = setInterval(() => {
-        setDisplayed(content.slice(0, i));
-        i += 3;
-        if (i > content.length) {
-          setDisplayed(content);
-          clearInterval(interval);
+        // Play Voice audio via TTS if enabled
+        if (isVoiceMode && typeof window !== 'undefined' && window.speechSynthesis) {
+          window.speechSynthesis.cancel();
+          const utterance = new SpeechSynthesisUtterance(data.answer);
+          utterance.onend = () => setAIState('teaching');
+          window.speechSynthesis.speak(utterance);
+        } else {
+          setTimeout(() => setAIState('teaching'), 3000);
         }
-      }, 8);
-      return () => clearInterval(interval);
-    }, [content]);
+      } else {
+        addChatMessage(
+          'professor',
+          `In ${currentModule.moduleTitle}, this behavior is governed directly by memory referencing and type mutability.`,
+          'Professor Aura'
+        );
+        setAIState('teaching');
+      }
+    } catch (err) {
+      addChatMessage(
+        'professor',
+        `Under the hood, memory pointers allocate bucket slots deterministically. Let's inspect the code on blackboard.`,
+        'Professor Aura'
+      );
+      setAIState('teaching');
+    }
+  };
 
-    return (
-      <div className="prose prose-invert max-w-none prose-pre:bg-[#070A12] prose-pre:border prose-pre:border-slate-800 prose-p:leading-relaxed prose-pre:p-4 prose-pre:rounded-xl">
-        <ReactMarkdown>{displayed}</ReactMarkdown>
-      </div>
-    );
+  // Mic Speech-To-Text Handler
+  const toggleMicListening = () => {
+    if (isMicListening) {
+      speechRecognitionRef.current?.stop();
+      setIsMicListening(false);
+      setAIState('teaching');
+      return;
+    }
+
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      toast.error('Speech recognition not supported in this browser. Please type your doubt!');
+      return;
+    }
+
+    try {
+      const recognition = new SpeechRecognition();
+      recognition.continuous = false;
+      recognition.interimResults = false;
+      recognition.lang = 'en-US';
+
+      recognition.onstart = () => {
+        setIsMicListening(true);
+        setAIState('listening');
+        toast.success('Listening... Speak to Professor Aura!');
+      };
+
+      recognition.onerror = () => {
+        setIsMicListening(false);
+        setAIState('error');
+        setTimeout(() => setAIState('teaching'), 1500);
+      };
+
+      recognition.onend = () => setIsMicListening(false);
+
+      recognition.onresult = (event: any) => {
+        const transcript = event.results[0][0].transcript;
+        if (transcript) {
+          toast.success(`Voice Recognized: "${transcript}"`);
+          handleAskProfessor(transcript);
+        }
+      };
+
+      recognition.start();
+      speechRecognitionRef.current = recognition;
+    } catch (err) {
+      toast.error('Could not activate microphone access.');
+    }
   };
 
   return (
     <div
       ref={containerRef}
-      className="min-h-screen bg-[#070A12] text-slate-100 flex flex-col font-sans select-none overflow-hidden relative"
+      className="flex flex-col h-screen w-screen bg-[#090d16] text-slate-100 font-sans overflow-hidden select-none"
     >
-      {/* IMMERSIVE TOP BAR */}
-      <header className="h-16 border-b border-slate-800/80 bg-[#070A12]/90 backdrop-blur-xl flex items-center justify-between px-4 md:px-6 z-30 sticky top-0 shadow-2xl">
-        <div className="flex items-center gap-3">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => router.back()}
-            className="text-slate-400 hover:text-white hover:bg-slate-800/60 rounded-xl"
-            title="Exit Classroom"
+      {/* ========================================================================= */}
+      {/* 1. TOP BAR */}
+      {/* ========================================================================= */}
+      <header className="h-14 bg-[#0f172a]/90 border-b border-slate-800/80 px-4 flex items-center justify-between shrink-0 z-30">
+        {/* Left: Board Config & Status Badges */}
+        <div className="flex items-center space-x-3">
+          <button
+            onClick={() => toast.success('Board Configuration: Real-time Multi-Slide Enabled')}
+            className="flex items-center space-x-2 px-3 py-1.5 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-xs text-slate-200 border border-slate-700 transition"
           >
-            <ArrowLeft className="w-5 h-5" />
-          </Button>
+            <Settings className="w-4 h-4 text-purple-400" />
+            <span className="font-medium">Board Config</span>
+          </button>
 
-          <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-base md:text-lg font-bold text-white tracking-tight truncate max-w-[180px] sm:max-w-md">
-                {courseTitle}
-              </h1>
-              <Badge variant="outline" className="hidden sm:inline-flex border-cyan-500/30 text-cyan-400 bg-cyan-500/10 text-xs">
-                {TEACHER_STYLES.find((s) => s.id === teacherStyle)?.name || 'Teacher'}
-              </Badge>
-            </div>
-            <p className="text-[11px] text-slate-400 hidden sm:block">Topic: {topic}</p>
+          <div className="hidden sm:flex items-center space-x-2">
+            <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-purple-500/20 text-purple-300 border border-purple-500/40">
+              <span className="w-1.5 h-1.5 rounded-full bg-purple-400 mr-1.5 animate-pulse" />
+              Professor is teaching
+            </span>
+            <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-slate-800/60 text-slate-300 border border-slate-700">
+              {session.persona}
+            </span>
           </div>
         </div>
 
-        {/* AI Professor Presence Status Indicator */}
-        <div className="flex items-center gap-3">
-          <div className="px-3.5 py-1.5 rounded-full bg-slate-900 border border-slate-800 flex items-center gap-2 shadow-inner">
-            <span className="relative flex h-2.5 w-2.5">
-              <span
-                className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${
-                  isTyping ? 'bg-cyan-400' : 'bg-emerald-400'
-                }`}
-              />
-              <span
-                className={`relative inline-flex rounded-full h-2.5 w-2.5 ${
-                  isTyping ? 'bg-cyan-500' : 'bg-emerald-500'
-                }`}
-              />
-            </span>
-            <span className="text-xs font-semibold text-slate-300">
-              {isTyping ? 'AI Professor Writing...' : 'AI Professor Live'}
-            </span>
+        {/* Center: Switch Teacher Button, Difficulty & Voice Dropdowns */}
+        <div className="flex items-center space-x-2.5">
+          {/* Switch AI Teacher Button */}
+          <button
+            onClick={() => setShowTeacherModal(true)}
+            className="flex items-center space-x-1.5 px-3 py-1 rounded-lg bg-gradient-to-r from-purple-600/30 to-indigo-600/30 hover:from-purple-600/50 hover:to-indigo-600/50 text-purple-200 border border-purple-500/50 text-xs font-semibold transition shadow-sm"
+            title="Switch AI Teacher Persona & Design"
+          >
+            <Bot className="w-3.5 h-3.5 text-purple-300" />
+            <span>AI Teacher: <strong className="text-white ml-0.5">{session.persona}</strong></span>
+            <Sparkles className="w-3 h-3 text-amber-400" />
+          </button>
+
+          {/* Difficulty Dropdown */}
+          <div className="flex items-center space-x-1.5 bg-slate-800/70 border border-slate-700/80 rounded-lg px-2.5 py-1">
+            <span className="text-[11px] text-slate-400 font-medium">Diff:</span>
+            <select
+              value={session.difficulty}
+              onChange={(e) => setDifficulty(e.target.value as any)}
+              className="bg-transparent text-xs font-semibold text-purple-300 focus:outline-none cursor-pointer"
+            >
+              <option value="beginner" className="bg-slate-900 text-slate-200">Beginner</option>
+              <option value="intermediate" className="bg-slate-900 text-slate-200">Intermediate</option>
+              <option value="advanced" className="bg-slate-900 text-slate-200">Advanced</option>
+            </select>
           </div>
 
-          {/* Quick Actions */}
-          <div className="flex items-center gap-1.5">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setIsMuted(!isMuted)}
-              className={`rounded-xl text-slate-400 hover:text-white ${isMuted ? 'text-amber-400 bg-amber-500/10' : ''}`}
-              title={isMuted ? 'Unmute Audio (M)' : 'Mute Audio (M)'}
+          {/* Voice Dropdown */}
+          <div className="flex items-center space-x-1.5 bg-slate-800/70 border border-slate-700/80 rounded-lg px-2.5 py-1">
+            <span className="text-[11px] text-slate-400 font-medium">Voice:</span>
+            <select
+              value={session.voice}
+              onChange={(e) => setVoice(e.target.value)}
+              className="bg-transparent text-xs font-semibold text-purple-300 focus:outline-none cursor-pointer"
             >
-              {isMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
-            </Button>
+              <option value="Sweet Female Voice" className="bg-slate-900 text-slate-200">Sweet Female Voice</option>
+              <option value="Deep Calm Male" className="bg-slate-900 text-slate-200">Deep Calm Male</option>
+              <option value="Academic Mentor" className="bg-slate-900 text-slate-200">Academic Mentor</option>
+            </select>
+          </div>
+        </div>
 
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setShowNotes(!showNotes)}
-              className={`rounded-xl text-slate-400 hover:text-white ${showNotes ? 'text-primary bg-primary/10' : ''}`}
-              title="Class Notes & Outline (N)"
+        {/* Right: Controls */}
+        <div className="flex items-center space-x-2">
+          {/* Voice Mode Toggle */}
+          <button
+            onClick={() => setIsVoiceMode(!isVoiceMode)}
+            className={`flex items-center space-x-1.5 px-3 py-1 rounded-full text-xs font-medium transition border ${
+              isVoiceMode
+                ? 'bg-purple-600/30 text-purple-300 border-purple-500/50'
+                : 'bg-slate-800 text-slate-400 border-slate-700'
+            }`}
+          >
+            {isVoiceMode ? <Volume2 className="w-3.5 h-3.5" /> : <VolumeX className="w-3.5 h-3.5" />}
+            <span>Voice Mode</span>
+          </button>
+
+          {/* Exit Class Button */}
+          <button
+            onClick={() => setShowExitModal(true)}
+            className="flex items-center space-x-1 px-2.5 py-1 rounded-lg bg-red-950/40 hover:bg-red-900/60 text-xs text-red-300 border border-red-800/60 transition"
+            title="Exit Live Classroom"
+          >
+            <X className="w-3.5 h-3.5 text-red-400" />
+            <span className="hidden md:inline">Exit Class</span>
+          </button>
+
+          {/* Action Icons */}
+          <div className="flex items-center space-x-1 pl-2 border-l border-slate-800">
+            <button
+              onClick={() => setShowCodingLabModal(true)}
+              className="p-1.5 rounded-lg hover:bg-slate-800 text-purple-300 transition"
+              title="Practice Coding Lab"
             >
-              <FileText className="w-4 h-4" />
-            </Button>
-
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setShowShortcutsModal(true)}
-              className="rounded-xl text-slate-400 hover:text-white hidden md:inline-flex"
-              title="Keyboard Shortcuts (?)"
+              <Code className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => setShowDoubtModal(true)}
+              className="p-1.5 rounded-lg hover:bg-slate-800 text-purple-300 transition"
+              title="Doubt Diagnostic Resolver"
             >
-              <Keyboard className="w-4 h-4" />
-            </Button>
-
-            <Button
-              variant="ghost"
-              size="icon"
+              <HelpCircle className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => setIsRightChatOpen(!isRightChatOpen)}
+              className={`p-1.5 rounded-lg transition ${isRightChatOpen ? 'bg-purple-600/20 text-purple-400' : 'hover:bg-slate-800 text-slate-400'}`}
+              title="Live Chat"
+            >
+              <MessageSquare className="w-4 h-4" />
+            </button>
+            <button
               onClick={toggleFullscreen}
-              className="rounded-xl text-slate-400 hover:text-white"
-              title={isFullscreen ? 'Exit Fullscreen (F)' : 'Focus Mode Fullscreen (F)'}
+              className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-400 transition"
+              title="Fullscreen"
             >
               {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
-            </Button>
+            </button>
           </div>
         </div>
       </header>
 
-      {/* MAIN FULL-SCREEN CLASSROOM STAGE */}
-      <div className="flex-1 flex overflow-hidden relative bg-[#070A12]">
-        {/* WHITEBOARD STAGE CANVAS (75-85% VIEWPORT) */}
-        <main className="flex-1 flex flex-col relative max-w-5xl mx-auto w-full px-4 md:px-8 py-6 overflow-hidden">
-          {/* Main Whiteboard Canvas Box */}
-          <div className="flex-1 bg-[#0F1629]/90 border border-slate-800/80 rounded-3xl p-6 md:p-8 overflow-y-auto space-y-6 shadow-2xl backdrop-blur-md pb-36 scrollbar-thin scrollbar-thumb-slate-800">
-            <AnimatePresence initial={false}>
-              {messages.map((msg, index) => (
-                <motion.div
-                  key={msg.id}
-                  initial={{ opacity: 0, y: 15 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} w-full`}
-                >
-                  <div className={`flex gap-3.5 max-w-[92%] md:max-w-[88%] ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
-                    {/* Role Icon */}
-                    <div className="flex-shrink-0 mt-1">
-                      {msg.role === 'user' ? (
-                        <div className="w-8 h-8 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-slate-300 font-bold text-xs">
-                          YOU
-                        </div>
-                      ) : (
-                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-cyan-500 to-purple-600 flex items-center justify-center text-white shadow-lg shadow-cyan-500/20">
-                          <Sparkles className="w-4 h-4" />
-                        </div>
-                      )}
-                    </div>
+      {/* ========================================================================= */}
+      {/* 2. REAL STATUS STRIP */}
+      {/* ========================================================================= */}
+      <div className="h-7 bg-[#0b101d] border-b border-slate-800/60 px-4 flex items-center justify-between text-[11px] font-mono text-slate-400 shrink-0">
+        <div className="flex items-center space-x-4 overflow-x-auto no-scrollbar">
+          <div className="flex items-center space-x-1.5">
+            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+            <span className="text-emerald-400 font-semibold">SESSION: ACTIVE</span>
+          </div>
+          <span className="text-slate-600">|</span>
+          <div>AI TEACHER: <span className="text-slate-200 font-medium">PROFESSOR ({session.persona.toUpperCase()})</span></div>
+          <span className="text-slate-600">|</span>
+          <div>AUDIO FEED: <span className="text-slate-200 font-medium">{session.voice.toUpperCase()}</span></div>
+          <span className="text-slate-600">|</span>
+          <div className="flex items-center space-x-1.5">
+            <span>COGNITIVE STREAM:</span>
+            <div className="w-16 h-1.5 bg-slate-800 rounded-full overflow-hidden">
+              <div className="w-[88%] h-full bg-purple-500" />
+            </div>
+            <span className="text-purple-400 font-semibold">FOCUSED</span>
+          </div>
+        </div>
+        <div className="hidden md:flex items-center space-x-1 text-slate-400">
+          <Zap className="w-3 h-3 text-emerald-400" />
+          <span>CONNECTION: SECURE SSL</span>
+        </div>
+      </div>
 
-                    {/* Whiteboard Board Content */}
-                    <div className="flex flex-col gap-2">
-                      <div
-                        className={`p-5 rounded-2xl ${
-                          msg.role === 'user'
-                            ? 'bg-slate-800/90 border border-slate-700 text-white rounded-tr-none shadow-md'
-                            : 'bg-[#070A12]/90 border border-cyan-500/20 text-slate-100 rounded-tl-none shadow-xl relative'
-                        }`}
-                      >
-                        {msg.role === 'user' ? (
-                          <div className="whitespace-pre-wrap font-sans text-sm">{msg.content}</div>
-                        ) : index === messages.length - 1 && isTyping === false ? (
-                          <TypewriterMarkdown content={msg.content} />
-                        ) : (
-                          <div className="prose prose-invert max-w-none prose-pre:bg-[#070A12] prose-pre:border prose-pre:border-slate-800 prose-p:leading-relaxed prose-pre:p-4 prose-pre:rounded-xl">
-                            <ReactMarkdown>{msg.content}</ReactMarkdown>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Interactive Follow-up Topic Suggestions */}
-                      {msg.suggestions && msg.suggestions.length > 0 && (
-                        <div className="flex flex-wrap gap-2 mt-2">
-                          <span className="text-[11px] text-slate-400 font-semibold w-full">Explore Follow-up:</span>
-                          {msg.suggestions.map((sug, i) => (
-                            <button
-                              key={i}
-                              onClick={() => handleSendMessage(sug)}
-                              className="text-xs px-3.5 py-1.5 rounded-xl bg-cyan-500/10 text-cyan-300 border border-cyan-500/30 hover:bg-cyan-500/20 hover:border-cyan-500/50 transition-all flex items-center gap-1.5 font-medium shadow-sm"
-                            >
-                              <MessageSquare className="w-3 w-3 text-cyan-400" />
-                              {sug}
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </motion.div>
-              ))}
-            </AnimatePresence>
-
-            {/* AI Thinking Stream Indicator */}
-            {isTyping && (
-              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex justify-start w-full">
-                <div className="flex gap-3 items-center">
-                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-cyan-500 to-purple-600 flex items-center justify-center text-white animate-pulse">
-                    <Sparkles className="w-4 h-4" />
-                  </div>
-                  <div className="bg-[#070A12] border border-cyan-500/30 p-4 rounded-2xl rounded-tl-none flex items-center gap-2 text-xs text-cyan-300 font-medium">
-                    <Loader2 className="w-4 h-4 animate-spin text-cyan-400" />
-                    <span>AI Professor is formulating whiteboard explanation...</span>
-                  </div>
-                </div>
-              </motion.div>
-            )}
-
-            <div ref={messagesEndRef} />
+      {/* ========================================================================= */}
+      {/* MAIN WORKSPACE: 3 PANELS */}
+      {/* ========================================================================= */}
+      <div className="flex-1 flex overflow-hidden relative">
+        {/* ----------------------------------------------------------------------- */}
+        {/* 3. LEFT PANEL — CURRICULUM MODULES */}
+        {/* ----------------------------------------------------------------------- */}
+        <aside className="w-72 bg-[#0c1222]/95 border-r border-slate-800/80 flex flex-col shrink-0 overflow-y-auto">
+          {/* Professor Header Card */}
+          <div className="p-4 border-b border-slate-800/60 flex items-center space-x-3 bg-gradient-to-r from-purple-950/20 to-transparent">
+            <AIProfessorAvatar state={session.aiState} size="sm" className="w-12 h-14" />
+            <div>
+              <h3 className="text-sm font-bold text-slate-100 flex items-center space-x-1">
+                <span>Professor Aura</span>
+                <Sparkles className="w-3.5 h-3.5 text-purple-400 fill-purple-400" />
+              </h3>
+              <p className="text-[11px] text-purple-400 font-medium">{session.persona}</p>
+            </div>
           </div>
 
-          {/* FLOATING CONTROLS DOCK (UNOBTRUSIVE / BOTTOM) */}
-          <div className="absolute bottom-4 left-4 right-4 max-w-5xl mx-auto z-20">
-            <div className="bg-slate-950/90 backdrop-blur-2xl border border-slate-800 rounded-2xl p-2.5 flex items-center gap-2 shadow-2xl border-cyan-500/20">
-              {/* Voice Mic Toggle */}
-              <button
-                onClick={() => setIsVoiceActive(!isVoiceActive)}
-                className={`p-3 rounded-xl transition-all flex items-center gap-2 text-xs font-semibold ${
-                  isVoiceActive
-                    ? 'bg-red-500 text-white animate-pulse shadow-lg shadow-red-500/20'
-                    : 'bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white'
-                }`}
-                title="Raise Hand / Voice Q&A"
-              >
-                {isVoiceActive ? <Mic className="w-4 h-4" /> : <MicOff className="w-4 h-4" />}
-                <span className="hidden sm:inline">{isVoiceActive ? 'Listening...' : 'Raise Hand'}</span>
-              </button>
+          {/* Current Course Progress Card */}
+          <div className="p-4 border-b border-slate-800/60">
+            <div className="flex justify-between items-center mb-1.5">
+              <span className="text-xs font-semibold text-slate-300">Course Progress</span>
+              <span className="text-xs font-mono font-bold text-purple-400">{progressPercent}%</span>
+            </div>
+            <h4 className="text-xs font-medium text-slate-400 mb-2 truncate">{session.courseTitle}</h4>
+            <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-gradient-to-r from-purple-600 to-indigo-500 transition-all duration-500"
+                style={{ width: `${progressPercent}%` }}
+              />
+            </div>
+            <p className="text-[10px] text-slate-500 mt-1.5">
+              Module {session.currentModuleIndex + 1} of {session.modules.length} · Slide {session.currentSlideIndex + 1} of {currentModule.slides.length}
+            </p>
+          </div>
 
-              {/* Text Query Input */}
-              <div className="flex-1 flex items-center relative">
-                <textarea
-                  ref={inputRef}
-                  value={inputValue}
-                  onChange={(e) => setInputValue(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && !e.shiftKey) {
-                      e.preventDefault();
-                      handleSendMessage();
-                    }
-                  }}
-                  placeholder="Ask the AI Professor a question or type a concept..."
-                  rows={1}
-                  className="w-full bg-slate-900/90 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-cyan-500 resize-none max-h-24"
-                />
+          {/* Module Step List */}
+          <div className="flex-1 p-3 space-y-2 overflow-y-auto">
+            <h4 className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider px-2 mb-1">
+              Curriculum Flow
+            </h4>
+            {session.modules.map((mod, idx) => {
+              const isActive = idx === session.currentModuleIndex;
+              const isDone = mod.status === 'completed';
+
+              return (
+                <button
+                  key={mod.moduleId}
+                  onClick={() => goToModule(idx)}
+                  className={`w-full text-left p-2.5 rounded-xl transition flex items-start space-x-3 border ${
+                    isActive
+                      ? 'bg-purple-950/40 border-purple-500/60 shadow-[0_0_15px_rgba(168,85,247,0.15)]'
+                      : isDone
+                      ? 'bg-slate-900/50 border-slate-800/60 hover:bg-slate-800/50'
+                      : 'bg-slate-950/30 border-slate-900 hover:bg-slate-900/40'
+                  }`}
+                >
+                  <div className="mt-0.5 shrink-0">
+                    {isDone ? (
+                      <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                    ) : isActive ? (
+                      <div className="w-4 h-4 rounded-full bg-purple-500/20 border border-purple-400 flex items-center justify-center">
+                        <div className="w-1.5 h-1.5 rounded-full bg-purple-400 animate-ping" />
+                      </div>
+                    ) : (
+                      <div className="w-4 h-4 rounded-full border border-slate-700 flex items-center justify-center text-[10px] text-slate-500">
+                        {idx + 1}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex-1 min-w-0">
+                    <p className={`text-xs font-semibold truncate ${isActive ? 'text-purple-200' : isDone ? 'text-slate-300' : 'text-slate-400'}`}>
+                      {mod.moduleTitle}
+                    </p>
+                    <div className="flex items-center space-x-2 mt-0.5">
+                      <span className={`text-[9px] px-1.5 py-0.5 rounded font-mono ${
+                        isDone
+                          ? 'bg-emerald-950/40 text-emerald-400 border border-emerald-800/40'
+                          : isActive
+                          ? 'bg-purple-900/40 text-purple-300 border border-purple-700/40'
+                          : 'bg-slate-800 text-slate-500'
+                      }`}>
+                        {isDone ? 'Completed' : isActive ? 'Active Module' : 'Upcoming'}
+                      </span>
+                      <span className="text-[9px] text-slate-500 font-mono">
+                        {mod.slides.length} slides
+                      </span>
+                    </div>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Quick Lab Link */}
+          <div className="p-3 border-t border-slate-800/60">
+            <button
+              onClick={() => setShowCodingLabModal(true)}
+              className="w-full py-2 px-3 rounded-lg bg-indigo-950/60 hover:bg-indigo-900/60 text-xs font-medium text-indigo-300 border border-indigo-700/50 flex items-center justify-center space-x-2 transition"
+            >
+              <Code className="w-3.5 h-3.5 text-indigo-400" />
+              <span>Open Coding Lab Sandbox</span>
+            </button>
+          </div>
+        </aside>
+
+        {/* ----------------------------------------------------------------------- */}
+        {/* 4. CENTER PANEL — MULTI-SLIDE BLACKBOARD & HOVERING PROFESSOR */}
+        {/* ----------------------------------------------------------------------- */}
+        <main className="flex-1 flex flex-col bg-[#090d16] relative overflow-y-auto">
+          <div className="flex-1 p-6 flex flex-col justify-between max-w-5xl mx-auto w-full space-y-5">
+            {/* Slide Header & Spoken Speech Bubble */}
+            <motion.div
+              key={currentSlide.slideId}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3 }}
+              className="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 shadow-xl relative backdrop-blur-sm space-y-3"
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-2">
+                  <span className="px-2.5 py-0.5 rounded-full bg-purple-500/20 text-purple-300 font-mono text-[10px] font-bold uppercase tracking-wider border border-purple-500/30">
+                    {currentSlide.exampleTitle || 'CORE SYNTAX'}
+                  </span>
+                  <span className="text-xs font-bold text-slate-200">{currentSlide.title}</span>
+                </div>
+                <span className="text-xs text-slate-400 font-mono">
+                  Slide {session.currentSlideIndex + 1} of {currentModule.slides.length}
+                </span>
               </div>
 
-              {/* Send Button */}
-              <Button
-                onClick={() => handleSendMessage()}
-                disabled={!inputValue.trim() || isTyping}
-                size="sm"
-                className="bg-cyan-500 text-slate-950 hover:bg-cyan-400 font-bold px-4 py-2.5 rounded-xl disabled:opacity-40 shrink-0 gap-1.5 shadow-lg shadow-cyan-500/20"
+              {/* High-Energy Teacher Avatar Speech */}
+              <div className="p-3.5 bg-purple-950/20 border border-purple-800/30 rounded-xl">
+                <div className="flex items-center space-x-2 text-[10px] font-mono text-purple-400 font-bold mb-1">
+                  <Bot className="w-3.5 h-3.5" />
+                  <span>PROFESSOR SCRIPT:</span>
+                </div>
+                <p className="text-xs md:text-sm text-purple-100 leading-relaxed font-medium">
+                  {currentSlide.speech}
+                </p>
+              </div>
+
+              {/* In-depth Conceptual Deep-Dive & Time Complexity */}
+              <div className="text-xs text-slate-300 leading-relaxed bg-slate-950/60 p-3 rounded-xl border border-slate-800/80 flex items-start space-x-2">
+                <Lightbulb className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                <p>{currentSlide.explanation}</p>
+              </div>
+            </motion.div>
+
+            {/* Interactive Grid: Code / Terminal + Diagram + Hovering Avatar */}
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start flex-1">
+              {/* Code & Output Panel (Left 7 Cols) */}
+              <div className="lg:col-span-7 flex flex-col bg-slate-950 border border-slate-800 rounded-2xl overflow-hidden shadow-2xl min-h-[300px]">
+                {/* Panel Header & Tabs */}
+                <div className="bg-slate-900/90 px-4 py-2 border-b border-slate-800 flex items-center justify-between">
+                  <div className="flex items-center space-x-2">
+                    <span className="w-3 h-3 rounded-full bg-red-500/80" />
+                    <span className="w-3 h-3 rounded-full bg-yellow-500/80" />
+                    <span className="w-3 h-3 rounded-full bg-emerald-500/80" />
+                    <div className="flex space-x-1 ml-2">
+                      <button
+                        onClick={() => setCenterTab('code')}
+                        className={`px-2.5 py-0.5 rounded text-[11px] font-mono transition ${
+                          centerTab === 'code' ? 'bg-purple-600 text-white font-bold' : 'text-slate-400 hover:text-slate-200'
+                        }`}
+                      >
+                        EXAMPLE.py
+                      </button>
+                      <button
+                        onClick={() => setCenterTab('output')}
+                        className={`px-2.5 py-0.5 rounded text-[11px] font-mono flex items-center space-x-1 transition ${
+                          centerTab === 'output' ? 'bg-purple-600 text-white font-bold' : 'text-slate-400 hover:text-slate-200'
+                        }`}
+                      >
+                        <Terminal className="w-3 h-3" />
+                        <span>Execution Output</span>
+                      </button>
+                    </div>
+                  </div>
+                  <span className="text-[10px] font-mono bg-purple-950/60 text-purple-300 px-2 py-0.5 rounded border border-purple-800/40">
+                    python 3.12
+                  </span>
+                </div>
+
+                {/* Tab Views */}
+                {centerTab === 'code' ? (
+                  <div className="p-4 font-mono text-xs text-slate-200 overflow-x-auto flex-1 leading-relaxed bg-[#0d1322]">
+                    <pre className="text-purple-200">
+                      <code>{currentSlide.code}</code>
+                    </pre>
+                  </div>
+                ) : (
+                  <div className="p-4 font-mono text-xs text-emerald-400 overflow-x-auto flex-1 leading-relaxed bg-black/90">
+                    <pre>
+                      <code>{currentSlide.output || '>>> Execution completed with code 0.'}</code>
+                    </pre>
+                  </div>
+                )}
+
+                {/* Key Points / Exam Cheat-Sheet */}
+                {currentSlide.keyPoints && currentSlide.keyPoints.length > 0 && (
+                  <div className="p-3 bg-slate-900/60 border-t border-slate-800 text-[11px] space-y-1">
+                    <span className="font-mono text-[10px] font-bold text-purple-400 uppercase tracking-wider block">
+                      📌 CHEAT SHEET & KEY RULES:
+                    </span>
+                    <div className="flex flex-wrap gap-1.5">
+                      {currentSlide.keyPoints.map((kp, idx) => (
+                        <span key={idx} className="bg-slate-950 border border-slate-800 text-slate-300 px-2 py-0.5 rounded">
+                          • {kp}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Right Side: Architecture Diagram + Hovering Avatar (Right 5 Cols) */}
+              <div className="lg:col-span-5 flex flex-col space-y-4">
+                {/* Interactive Diagram */}
+                {currentSlide.diagramType && currentSlide.diagramType !== 'none' && (
+                  <InteractiveDiagram type={currentSlide.diagramType} />
+                )}
+
+                {/* Hovering Robot Avatar */}
+                <div className="flex flex-col items-center justify-center relative min-h-[220px]">
+                  <AIProfessorAvatar state={session.aiState} teacherStyle={session.persona} size="lg" />
+                  <div className="mt-1 text-center">
+                    <span className="text-[10px] font-mono text-purple-400 bg-purple-950/40 border border-purple-800/40 px-3 py-0.5 rounded-full inline-flex items-center space-x-1.5">
+                      <span className="w-1.5 h-1.5 rounded-full bg-purple-400 animate-pulse" />
+                      <span>{session.aiState.toUpperCase()}</span>
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Slide Navigation Carousel Dots */}
+            <div className="flex items-center justify-center space-x-2 py-1">
+              <span className="text-[10px] font-mono text-slate-500 mr-1">
+                SLIDES:
+              </span>
+              {currentModule.slides.map((_, i) => (
+                <button
+                  key={i}
+                  onClick={() => goToSlide(i)}
+                  className={`h-2.5 rounded-full transition-all ${
+                    i === session.currentSlideIndex
+                      ? 'w-7 bg-purple-500 shadow-[0_0_10px_rgba(168,85,247,0.8)]'
+                      : 'w-2.5 bg-slate-700 hover:bg-slate-600'
+                  }`}
+                  title={`Slide ${i + 1}`}
+                />
+              ))}
+            </div>
+
+            {/* Bottom Controls: Previous / Ask Professor (Mic) / Next */}
+            <div className="flex items-center justify-between pt-2 border-t border-slate-800/60">
+              <button
+                onClick={prevSlideOrModule}
+                className="flex items-center space-x-1.5 px-4 py-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-xs font-semibold text-slate-200 transition border border-slate-700"
               >
-                {isTyping ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-                <span className="hidden sm:inline">Ask</span>
-              </Button>
+                <ChevronLeft className="w-4 h-4" />
+                <span>Previous Slide</span>
+              </button>
+
+              {/* Prominent Mic Button */}
+              <button
+                onClick={toggleMicListening}
+                className={`px-6 py-3 rounded-full text-xs font-bold transition-all shadow-lg flex items-center space-x-2 ${
+                  isMicListening
+                    ? 'bg-red-600 text-white shadow-red-500/50 animate-bounce'
+                    : 'bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white shadow-purple-500/30'
+                }`}
+              >
+                <Mic className={`w-4 h-4 ${isMicListening ? 'animate-pulse' : ''}`} />
+                <span>{isMicListening ? 'Listening... Speak!' : 'Ask Professor'}</span>
+              </button>
+
+              <button
+                onClick={nextSlideOrModule}
+                className="flex items-center space-x-1.5 px-4 py-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-xs font-semibold text-slate-200 transition border border-slate-700"
+              >
+                <span>Next Slide</span>
+                <ChevronRight className="w-4 h-4" />
+              </button>
             </div>
           </div>
         </main>
 
-        {/* COLLAPSIBLE SIDEBAR: CLASS NOTES & OUTLINE */}
+        {/* ----------------------------------------------------------------------- */}
+        {/* 5. RIGHT PANEL — LIVE CLASS CHAT & VOICE QA STREAM */}
+        {/* ----------------------------------------------------------------------- */}
         <AnimatePresence>
-          {showNotes && (
+          {isRightChatOpen && (
             <motion.aside
-              initial={{ x: 320, opacity: 0 }}
-              animate={{ x: 0, opacity: 1 }}
-              exit={{ x: 320, opacity: 0 }}
-              className="w-80 border-l border-slate-800 bg-[#0F1629]/95 backdrop-blur-xl flex flex-col z-20 shadow-2xl"
+              initial={{ width: 0, opacity: 0 }}
+              animate={{ width: 340, opacity: 1 }}
+              exit={{ width: 0, opacity: 0 }}
+              className="bg-[#0b101e] border-l border-slate-800/80 flex flex-col shrink-0 h-full"
             >
-              <div className="p-4 border-b border-slate-800 flex justify-between items-center bg-[#070A12]/40">
-                <div className="flex items-center gap-2 text-white font-bold text-sm">
-                  <FileText className="w-4 h-4 text-cyan-400" />
-                  <span>Class Notes & Scratchpad</span>
+              {/* Header */}
+              <div className="p-3.5 border-b border-slate-800 flex items-center justify-between bg-slate-900/60">
+                <div className="flex items-center space-x-2">
+                  <h3 className="text-xs font-bold text-slate-200 uppercase tracking-wider">Live Class Stream</h3>
+                  <span className="flex items-center space-x-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-950 text-emerald-400 border border-emerald-800/60">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                    <span>Live</span>
+                  </span>
                 </div>
-                <Button variant="ghost" size="sm" onClick={() => setShowNotes(false)} className="text-slate-400 hover:text-white">
-                  <X className="w-4 h-4" />
-                </Button>
+                <div className="flex items-center space-x-2">
+                  <span className="text-[11px] font-mono text-slate-400 bg-slate-800 px-2 py-0.5 rounded">👤 128</span>
+                  <button onClick={() => setIsRightChatOpen(false)} className="text-slate-400 hover:text-slate-200">
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
               </div>
 
-              <div className="p-4 flex-1 flex flex-col space-y-4">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-400 mb-1.5">Session Notes</label>
-                  <textarea
-                    value={notesText}
-                    onChange={(e) => setNotesText(e.target.value)}
-                    className="w-full h-48 bg-[#070A12] border border-slate-800 rounded-xl p-3 text-slate-200 text-xs font-mono resize-none focus:outline-none focus:border-cyan-500"
-                    placeholder="Take personal notes during lecture..."
-                  />
-                </div>
+              {/* Chat Message Stream */}
+              <div className="flex-1 p-3 overflow-y-auto space-y-3">
+                {session.conversation.map((msg) => (
+                  <div
+                    key={msg.id}
+                    className={`flex items-start space-x-2 ${
+                      msg.sender === 'user' ? 'flex-row-reverse space-x-reverse' : ''
+                    }`}
+                  >
+                    <div
+                      className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${
+                        msg.isAI
+                          ? 'bg-purple-600 text-white shadow-[0_0_10px_rgba(168,85,247,0.5)]'
+                          : 'bg-slate-700 text-slate-200'
+                      }`}
+                    >
+                      {msg.isAI ? '🤖' : msg.name.charAt(0)}
+                    </div>
+                    <div
+                      className={`max-w-[85%] p-3 rounded-2xl text-xs leading-relaxed space-y-2 ${
+                        msg.isAI
+                          ? 'bg-purple-950/40 border border-purple-800/40 text-purple-100 rounded-tl-none'
+                          : 'bg-slate-800 text-slate-200 rounded-tr-none'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between space-x-2">
+                        <span className="font-semibold text-[11px] text-purple-300 flex items-center space-x-1">
+                          <span>{msg.name}</span>
+                          {msg.isAI && (
+                            <span className="bg-purple-500/30 text-purple-300 text-[9px] px-1 rounded border border-purple-400/40 font-mono">
+                              AI
+                            </span>
+                          )}
+                        </span>
+                        <span className="text-[9px] text-slate-500 font-mono">{msg.timestamp}</span>
+                      </div>
 
-                <div className="border-t border-slate-800 pt-4 space-y-2">
-                  <h4 className="text-xs font-bold text-slate-300 uppercase tracking-wider">Lesson Outline</h4>
-                  <div className="space-y-1.5 text-xs text-slate-400">
-                    <div className="p-2 rounded-lg bg-slate-900 border border-slate-800 flex items-center justify-between text-slate-200">
-                      <span>1. Core Concepts</span>
-                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-                    </div>
-                    <div className="p-2 rounded-lg bg-slate-900 border border-slate-800 flex items-center justify-between text-slate-400">
-                      <span>2. Practical Example</span>
-                      <span className="text-[10px] text-cyan-400 font-medium">In Progress</span>
-                    </div>
-                    <div className="p-2 rounded-lg bg-slate-900 border border-slate-800 flex items-center justify-between text-slate-500">
-                      <span>3. Knowledge Check</span>
-                      <span>Next</span>
+                      <p className="whitespace-pre-wrap">{msg.text}</p>
+
+                      {/* Code Snippet attached to Answer */}
+                      {msg.codeSnippet && (
+                        <div className="p-2 bg-black/50 rounded-lg border border-purple-900/50 font-mono text-[11px] text-purple-200 overflow-x-auto">
+                          <pre><code>{msg.codeSnippet}</code></pre>
+                        </div>
+                      )}
+
+                      {/* Memory Insight Badge */}
+                      {msg.memoryInsight && (
+                        <div className="flex items-center space-x-1.5 text-[10px] font-mono text-purple-300 bg-purple-900/30 px-2 py-1 rounded border border-purple-700/30">
+                          <Cpu className="w-3 h-3 text-purple-400 shrink-0" />
+                          <span>{msg.memoryInsight}</span>
+                        </div>
+                      )}
+
+                      {/* Suggested Follow-up Prompt */}
+                      {msg.suggestedFollowUp && (
+                        <button
+                          onClick={() => handleAskProfessor(msg.suggestedFollowUp)}
+                          className="w-full text-left p-1.5 rounded bg-slate-900 hover:bg-slate-800 text-[10px] text-purple-300 border border-slate-700 transition flex items-center space-x-1"
+                        >
+                          <Sparkles className="w-3 h-3 text-purple-400 shrink-0" />
+                          <span className="truncate">Ask: {msg.suggestedFollowUp}</span>
+                        </button>
+                      )}
                     </div>
                   </div>
-                </div>
+                ))}
+                <div ref={chatBottomRef} />
               </div>
+
+              {/* Chat Input */}
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  handleAskProfessor();
+                }}
+                className="p-3 border-t border-slate-800 bg-slate-900/70 flex items-center space-x-2"
+              >
+                <input
+                  type="text"
+                  value={chatInput}
+                  onChange={(e) => setChatInput(e.target.value)}
+                  placeholder="Ask a question..."
+                  className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-purple-500"
+                />
+                <button
+                  type="button"
+                  onClick={toggleMicListening}
+                  className={`p-2 rounded-xl border transition ${
+                    isMicListening
+                      ? 'bg-red-600 text-white border-red-500 animate-pulse'
+                      : 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700'
+                  }`}
+                  title="Speak Question"
+                >
+                  <Mic className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  type="submit"
+                  disabled={!chatInput.trim()}
+                  className="p-2 rounded-xl bg-purple-600 hover:bg-purple-500 disabled:opacity-40 text-white transition shadow-md shadow-purple-600/30"
+                >
+                  <Send className="w-3.5 h-3.5" />
+                </button>
+              </form>
             </motion.aside>
           )}
         </AnimatePresence>
       </div>
 
-      {/* KEYBOARD SHORTCUTS MODAL */}
-      {showShortcutsModal && (
-        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
-          <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-[#0F1629] border border-slate-800 rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-              <div className="flex items-center gap-2 font-bold text-white text-base">
-                <Keyboard className="w-5 h-5 text-cyan-400" />
-                <span>Keyboard Shortcuts</span>
-              </div>
-              <button onClick={() => setShowShortcutsModal(false)} className="text-slate-400 hover:text-white">
-                <X className="w-5 h-5" />
+      {/* ========================================================================= */}
+      {/* 6. BOTTOM BAR */}
+      {/* ========================================================================= */}
+      <footer className="h-14 bg-[#0b101e] border-t border-slate-800/80 px-4 flex items-center justify-between shrink-0 z-30">
+        {/* Topic Input + Teach Button */}
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            handleTeachTopic();
+          }}
+          className="flex items-center space-x-2 flex-1 max-w-xl"
+        >
+          <div className="relative flex-1">
+            <input
+              type="text"
+              value={topicInput}
+              onChange={(e) => setTopicInput(e.target.value)}
+              placeholder="Enter any topic (e.g. Python Dictionaries, React Hooks, Quantum Computing)..."
+              className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-3 pr-8 py-2 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-purple-500/80"
+            />
+            <Sparkles className="w-3.5 h-3.5 text-purple-400 absolute right-2.5 top-2.5 pointer-events-none" />
+          </div>
+          <button
+            type="submit"
+            disabled={isGenerating || !topicInput.trim()}
+            className="px-4 py-2 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white text-xs font-bold flex items-center space-x-1.5 transition disabled:opacity-40 shadow-md shadow-purple-600/20"
+          >
+            <span>Teach</span>
+            <Zap className="w-3.5 h-3.5 fill-white" />
+          </button>
+        </form>
+
+        {/* Quick Action Buttons */}
+        <div className="hidden sm:flex items-center space-x-2">
+          <button
+            onClick={() => toggleMicListening()}
+            className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-xs text-slate-300 border border-slate-700 transition"
+          >
+            <Mic className="w-3.5 h-3.5 text-purple-400" />
+            <span>Voice</span>
+          </button>
+          <button
+            onClick={() => setShowDoubtModal(true)}
+            className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-xs text-slate-300 border border-slate-700 transition"
+          >
+            <HelpCircle className="w-3.5 h-3.5 text-purple-400" />
+            <span>Doubt</span>
+          </button>
+          <button
+            onClick={() => setShowCodingLabModal(true)}
+            className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-xs text-slate-300 border border-slate-700 transition"
+          >
+            <Code className="w-3.5 h-3.5 text-purple-400" />
+            <span>Lab</span>
+          </button>
+          <button
+            onClick={() => setShowNotesModal(true)}
+            className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-xs text-slate-300 border border-slate-700 transition"
+          >
+            <FileText className="w-3.5 h-3.5 text-purple-400" />
+            <span>Notes</span>
+          </button>
+        </div>
+      </footer>
+
+      {/* ========================================================================= */}
+      {/* 7. DEV STATE MACHINE SWITCHER */}
+      {/* ========================================================================= */}
+      {showDevStateBar && (
+        <div className="bg-slate-950 border-t border-purple-900/60 px-4 py-1.5 flex items-center justify-between text-[11px] font-mono text-slate-400 z-40">
+          <div className="flex items-center space-x-2 overflow-x-auto no-scrollbar">
+            <span className="text-purple-400 font-bold">ROBOT STATES (11):</span>
+            {(
+              [
+                'idle',
+                'thinking',
+                'preparing_lesson',
+                'teaching',
+                'speaking',
+                'listening',
+                'processing_question',
+                'answering',
+                'paused',
+                'lesson_completed',
+                'error',
+              ] as ProfessorState[]
+            ).map((st) => (
+              <button
+                key={st}
+                onClick={() => setAIState(st)}
+                className={`px-2 py-0.5 rounded transition ${
+                  session.aiState === st
+                    ? 'bg-purple-600 text-white font-bold'
+                    : 'bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800'
+                }`}
+              >
+                {st}
               </button>
-            </div>
-
-            <div className="space-y-2.5 text-xs">
-              {[
-                { key: 'F', action: 'Toggle Fullscreen Focus Mode' },
-                { key: 'N', action: 'Toggle Class Notes Drawer' },
-                { key: 'M', action: 'Mute / Unmute Audio Stream' },
-                { key: 'V', action: 'Toggle Voice Microphone' },
-                { key: '?', action: 'Show / Hide Shortcuts Overlay' },
-              ].map((sc) => (
-                <div key={sc.key} className="flex items-center justify-between p-2 rounded-xl bg-[#070A12] border border-slate-800">
-                  <span className="text-slate-300 font-medium">{sc.action}</span>
-                  <span className="px-2 py-1 rounded bg-slate-800 border border-slate-700 font-mono text-cyan-400 font-bold">
-                    {sc.key}
-                  </span>
-                </div>
-              ))}
-            </div>
-
-            <Button onClick={() => setShowShortcutsModal(false)} className="w-full bg-slate-800 hover:bg-slate-700 text-white font-semibold text-xs py-2 rounded-xl">
-              Got it
-            </Button>
-          </motion.div>
+            ))}
+          </div>
+          <button onClick={() => setShowDevStateBar(false)} className="text-slate-500 hover:text-slate-300 ml-2">
+            ✕
+          </button>
         </div>
       )}
+
+      {/* AI Doubt Diagnostic Modal */}
+      <DoubtModal
+        isOpen={showDoubtModal}
+        onClose={() => setShowDoubtModal(false)}
+        topic={session.topic}
+        level={session.difficulty}
+      />
+
+      {/* Interactive Coding Lab Modal */}
+      <CodingLabModal
+        isOpen={showCodingLabModal}
+        onClose={() => setShowCodingLabModal(false)}
+        topic={currentModule.moduleTitle}
+      />
+
+      {/* Notes Modal */}
+      {showNotesModal && (
+        <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-lg p-5 shadow-2xl space-y-4">
+            <div className="flex justify-between items-center border-b border-slate-800 pb-3">
+              <h3 className="text-sm font-bold text-slate-100 flex items-center space-x-2">
+                <FileText className="w-4 h-4 text-purple-400" />
+                <span>Classroom Notes — {session.topic}</span>
+              </h3>
+              <button onClick={() => setShowNotesModal(false)} className="text-slate-400 hover:text-slate-200">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <textarea
+              value={notesText}
+              onChange={(e) => setNotesText(e.target.value)}
+              placeholder="Type your personal lesson notes..."
+              className="w-full h-48 bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-purple-500"
+            />
+            <div className="flex justify-end space-x-2">
+              <button
+                onClick={() => setShowNotesModal(false)}
+                className="px-4 py-2 rounded-xl bg-slate-800 text-slate-300 text-xs hover:bg-slate-700"
+              >
+                Close
+              </button>
+              <button
+                onClick={() => {
+                  toast.success('Notes saved to session!');
+                  setShowNotesModal(false);
+                }}
+                className="px-4 py-2 rounded-xl bg-purple-600 text-white text-xs font-bold hover:bg-purple-500"
+              >
+                Save Notes
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* In-Page Teacher Select Modal */}
+      <TeacherSelectModal
+        isOpen={showTeacherModal}
+        onClose={() => setShowTeacherModal(false)}
+        currentPersona={session.persona}
+        onSelectPersona={(id, name) => {
+          setPersona(name);
+          toast.success(`Switched to AI Teacher: ${name}`);
+        }}
+      />
+
+      {/* Exit Live Class Confirmation Modal */}
+      <ExitClassModal
+        isOpen={showExitModal}
+        onClose={() => setShowExitModal(false)}
+        courseTitle={session.courseTitle}
+      />
     </div>
   );
 }

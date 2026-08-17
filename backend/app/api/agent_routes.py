@@ -250,15 +250,78 @@ async def public_ask(req: GenerateRequest, request: Request):
         result = await fallback(req.prompt)
         return {"success": True, "data": {"response": result}}
 
+@router.post("/generate-lesson")
 @router.post("/public/generate-lesson")
-async def public_generate_lesson(request: Request, topic: str = "Python", level: str = "beginner"):
-    """Public endpoint - generate a lesson without auth."""
-    ip = request.client.host if request.client else "unknown"
-    if not await rate_limit(f"rate_limit:public_gen:{ip}", limit=5, window=60):
-        raise HTTPException(status_code=429, detail="Too many requests. Please try again later.")
+async def generate_lesson_endpoint(request: Request, body: dict = None):
+    """1. Live Interactive Course & Multi-Slide Curriculum Generator"""
+    if body is None:
+        try:
+            body = await request.json()
+        except Exception:
+            body = {}
+    
+    topic = body.get("topic") or request.query_params.get("topic") or "Python Data Structures"
+    level = body.get("level") or request.query_params.get("level") or "Beginner"
+    persona = body.get("persona") or request.query_params.get("persona") or "Professor Structured"
 
-    lesson = await teacher.generate_lesson(topic, level)
-    return {"success": True, "data": lesson}
+    course_data = await teacher.generate_multi_slide_course(topic=topic, level=level, persona=persona)
+    return {"success": True, "data": course_data}
+
+@router.post("/ask-professor")
+@router.post("/public/ask-professor")
+async def ask_professor_endpoint(request: Request, body: dict = None):
+    """2. Live Class 'Ask Professor' & Voice Interaction Endpoint"""
+    if body is None:
+        try:
+            body = await request.json()
+        except Exception:
+            body = {}
+
+    persona = body.get("persona", "Professor Structured")
+    course_title = body.get("courseTitle", "Interactive Masterclass")
+    current_topic = body.get("currentTopic", "General Topic")
+    current_slide = body.get("currentSlide", {})
+    question = body.get("question", "")
+
+    result = await teacher.ask_professor(
+        persona=persona,
+        course_title=course_title,
+        current_topic=current_topic,
+        current_slide=current_slide,
+        question=question
+    )
+    return {"success": True, "data": result}
+
+@router.post("/doubt")
+@router.post("/public/doubt")
+async def resolve_doubt_endpoint(request: Request, body: dict = None):
+    """3. AI Doubt Resolver & Step-by-Step Breakdown Endpoint"""
+    if body is None:
+        try:
+            body = await request.json()
+        except Exception:
+            body = {}
+
+    topic = body.get("topic", "Programming")
+    level = body.get("level", "Beginner")
+    doubt = body.get("doubt", "")
+
+    result = await teacher.resolve_doubt_deep(topic=topic, level=level, doubt=doubt)
+    return {"success": True, "data": result}
+
+@router.post("/coding-challenge")
+@router.post("/public/coding-challenge")
+async def coding_challenge_endpoint(request: Request, body: dict = None):
+    """4. Interactive Live Sandbox & Coding Lab Challenge Generator"""
+    if body is None:
+        try:
+            body = await request.json()
+        except Exception:
+            body = {}
+
+    current_topic = body.get("currentTopic") or body.get("topic") or "Python Algorithms"
+    result = await teacher.generate_coding_challenge(current_topic=current_topic)
+    return {"success": True, "data": result}
 
 @router.post("/generate/stream")
 async def generate_stream(req: GenerateRequest, user=Depends(optional_firebase_token)):
@@ -269,3 +332,4 @@ async def generate_stream(req: GenerateRequest, user=Depends(optional_firebase_t
         agent.generate_stream(req.prompt),
         media_type="text/event-stream"
     )
+

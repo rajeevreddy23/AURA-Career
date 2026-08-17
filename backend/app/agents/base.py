@@ -44,32 +44,35 @@ class BaseAgent:
         # Try NVIDIA NIM (primary), then Groq, then Gemini, then mock
         if self.nvidia_client:
             try:
-                response = await self.nvidia_client.chat.completions.create(
+                coro = self.nvidia_client.chat.completions.create(
                     model=settings.nvidia_model,
                     messages=[
                         {"role": "system", "content": self.system_prompt},
                         {"role": "user", "content": prompt},
                     ],
                 )
+                response = await asyncio.wait_for(coro, timeout=8.0)
                 return response.choices[0].message.content or ""
             except Exception:
                 pass
         if self.groq_client:
             try:
-                response = await self.groq_client.chat.completions.create(
+                coro = self.groq_client.chat.completions.create(
                     model=self.groq_model,
                     messages=[
                         {"role": "system", "content": self.system_prompt},
                         {"role": "user", "content": prompt},
                     ],
                 )
+                response = await asyncio.wait_for(coro, timeout=8.0)
                 return response.choices[0].message.content or ""
             except Exception:
                 pass
         try:
             if not settings.gemini_api_key or settings.gemini_api_key == "MOCK_KEY":
                 raise Exception("Missing API key")
-            response = await self.client.generate_content_async(full_prompt)
+            coro = self.client.generate_content_async(full_prompt)
+            response = await asyncio.wait_for(coro, timeout=8.0)
             return response.text
         except Exception:
             return self._mock_response(prompt, self.system_prompt)
@@ -204,6 +207,76 @@ class BaseAgent:
 
         sp_lower = system_prompt.lower()
         prompt_lower = prompt.lower()
+
+        if "interactive curriculum" in prompt_lower or "progressive topic modules" in prompt_lower:
+            return json.dumps({
+                "courseTitle": "Masterclass: Interactive Deep-Dive",
+                "level": "Beginner",
+                "persona": "Professor Structured",
+                "modules": [
+                    {
+                        "moduleId": "mod-1",
+                        "moduleTitle": "1. Core Mental Models & Architecture",
+                        "slides": [
+                            {
+                                "slideId": "s-1-1",
+                                "title": "First Principles & Mental Model",
+                                "speech": "Welcome to our live masterclass! Today we break down the core foundations from first principles with real-time execution.",
+                                "exampleTitle": "CORE SYNTAX",
+                                "code": "# High-performance data structure setup\ndef initialize():\n    data = {'status': 'ACTIVE', 'scope': 'GLOBAL'}\n    print(f'Runtime State: {data}')\n    return data\n\ninitialize()",
+                                "output": "Runtime State: {'status': 'ACTIVE', 'scope': 'GLOBAL'}",
+                                "explanation": "Contiguous memory blocks are allocated on heap initialization with O(1) amortized access time.",
+                                "keyPoints": [
+                                    "O(1) average lookup and insertion time",
+                                    "Immutable keys guarantee deterministic hashing",
+                                    "Resizes at 2/3 load factor threshold"
+                                ],
+                                "diagramType": "hashmap"
+                            }
+                        ]
+                    }
+                ]
+            })
+
+        if "ask professor" in prompt_lower or "current slide on blackboard" in prompt_lower or "multi-tiered response" in prompt_lower:
+            return json.dumps({
+                "answer": "Great question! This behavior is governed directly by memory referencing and type mutability in the runtime engine.",
+                "codeSnippet": "# Demonstration\nstate = {'concept': 'verified', 'speed': 'O(1)'}\nprint(f'State verified: {state}')",
+                "output": "State verified: {'concept': 'verified', 'speed': 'O(1)'}",
+                "suggestedFollowUp": "What happens if we modify the collection concurrently in async tasks?",
+                "memoryInsight": "The interpreter allocates a contiguous memory buffer and evaluates hash table buckets in O(1) time."
+            })
+
+        if "diagnostic resolution" in prompt_lower or "conceptual roadblock" in prompt_lower:
+            return json.dumps({
+                "title": "Diagnostic Diagnosis: Resolving Key Mutability & Access Safety",
+                "breakdown": [
+                    "Step 1: Root Cause Analysis - Value equality was conflated with memory reference identity.",
+                    "Step 2: Engine Mechanics - The interpreter calculates object hashes upon instantiation and matches bucket addresses.",
+                    "Step 3: Correct Pattern - Always utilize immutable data types for keys and defensive copies.",
+                    "Step 4: Industry Standard - Use type annotations and defensive dict.get() lookups."
+                ],
+                "codeComparison": {
+                    "antiPattern": "# Anti-Pattern: Unchecked access\ndata = {}\n# val = data['missing'] # Crashes with KeyError",
+                    "robustSolution": "# Idiomatic: Safe access\ndata = {}\nval = data.get('missing', 'fallback')\nprint(f'Safely retrieved: {val}')"
+                },
+                "summary": "Immutability guarantees deterministic hashing, preventing state pollution across scopes.",
+                "proTip": "Use `collections.defaultdict` and `sys.getsizeof()` to optimize both safety and memory footprint."
+            })
+
+        if "hands-on coding challenge" in prompt_lower or "coding lab" in prompt_lower:
+            return json.dumps({
+                "title": "Practice Challenge: Data Structure Manipulation",
+                "instructions": "Implement a clean, production-ready function to process and validate items with O(n) complexity.",
+                "starterCode": "def process_data(items: list) -> dict:\n    \"\"\"\n    TODO: Process items into a structured frequency mapping.\n    \"\"\"\n    result = {}\n    # Your implementation here\n    return result\n\nprint(process_data(['alpha', 'beta', 'alpha']))",
+                "solutionCode": "def process_data(items: list) -> dict:\n    result = {}\n    for item in items:\n        result[item] = result.get(item, 0) + 1\n    return result\n\nprint(process_data(['alpha', 'beta', 'alpha']))",
+                "testCases": [
+                    {"input": "process_data(['a', 'b', 'a'])", "expected": "{'a': 2, 'b': 1}", "description": "Duplicate item frequency"},
+                    {"input": "process_data([])", "expected": "{}", "description": "Empty input safety"},
+                    {"input": "process_data(['x'])", "expected": "{'x': 1}", "description": "Single element mapping"}
+                ]
+            })
+
         if "teacher" in sp_lower or "lesson" in sp_lower:
             key = "teacher"
         elif "code" in sp_lower or "python" in sp_lower or "program" in sp_lower:
