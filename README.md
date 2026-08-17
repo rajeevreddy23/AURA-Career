@@ -1,6 +1,6 @@
 <div align="center">
 
-# 🌟 AURA Career & AURA Learn 🌟
+# 🌟 AURA Career 🌟
 ### *Next-Generation AI-Powered Interactive Career & Learning Platform*
 
 [![Next.js](https://img.shields.io/badge/Next.js-14.2-black?style=for-the-badge&logo=next.js&logoColor=white)](https://nextjs.org/)
