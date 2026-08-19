@@ -32,6 +32,9 @@ import {
   Cpu,
   Layers,
   Lightbulb,
+  Copy,
+  Check,
+  Loader2,
 } from 'lucide-react';
 import { AIProfessorAvatar, ProfessorState } from '@/components/classroom/AIProfessorAvatar';
 import { InteractiveDiagram } from '@/components/classroom/InteractiveDiagram';
@@ -42,6 +45,75 @@ import { ExitClassModal } from '@/components/classroom/ExitClassModal';
 import { useClassroomState } from '@/hooks/useClassroomState';
 import { useAuth } from '@/contexts/AuthContext';
 import toast from 'react-hot-toast';
+
+/** Helper to format inline markdown spans (bold, inline code) */
+function renderInlineSpans(text: string) {
+  const parts = text.split(/(\*\*[^*]+\*\*|`[^`]+`)/g);
+  return parts.map((part, i) => {
+    if (part.startsWith('**') && part.endsWith('**')) {
+      return (
+        <strong key={i} className="font-bold text-purple-200">
+          {part.slice(2, -2)}
+        </strong>
+      );
+    }
+    if (part.startsWith('`') && part.endsWith('`')) {
+      return (
+        <code
+          key={i}
+          className="bg-purple-950/90 text-purple-300 px-1.5 py-0.5 rounded font-mono text-[10.5px] border border-purple-800/60"
+        >
+          {part.slice(1, -1)}
+        </code>
+      );
+    }
+    return part;
+  });
+}
+
+/** Helper to format assistant multi-line markdown responses */
+function renderFormattedMessage(text: string) {
+  const lines = text.split('\n');
+  return lines.map((line, idx) => {
+    if (line.startsWith('### ')) {
+      return (
+        <h4 key={idx} className="font-bold text-purple-300 text-xs mt-2 mb-0.5">
+          {line.slice(4)}
+        </h4>
+      );
+    }
+    if (line.startsWith('## ') || line.startsWith('# ')) {
+      return (
+        <h3 key={idx} className="font-bold text-purple-200 text-xs mt-2 mb-1">
+          {line.replace(/^#+\s/, '')}
+        </h3>
+      );
+    }
+    if (line.match(/^[\*\-•]\s/)) {
+      return (
+        <div key={idx} className="flex items-start space-x-1.5 my-0.5 pl-1">
+          <span className="text-purple-400 font-bold mt-0.5 shrink-0">•</span>
+          <span>{renderInlineSpans(line.replace(/^[\*\-•]\s/, ''))}</span>
+        </div>
+      );
+    }
+    if (line.match(/^\d+\.\s/)) {
+      const numMatch = line.match(/^(\d+)\.\s(.*)/);
+      return (
+        <div key={idx} className="flex items-start space-x-1.5 my-0.5 pl-1">
+          <span className="text-purple-400 font-mono text-[10px] font-bold shrink-0 mt-0.5">
+            {numMatch?.[1]}.
+          </span>
+          <span>{renderInlineSpans(numMatch?.[2] || '')}</span>
+        </div>
+      );
+    }
+    if (!line.trim()) {
+      return <div key={idx} className="h-1" />;
+    }
+    return <p key={idx} className="my-0.5">{renderInlineSpans(line)}</p>;
+  });
+}
 
 export default function LiveClassroomPage() {
   const router = useRouter();
@@ -80,6 +152,8 @@ export default function LiveClassroomPage() {
   const [notesText, setNotesText] = useState('');
   const [showDevStateBar, setShowDevStateBar] = useState(true);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isProfessorThinking, setIsProfessorThinking] = useState(false);
+  const [copiedSnippetIndex, setCopiedSnippetIndex] = useState<string | null>(null);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const chatBottomRef = useRef<HTMLDivElement>(null);
@@ -98,7 +172,7 @@ export default function LiveClassroomPage() {
 
   useEffect(() => {
     chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [session.conversation]);
+  }, [session.conversation, isProfessorThinking]);
 
   // Fullscreen listener
   useEffect(() => {
@@ -115,7 +189,18 @@ export default function LiveClassroomPage() {
     }
   };
 
-  // 1. Live Interactive Course & Multi-Slide Curriculum Generator (Prompt #1)
+  const copyCodeToClipboard = async (code: string, id: string) => {
+    try {
+      await navigator.clipboard.writeText(code);
+      setCopiedSnippetIndex(id);
+      toast.success('Code copied to clipboard!');
+      setTimeout(() => setCopiedSnippetIndex(null), 2000);
+    } catch {
+      toast.error('Failed to copy code.');
+    }
+  };
+
+  // 1. Live Interactive Course & Multi-Slide Curriculum Generator
   const handleTeachTopic = async (customTopic?: string) => {
     const topicToTeach = customTopic || topicInput.trim();
     if (!topicToTeach) {
@@ -177,15 +262,16 @@ export default function LiveClassroomPage() {
     }
   };
 
-  // 2. Live Class "Ask Professor" & Voice Interaction (Prompt #2)
+  // 2. Real-Time Live Class "Ask Professor" with LLM API & Synchronized Robot Animation
   const handleAskProfessor = async (questionText?: string) => {
     const query = questionText || chatInput.trim();
-    if (!query) return;
+    if (!query || isProfessorThinking) return;
 
     cancelInFlight();
     addChatMessage('user', query, user?.displayName || 'Student');
     setChatInput('');
     setAIState('processing_question');
+    setIsProfessorThinking(true);
 
     try {
       const res = await fetch('/api/ask-professor', {
@@ -199,15 +285,26 @@ export default function LiveClassroomPage() {
             title: currentSlide.title,
             speech: currentSlide.speech,
             code: currentSlide.code,
+            explanation: currentSlide.explanation,
           },
+          history: session.conversation.slice(-6).map((m) => ({
+            sender: m.sender,
+            name: m.name,
+            text: m.text,
+          })),
           question: query,
+          difficulty: session.difficulty,
         }),
       });
 
       const json = await res.json();
+      setIsProfessorThinking(false);
+
       if (json.success && json.data) {
         const data = json.data;
-        addChatMessage('professor', data.answer, 'Professor Aura', {
+        const answerText = data.answer || 'Here is the step-by-step concept analysis.';
+
+        addChatMessage('professor', answerText, 'Professor Aura', {
           codeSnippet: data.codeSnippet,
           output: data.output,
           suggestedFollowUp: data.suggestedFollowUp,
@@ -216,14 +313,29 @@ export default function LiveClassroomPage() {
 
         setAIState('answering');
 
-        // Play Voice audio via TTS if enabled
+        // Spoken audio synthesis synchronized with Robot Avatar
         if (isVoiceMode && typeof window !== 'undefined' && window.speechSynthesis) {
           window.speechSynthesis.cancel();
-          const utterance = new SpeechSynthesisUtterance(data.answer);
-          utterance.onend = () => setAIState('teaching');
+          const cleanSpeech = answerText
+            .replace(/[\*#`_~]/g, '')
+            .replace(/\n+/g, '. ')
+            .replace(/\s+/g, ' ')
+            .trim();
+
+          const utterance = new SpeechSynthesisUtterance(cleanSpeech);
+          utterance.rate = 1.0;
+          utterance.pitch = session.voice.includes('Female') ? 1.15 : 0.95;
+
+          utterance.onend = () => {
+            setAIState('teaching');
+          };
+          utterance.onerror = () => {
+            setAIState('teaching');
+          };
+
           window.speechSynthesis.speak(utterance);
         } else {
-          setTimeout(() => setAIState('teaching'), 3000);
+          setTimeout(() => setAIState('teaching'), 3500);
         }
       } else {
         addChatMessage(
@@ -234,9 +346,10 @@ export default function LiveClassroomPage() {
         setAIState('teaching');
       }
     } catch (err) {
+      setIsProfessorThinking(false);
       addChatMessage(
         'professor',
-        `Under the hood, memory pointers allocate bucket slots deterministically. Let's inspect the code on blackboard.`,
+        `Under the hood in ${currentModule.moduleTitle}, memory pointers allocate bucket slots deterministically. Let's inspect the code on blackboard.`,
         'Professor Aura'
       );
       setAIState('teaching');
@@ -773,7 +886,7 @@ export default function LiveClassroomPage() {
               </div>
 
               {/* Chat Message Stream */}
-              <div className="flex-1 p-3 overflow-y-auto space-y-3">
+              <div className="flex-1 p-3 overflow-y-auto space-y-3 scrollbar-thin">
                 {session.conversation.map((msg) => (
                   <div
                     key={msg.id}
@@ -782,63 +895,118 @@ export default function LiveClassroomPage() {
                     }`}
                   >
                     <div
-                      className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${
+                      className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shrink-0 shadow-sm ${
                         msg.isAI
-                          ? 'bg-purple-600 text-white shadow-[0_0_10px_rgba(168,85,247,0.5)]'
-                          : 'bg-slate-700 text-slate-200'
+                          ? 'bg-gradient-to-br from-purple-600 to-indigo-600 text-white shadow-[0_0_12px_rgba(168,85,247,0.5)] border border-purple-400/40'
+                          : 'bg-slate-700 text-slate-200 border border-slate-600'
                       }`}
                     >
                       {msg.isAI ? '🤖' : msg.name.charAt(0)}
                     </div>
                     <div
-                      className={`max-w-[85%] p-3 rounded-2xl text-xs leading-relaxed space-y-2 ${
+                      className={`max-w-[86%] p-3 rounded-2xl text-xs leading-relaxed space-y-2.5 shadow-md ${
                         msg.isAI
-                          ? 'bg-purple-950/40 border border-purple-800/40 text-purple-100 rounded-tl-none'
-                          : 'bg-slate-800 text-slate-200 rounded-tr-none'
+                          ? 'bg-gradient-to-b from-purple-950/50 to-slate-900/80 border border-purple-800/40 text-purple-100 rounded-tl-none backdrop-blur-sm'
+                          : 'bg-slate-800 text-slate-200 rounded-tr-none border border-slate-700/80'
                       }`}
                     >
-                      <div className="flex items-center justify-between space-x-2">
-                        <span className="font-semibold text-[11px] text-purple-300 flex items-center space-x-1">
+                      <div className="flex items-center justify-between space-x-2 border-b border-purple-900/30 pb-1.5">
+                        <span className="font-semibold text-[11px] text-purple-300 flex items-center space-x-1.5">
                           <span>{msg.name}</span>
                           {msg.isAI && (
-                            <span className="bg-purple-500/30 text-purple-300 text-[9px] px-1 rounded border border-purple-400/40 font-mono">
-                              AI
+                            <span className="bg-purple-500/30 text-purple-300 text-[9px] px-1.5 py-0.2 rounded-full border border-purple-400/40 font-mono font-bold">
+                              AI TUTOR
                             </span>
                           )}
                         </span>
                         <span className="text-[9px] text-slate-500 font-mono">{msg.timestamp}</span>
                       </div>
 
-                      <p className="whitespace-pre-wrap">{msg.text}</p>
+                      {/* Main Message Content */}
+                      <div className="text-xs text-slate-200 leading-relaxed">
+                        {msg.isAI ? renderFormattedMessage(msg.text) : <p className="whitespace-pre-wrap">{msg.text}</p>}
+                      </div>
 
-                      {/* Code Snippet attached to Answer */}
+                      {/* Code Snippet attached to Answer with Copy Action */}
                       {msg.codeSnippet && (
-                        <div className="p-2 bg-black/50 rounded-lg border border-purple-900/50 font-mono text-[11px] text-purple-200 overflow-x-auto">
-                          <pre><code>{msg.codeSnippet}</code></pre>
+                        <div className="rounded-xl bg-black/70 border border-purple-900/60 overflow-hidden shadow-inner">
+                          <div className="px-3 py-1.5 bg-slate-900/90 border-b border-slate-800 flex items-center justify-between text-[10px] font-mono text-purple-300">
+                            <span>EXAMPLE CODE</span>
+                            <button
+                              type="button"
+                              onClick={() => copyCodeToClipboard(msg.codeSnippet || '', msg.id)}
+                              className="flex items-center space-x-1 text-slate-400 hover:text-purple-300 transition"
+                              title="Copy code"
+                            >
+                              {copiedSnippetIndex === msg.id ? (
+                                <>
+                                  <Check className="w-3 h-3 text-emerald-400" />
+                                  <span className="text-emerald-400 text-[10px]">Copied</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Copy className="w-3 h-3" />
+                                  <span>Copy</span>
+                                </>
+                              )}
+                            </button>
+                          </div>
+                          <div className="p-2.5 font-mono text-[11px] text-purple-200 overflow-x-auto">
+                            <pre><code>{msg.codeSnippet}</code></pre>
+                          </div>
                         </div>
                       )}
 
-                      {/* Memory Insight Badge */}
+                      {/* Execution Output Box */}
+                      {msg.output && (
+                        <div className="p-2 rounded-lg bg-black/80 border border-emerald-900/40 text-[10.5px] font-mono text-emerald-400 overflow-x-auto space-y-0.5">
+                          <span className="text-[9px] text-slate-500 block uppercase font-bold">OUTPUT:</span>
+                          <pre><code>{msg.output}</code></pre>
+                        </div>
+                      )}
+
+                      {/* Memory / Complexity Insight Badge */}
                       {msg.memoryInsight && (
-                        <div className="flex items-center space-x-1.5 text-[10px] font-mono text-purple-300 bg-purple-900/30 px-2 py-1 rounded border border-purple-700/30">
-                          <Cpu className="w-3 h-3 text-purple-400 shrink-0" />
-                          <span>{msg.memoryInsight}</span>
+                        <div className="flex items-start space-x-2 text-[10.5px] font-mono text-purple-300 bg-purple-950/60 px-2.5 py-1.5 rounded-lg border border-purple-800/40">
+                          <Cpu className="w-3.5 h-3.5 text-purple-400 shrink-0 mt-0.5" />
+                          <span className="leading-snug">{msg.memoryInsight}</span>
                         </div>
                       )}
 
-                      {/* Suggested Follow-up Prompt */}
+                      {/* Suggested Follow-up Prompt Chip */}
                       {msg.suggestedFollowUp && (
                         <button
+                          type="button"
                           onClick={() => handleAskProfessor(msg.suggestedFollowUp)}
-                          className="w-full text-left p-1.5 rounded bg-slate-900 hover:bg-slate-800 text-[10px] text-purple-300 border border-slate-700 transition flex items-center space-x-1"
+                          className="w-full text-left p-2 rounded-xl bg-purple-950/40 hover:bg-purple-900/50 text-[10.5px] text-purple-200 border border-purple-700/50 transition flex items-center space-x-1.5 shadow-sm group"
                         >
-                          <Sparkles className="w-3 h-3 text-purple-400 shrink-0" />
-                          <span className="truncate">Ask: {msg.suggestedFollowUp}</span>
+                          <Sparkles className="w-3.5 h-3.5 text-purple-400 group-hover:text-amber-300 shrink-0 transition" />
+                          <span className="truncate font-medium">Ask: {msg.suggestedFollowUp}</span>
                         </button>
                       )}
                     </div>
                   </div>
                 ))}
+
+                {/* Live Real-Time Thinking Indicator when Robot is processing LLM */}
+                {isProfessorThinking && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 5 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="flex items-start space-x-2"
+                  >
+                    <div className="w-7 h-7 rounded-full bg-purple-600/30 text-purple-300 border border-purple-500/50 flex items-center justify-center text-xs font-bold shrink-0 animate-pulse">
+                      🤖
+                    </div>
+                    <div className="bg-purple-950/50 border border-purple-800/50 text-purple-200 rounded-2xl rounded-tl-none p-3 text-xs flex items-center space-x-2 shadow-lg">
+                      <Loader2 className="w-3.5 h-3.5 animate-spin text-purple-400 shrink-0" />
+                      <span className="text-[11px] font-medium text-purple-300 animate-pulse">
+                        Professor Aura is thinking & consulting LLM...
+                      </span>
+                    </div>
+                  </motion.div>
+                )}
+
                 <div ref={chatBottomRef} />
               </div>
 
