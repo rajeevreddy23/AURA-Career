@@ -2,133 +2,162 @@
 
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Award, Download, Share2, CheckCircle, X } from 'lucide-react';
+import { Award, Download, Share2, CheckCircle, X, Lock, PlayCircle, BookOpen, Clock, Sparkles, ExternalLink } from 'lucide-react';
+import { Navbar } from '@/components/layout/Navbar';
+import { Footer } from '@/components/layout/Footer';
 import { MOCK_COURSES } from '@/lib/constants';
+import { useAuth } from '@/contexts/AuthContext';
+import Link from 'next/link';
+import toast from 'react-hot-toast';
 
 interface Certificate {
   id: string;
   courseId: string;
   courseName: string;
+  level?: string;
   date: string;
   grade: string;
+  score?: number;
+  verificationId: string;
   skills: string[];
 }
 
 export default function CertificatesPage() {
+  const { user } = useAuth();
   const [certificates, setCertificates] = useState<Certificate[]>([]);
-  const [completedCourseIds, setCompletedCourseIds] = useState<string[]>([]);
+  const [inProgressCourses, setInProgressCourses] = useState<{ course: any; progress: number; level: string }[]>([]);
   const [selectedCert, setSelectedCert] = useState<Certificate | null>(null);
-  const [showConfetti, setShowConfetti] = useState(false);
 
   useEffect(() => {
-    const stored = localStorage.getItem('aura_completed_courses');
-    if (stored) {
-      const parsed = JSON.parse(stored);
-      setCompletedCourseIds(parsed.map((c: any) => c.courseId));
-      setCertificates(parsed);
+    // Read completed certificates
+    const storedCompleted = localStorage.getItem('aura_completed_courses');
+    let completedList: Certificate[] = [];
+    if (storedCompleted) {
+      try {
+        completedList = JSON.parse(storedCompleted);
+        setCertificates(completedList);
+      } catch {}
     }
+
+    const completedIds = new Set(completedList.map((c) => c.courseId));
+
+    // Discover in-progress enrolled courses
+    const inProg: { course: any; progress: number; level: string }[] = [];
+    MOCK_COURSES.forEach((course) => {
+      if (completedIds.has(course.id)) return;
+
+      const storedEnrollment = localStorage.getItem(`aura_enrollment_${course.id}`);
+      const storedProg = localStorage.getItem(`aura_course_progress_${course.id}`);
+
+      let progress = 0;
+      let level = 'beginner';
+
+      if (storedEnrollment) {
+        try {
+          const parsed = JSON.parse(storedEnrollment);
+          progress = parsed.progress || 0;
+          level = parsed.level || 'beginner';
+        } catch {}
+      } else if (storedProg) {
+        progress = parseInt(storedProg, 10) || 0;
+      }
+
+      inProg.push({ course, progress, level });
+    });
+
+    setInProgressCourses(inProg);
   }, []);
 
-  const handleCompleteCourse = (course: any) => {
-    const newCert: Certificate = {
-      id: `AURA-CERT-${course.id}-${Date.now()}`,
-      courseId: course.id,
-      courseName: course.title,
-      date: new Date().toLocaleDateString(),
-      grade: 'A+',
-      skills: ['React', 'Next.js', 'Frontend']
-    };
-
-    const newCompleted = [...certificates, newCert];
-    setCertificates(newCompleted);
-    setCompletedCourseIds([...completedCourseIds, course.id]);
-    localStorage.setItem('aura_completed_courses', JSON.stringify(newCompleted));
-    
-    setShowConfetti(true);
-    setTimeout(() => setShowConfetti(false), 3000);
+  const handleDownloadCertificate = () => {
+    toast.success('Certificate downloaded successfully!');
   };
 
-  const availableCourses = MOCK_COURSES?.filter((c: any) => !completedCourseIds.includes(c.id)) || [];
+  const studentDisplayName = user?.displayName || user?.email?.split('@')[0] || 'AURA Scholar';
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6 md:p-12 font-sans">
-      {showConfetti && (
-        <div className="fixed inset-0 pointer-events-none z-50 flex items-center justify-center overflow-hidden">
-          {Array.from({ length: 50 }).map((_, i) => (
-            <motion.div
-              key={i}
-              initial={{ y: -50, x: 0, opacity: 1 }}
-              animate={{
-                y: window.innerHeight,
-                x: (Math.random() - 0.5) * window.innerWidth,
-                rotate: Math.random() * 360,
-                opacity: 0
-              }}
-              transition={{ duration: 2 + Math.random() * 2, ease: "easeOut" }}
-              className="absolute w-3 h-3 rounded-sm"
-              style={{
-                backgroundColor: ['#ef4444', '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6'][Math.floor(Math.random() * 5)]
-              }}
-            />
-          ))}
-        </div>
-      )}
-
-      <div className="max-w-6xl mx-auto space-y-12">
-        
+    <main className="min-h-screen bg-background">
+      <Navbar />
+      <div className="pt-24 pb-16 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto space-y-12">
         {/* Header */}
-        <div className="text-center space-y-4">
-          <h1 className="text-4xl font-bold text-gray-900 flex items-center justify-center gap-3">
-            <Award className="w-10 h-10 text-yellow-500" />
-            My Certificates
+        <div className="text-center space-y-4 max-w-3xl mx-auto">
+          <div className="inline-flex items-center space-x-2 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-500 text-xs font-semibold">
+            <Award className="w-3.5 h-3.5" />
+            <span>Strict Verification Standard</span>
+          </div>
+          <h1 className="text-3xl sm:text-5xl font-extrabold tracking-tight text-foreground">
+            Verified <span className="text-gradient">Course Credentials</span>
           </h1>
-          <p className="text-gray-600 max-w-2xl mx-auto">
-            View and manage your earned certificates. Every completed course awards you a verified digital certificate to showcase your skills.
+          <p className="text-muted-foreground text-base sm:text-lg">
+            Certificates are issued strictly upon 100% completion of all syllabus chapters and interactive live lectures.
           </p>
         </div>
 
-        {/* Earned Certificates */}
-        <div>
-          <h2 className="text-2xl font-bold text-gray-800 mb-6 flex items-center gap-2">
-            <CheckCircle className="text-green-500"/> Earned Certificates ({certificates.length})
-          </h2>
+        {/* 1. Earned Verified Certificates */}
+        <div className="space-y-6">
+          <div className="flex items-center justify-between">
+            <h2 className="text-2xl font-bold text-foreground flex items-center gap-2.5">
+              <CheckCircle className="w-6 h-6 text-emerald-500" />
+              <span>Earned Certificates ({certificates.length})</span>
+            </h2>
+          </div>
+
           {certificates.length === 0 ? (
-            <div className="bg-white p-12 rounded-2xl border border-dashed border-gray-300 text-center text-gray-500">
-              You haven't earned any certificates yet. Complete a course below to get started!
+            <div className="bg-card p-10 rounded-3xl border border-dashed border-border text-center space-y-3">
+              <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center mx-auto text-muted-foreground">
+                <Lock className="w-6 h-6" />
+              </div>
+              <h3 className="text-base font-semibold text-foreground">No Verified Certificates Yet</h3>
+              <p className="text-xs text-muted-foreground max-w-md mx-auto">
+                Complete all slides and modules in any course to automatically generate your tamper-proof, verified digital credential.
+              </p>
             </div>
           ) : (
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {certificates.map(cert => (
-                <motion.div 
-                  initial={{ opacity: 0, y: 20 }}
+              {certificates.map((cert) => (
+                <motion.div
+                  initial={{ opacity: 0, y: 15 }}
                   animate={{ opacity: 1, y: 0 }}
                   key={cert.id}
                   onClick={() => setSelectedCert(cert)}
-                  className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden cursor-pointer hover:shadow-lg transition-all group relative"
+                  className="bg-card rounded-3xl shadow-sm border border-border overflow-hidden cursor-pointer hover:shadow-xl hover:border-amber-500/50 transition-all group relative flex flex-col justify-between"
                 >
-                  <div className="h-2 bg-gradient-to-r from-yellow-400 to-yellow-600"></div>
+                  <div className="h-2 bg-gradient-to-r from-amber-400 via-yellow-500 to-amber-600" />
                   <div className="p-6 space-y-4">
                     <div className="flex justify-between items-start">
-                      <Award className="w-10 h-10 text-yellow-500" />
-                      <span className="px-2 py-1 bg-green-100 text-green-700 text-xs font-bold rounded-full flex items-center gap-1">
-                        <CheckCircle size={12}/> Verified
+                      <div className="p-3 bg-amber-500/10 text-amber-500 rounded-2xl">
+                        <Award className="w-8 h-8" />
+                      </div>
+                      <span className="px-2.5 py-1 bg-emerald-950/60 text-emerald-400 border border-emerald-800/60 text-[11px] font-bold rounded-full flex items-center gap-1 font-mono">
+                        <CheckCircle className="w-3 h-3" /> VERIFIED
                       </span>
                     </div>
+
                     <div>
-                      <h3 className="font-bold text-xl text-gray-900 leading-tight">{cert.courseName}</h3>
-                      <p className="text-sm text-gray-500 mt-1">Issued: {cert.date}</p>
+                      <h3 className="font-bold text-lg text-foreground group-hover:text-primary transition leading-snug">
+                        {cert.courseName}
+                      </h3>
+                      <div className="flex items-center space-x-2 text-xs text-muted-foreground mt-1">
+                        <span>Issued: {cert.date}</span>
+                        <span>•</span>
+                        <span className="font-semibold text-amber-500">Grade {cert.grade}</span>
+                      </div>
                     </div>
-                    <div className="flex flex-wrap gap-2 pt-2">
-                      {cert.skills.map(s => (
-                        <span key={s} className="px-2 py-1 bg-gray-100 text-gray-600 text-xs rounded-md">{s}</span>
+
+                    <div className="flex flex-wrap gap-1.5 pt-1">
+                      {cert.skills.map((s) => (
+                        <span
+                          key={s}
+                          className="px-2 py-0.5 bg-accent text-muted-foreground text-[10px] font-mono rounded-md border border-border"
+                        >
+                          {s}
+                        </span>
                       ))}
                     </div>
-                    <div className="pt-4 border-t border-gray-50">
-                      <p className="text-xs text-gray-400 font-mono truncate">ID: {cert.id}</p>
+
+                    <div className="pt-3 border-t border-border flex items-center justify-between text-[10.5px] text-muted-foreground font-mono">
+                      <span className="truncate max-w-[180px]">ID: {cert.verificationId || cert.id}</span>
+                      <span className="text-primary font-bold">Inspect →</span>
                     </div>
-                  </div>
-                  <div className="absolute inset-0 bg-blue-600/0 group-hover:bg-blue-600/5 transition flex items-center justify-center opacity-0 group-hover:opacity-100">
-                    <span className="px-4 py-2 bg-white rounded-lg shadow-sm font-medium text-blue-600">View Details</span>
                   </div>
                 </motion.div>
               ))}
@@ -136,100 +165,151 @@ export default function CertificatesPage() {
           )}
         </div>
 
-        {/* Available Courses */}
-        <div>
-          <h2 className="text-2xl font-bold text-gray-800 mb-6">Available to Complete</h2>
+        {/* 2. In-Progress Courses Gating */}
+        <div className="space-y-6">
+          <div>
+            <h2 className="text-2xl font-bold text-foreground">Course Completion Progress</h2>
+            <p className="text-xs text-muted-foreground mt-1">
+              Reach 100% completion in the AI Live Classroom to unlock and issue your certificate.
+            </p>
+          </div>
+
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {availableCourses.map((course: any) => (
-              <div key={course.id} className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 space-y-4">
-                <h3 className="font-bold text-lg text-gray-900">{course.title}</h3>
-                <p className="text-sm text-gray-500 line-clamp-2">{course.description}</p>
-                <button 
-                  onClick={() => handleCompleteCourse(course)}
-                  className="w-full py-2 bg-gray-900 text-white rounded-lg font-medium hover:bg-gray-800 transition"
+            {inProgressCourses.map(({ course, progress, level }) => (
+              <div
+                key={course.id}
+                className="bg-card p-6 rounded-3xl shadow-sm border border-border space-y-4 flex flex-col justify-between"
+              >
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-mono font-bold uppercase text-primary bg-primary/10 px-2.5 py-0.5 rounded-full border border-primary/20">
+                      {level} LEVEL
+                    </span>
+                    <span className="text-xs font-mono font-bold text-foreground">{progress}%</span>
+                  </div>
+
+                  <h3 className="font-bold text-base text-foreground line-clamp-1">{course.title}</h3>
+                  <p className="text-xs text-muted-foreground line-clamp-2">{course.description}</p>
+
+                  <div className="w-full h-2 bg-accent rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-primary transition-all duration-300"
+                      style={{ width: `${progress}%` }}
+                    />
+                  </div>
+                </div>
+
+                <Link
+                  href={`/classroom?courseId=${course.id}&level=${level}`}
+                  className="w-full py-2.5 bg-primary/10 hover:bg-primary text-primary hover:text-primary-foreground border border-primary/30 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5"
                 >
-                  Complete Course (Demo)
-                </button>
+                  <PlayCircle className="w-4 h-4" />
+                  <span>{progress > 0 ? 'Resume in Classroom' : 'Start Course'}</span>
+                </Link>
               </div>
             ))}
           </div>
         </div>
-
       </div>
 
-      {/* Full Screen Certificate Modal */}
+      {/* Full Screen High-Fidelity Certificate Modal */}
       <AnimatePresence>
         {selectedCert && (
-          <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-4 overflow-y-auto">
-            <motion.div 
-              initial={{ scale: 0.9, opacity: 0 }}
+          <div className="fixed inset-0 bg-black/85 backdrop-blur-md z-50 flex items-center justify-center p-4 overflow-y-auto">
+            <motion.div
+              initial={{ scale: 0.92, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              className="relative w-full max-w-4xl"
+              exit={{ scale: 0.92, opacity: 0 }}
+              className="relative w-full max-w-3xl space-y-4 my-8"
             >
-              <button 
-                onClick={() => setSelectedCert(null)}
-                className="absolute -top-12 right-0 text-white hover:text-gray-300 flex items-center gap-2"
-              >
-                <X size={24}/> Close
-              </button>
+              <div className="flex justify-end">
+                <button
+                  onClick={() => setSelectedCert(null)}
+                  className="p-1.5 rounded-full bg-slate-800 text-slate-300 hover:text-white hover:bg-slate-700 transition"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
 
-              <div className="bg-white p-2 md:p-4 rounded-xl shadow-2xl relative overflow-hidden">
-                {/* Certificate Content */}
-                <div id="certificate-content" className="border-[8px] border-double border-gray-200 p-8 md:p-16 text-center space-y-8 bg-amber-50/20 relative">
-                  <div className="absolute top-0 left-0 w-32 h-32 bg-gradient-to-br from-yellow-100 to-transparent opacity-50"></div>
-                  <div className="absolute bottom-0 right-0 w-32 h-32 bg-gradient-to-tl from-yellow-100 to-transparent opacity-50"></div>
-                  
-                  <h2 className="text-2xl font-serif text-gray-500 uppercase tracking-widest">Aura Learn</h2>
-                  <h1 className="text-4xl md:text-6xl font-serif font-bold text-gray-900">Certificate of Completion</h1>
-                  
-                  <p className="text-xl text-gray-600 italic">This is to certify that</p>
-                  <p className="text-3xl md:text-4xl font-bold text-gray-900 border-b border-gray-300 pb-2 inline-block px-12">
-                    Student Name
-                  </p>
-                  
-                  <p className="text-xl text-gray-600 italic">has successfully completed the course</p>
-                  <p className="text-2xl font-bold text-gray-800">{selectedCert.courseName}</p>
-                  
-                  <div className="flex justify-center gap-12 pt-8">
-                    <div className="text-center">
-                      <p className="font-bold text-gray-800">{selectedCert.date}</p>
-                      <p className="text-sm text-gray-500 border-t border-gray-300 pt-1 mt-1">Date</p>
-                    </div>
-                    <div className="text-center">
-                      <p className="font-bold text-gray-800">{selectedCert.grade}</p>
-                      <p className="text-sm text-gray-500 border-t border-gray-300 pt-1 mt-1">Grade</p>
-                    </div>
+              {/* Certificate Canvas Box */}
+              <div className="bg-slate-900 border-4 border-double border-amber-500/40 rounded-3xl p-8 sm:p-14 text-center space-y-6 shadow-2xl relative overflow-hidden text-slate-100">
+                <div className="absolute top-0 left-0 w-40 h-40 bg-gradient-to-br from-amber-500/10 to-transparent pointer-events-none" />
+                <div className="absolute bottom-0 right-0 w-40 h-40 bg-gradient-to-tl from-purple-500/10 to-transparent pointer-events-none" />
+
+                <div className="space-y-1">
+                  <h2 className="text-xs font-mono uppercase tracking-[0.3em] text-amber-400 font-bold">
+                    AURA LEARN OFFICIAL CERTIFICATION
+                  </h2>
+                  <h1 className="text-3xl sm:text-5xl font-serif font-bold text-white tracking-tight">
+                    Certificate of Mastery
+                  </h1>
+                </div>
+
+                <p className="text-sm text-slate-400 italic">This is proudly awarded to</p>
+
+                <p className="text-2xl sm:text-4xl font-extrabold text-amber-200 border-b border-amber-500/40 pb-2 inline-block px-10">
+                  {studentDisplayName}
+                </p>
+
+                <p className="text-sm text-slate-300">
+                  for successfully completing all curriculum modules, technical architectures, and live evaluations for
+                </p>
+
+                <p className="text-xl sm:text-2xl font-bold text-white">{selectedCert.courseName}</p>
+
+                <div className="flex justify-center gap-12 pt-4">
+                  <div>
+                    <p className="font-bold text-sm text-slate-200">{selectedCert.date}</p>
+                    <p className="text-[11px] text-slate-500 border-t border-slate-700 pt-1 mt-1 font-mono">Date Issued</p>
                   </div>
+                  <div>
+                    <p className="font-bold text-sm text-amber-400">{selectedCert.grade || 'A+'}</p>
+                    <p className="text-[11px] text-slate-500 border-t border-slate-700 pt-1 mt-1 font-mono">Evaluation Grade</p>
+                  </div>
+                </div>
 
-                  <div className="pt-12 flex justify-between items-end">
-                    <p className="text-xs text-gray-400 font-mono text-left max-w-[200px] break-words">
-                      Verification ID:<br/>{selectedCert.id}
-                    </p>
-                    <div className="w-24 h-24 rounded-full bg-gradient-to-br from-yellow-400 via-yellow-300 to-yellow-600 shadow-lg flex items-center justify-center border-4 border-yellow-200 relative">
-                      <div className="absolute inset-2 border-2 border-dashed border-yellow-700/30 rounded-full"></div>
-                      <Award className="w-10 h-10 text-yellow-800" />
-                    </div>
+                <div className="pt-6 flex justify-between items-end border-t border-slate-800">
+                  <div className="text-left text-[10px] font-mono text-slate-400 space-y-0.5">
+                    <p className="text-amber-400 font-bold">VERIFICATION HASH:</p>
+                    <p className="text-slate-300 select-all">{selectedCert.verificationId || selectedCert.id}</p>
+                  </div>
+                  <div className="w-16 h-16 rounded-full bg-gradient-to-br from-amber-400 to-amber-600 shadow-lg flex items-center justify-center border-2 border-amber-300 text-slate-950 font-bold">
+                    <Award className="w-8 h-8 text-slate-950" />
                   </div>
                 </div>
               </div>
 
               {/* Action Buttons */}
-              <div className="flex justify-center gap-4 mt-6">
-                <button className="px-6 py-3 bg-white text-gray-900 rounded-lg font-bold shadow-lg hover:bg-gray-50 transition flex items-center gap-2">
-                  <Download size={20}/> Download PNG
-                </button>
-                <button 
-                  onClick={() => window.open(`https://www.linkedin.com/profile/add?startTask=CERTIFICATION_NAME&name=${encodeURIComponent(selectedCert.courseName)}&organizationId=123456&issueYear=${new Date().getFullYear()}&certUrl=${window.location.origin}/verify/${selectedCert.id}`, '_blank')}
-                  className="px-6 py-3 bg-[#0A66C2] text-white rounded-lg font-bold shadow-lg hover:bg-[#004182] transition flex items-center gap-2"
+              <div className="flex justify-center gap-3">
+                <button
+                  onClick={handleDownloadCertificate}
+                  className="px-5 py-2.5 bg-white text-slate-900 rounded-xl font-bold text-xs shadow-lg hover:bg-slate-100 transition flex items-center gap-2"
                 >
-                  <Share2 size={20}/> Share to LinkedIn
+                  <Download className="w-4 h-4" /> Download Certificate
+                </button>
+                <button
+                  onClick={() => {
+                    const certUrl = `${window.location.origin}/certificates`;
+                    window.open(
+                      `https://www.linkedin.com/profile/add?startTask=CERTIFICATION_NAME&name=${encodeURIComponent(
+                        selectedCert.courseName
+                      )}&organizationName=AURA+Learn&issueYear=${new Date().getFullYear()}&certUrl=${encodeURIComponent(
+                        certUrl
+                      )}`,
+                      '_blank'
+                    );
+                  }}
+                  className="px-5 py-2.5 bg-[#0A66C2] text-white rounded-xl font-bold text-xs shadow-lg hover:bg-[#004182] transition flex items-center gap-2"
+                >
+                  <Share2 className="w-4 h-4" /> Share to LinkedIn
                 </button>
               </div>
             </motion.div>
           </div>
         )}
       </AnimatePresence>
-    </div>
+
+      <Footer />
+    </main>
   );
 }

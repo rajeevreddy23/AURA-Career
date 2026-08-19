@@ -123,7 +123,7 @@ export const DoubtModal: React.FC<DoubtModalProps> = ({ isOpen, onClose, topic, 
                   <span>Step-by-Step Mechanical Analysis</span>
                 </span>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
-                  {resolution.breakdown.map((step, idx) => (
+                  {((resolution as any).breakdown || (resolution as any).breakdownSteps || []).map((step: any, idx: number) => (
                     <div key={idx} className="p-3 rounded-xl bg-slate-950/80 border border-slate-800 text-xs text-slate-300 space-y-1">
                       <div className="flex items-center space-x-1.5 text-purple-400 font-bold font-mono text-[11px]">
                         <CheckCircle2 className="w-3.5 h-3.5 text-purple-400 shrink-0" />

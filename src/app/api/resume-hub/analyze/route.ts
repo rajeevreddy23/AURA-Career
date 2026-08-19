@@ -1,77 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { generateStructuredJSON } from '@/lib/ai/llm';
 
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-
-async function analyzeWithGemini(text: string): Promise<Record<string, unknown>> {
-  if (BACKEND_URL) {
-    // Unified ResumeAgent analysis (ATS analyst + coach) — conversational, grounded in resume text.
-    try {
-      const res = await fetch(`${BACKEND_URL}/api/v1/agents/resume/analyze`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ resume_text: text.slice(0, 15000) }),
-      });
-      if (res.ok) {
-        const data = await res.json();
-        if (data?.success && data?.data) return data.data;
-      }
-    } catch {
-      // fall through to local fallback
-    }
-  }
-
-  const prompt = `Analyze this resume text and return a structured JSON with:
-- skills: array of skill strings
-- experienceLevel: "entry" | "mid" | "senior" | "lead"
-- suggestedRoles: array of job role strings
-- summary: 2-3 sentence professional summary
-- strengths: array of strength strings
-- improvements: array of improvement suggestion strings
-- searchKeywords: array of keyword strings for job search
-- atsScore: number 0-100
-- atsGaps: array of missing keywords/sections that hurt ATS parsing
-
-Resume text:
-${text.slice(0, 15000)}
-
-Return ONLY valid JSON.`;
-
-  if (BACKEND_URL) {
-    try {
-      const res = await fetch(`${BACKEND_URL}/api/v1/agents/public/ask`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          prompt,
-          system_prompt: 'You are an expert resume analyst. Return only valid JSON with no extra text.',
-        }),
-      });
-      if (res.ok) {
-        const data = await res.json();
-        const responseText = data?.data?.response || '';
-        try {
-          return JSON.parse(responseText);
-        } catch {
-          const cleaned = responseText.replace(/```(?:json)?\s*([\s\S]*?)\s*```/g, '$1').trim();
-          return JSON.parse(cleaned);
-        }
-      }
-    } catch {
-      // fall through
-    }
-  }
-
-  return {
-    skills: ['JavaScript', 'TypeScript', 'React', 'Node.js', 'Python'],
-    experienceLevel: 'mid',
-    suggestedRoles: ['Frontend Developer', 'Full Stack Developer', 'Software Engineer'],
-    summary: 'Experienced developer with strong skills in web technologies. Proven track record of delivering scalable applications.',
-    strengths: ['Strong problem-solving skills', 'Excellent communication', 'Full-stack capabilities'],
-    improvements: ['Add quantifiable achievements', 'Include relevant certifications', 'Tailor summary to target role'],
-    searchKeywords: ['JavaScript', 'React', 'Node.js', 'Full Stack', 'Software Engineer'],
-    atsScore: 72,
-    atsGaps: ['Missing quantifiable metrics in work experience', 'No contact section header', 'Skills section lacks keyword density for ATS'],
-  };
+interface ResumeAnalysisResult {
+  skills: string[];
+  experienceLevel: 'entry' | 'mid' | 'senior' | 'lead';
+  suggestedRoles: string[];
+  summary: string;
+  strengths: string[];
+  improvements: string[];
+  searchKeywords: string[];
+  atsScore: number;
+  atsGaps: string[];
 }
 
 export async function POST(request: NextRequest) {
@@ -80,18 +19,69 @@ export async function POST(request: NextRequest) {
 
     if (!text || !text.trim()) {
       return NextResponse.json(
-        { success: false, error: 'No text content provided.' },
+        { success: false, error: 'No resume text content provided.' },
         { status: 400 }
       );
     }
 
-    const analysis = await analyzeWithGemini(text);
+    const systemPrompt = `You are an expert ATS resume analyst and principal career coach.
+Thoroughly analyze the student's raw resume text and return a strictly grounded, accurate evaluation.
+
+You MUST return a JSON object with this exact schema:
+{
+  "skills": ["Array of detected technical and soft skills (at least 6-12)"],
+  "experienceLevel": "entry" | "mid" | "senior" | "lead",
+  "suggestedRoles": ["Top 3-5 job roles the candidate is best qualified for"],
+  "summary": "2-3 sentence executive summary accurately highlighting the candidate's core background and value proposition",
+  "strengths": ["3-5 concrete strengths grounded directly in their projects/work"],
+  "improvements": ["3-5 high-impact, actionable resume recommendations (metrics, impact verbs, structure)"],
+  "searchKeywords": ["5-8 optimized search keywords for tech job searches"],
+  "atsScore": number from 40 to 95 reflecting keyword density, formatting clarity, and quantified impact,
+  "atsGaps": ["2-4 specific missing sections, metrics, or technical keywords that could improve ATS ranking"]
+}
+
+Return ONLY valid JSON without markdown fences.`;
+
+    const userPrompt = `Resume text to analyze:\n${text.slice(0, 12000)}`;
+
+    const fallbackAnalysis = (): ResumeAnalysisResult => {
+      // Basic heuristic keyword extraction if offline
+      const lowercase = text.toLowerCase();
+      const detectedSkills: string[] = [];
+      const keywords = [
+        'Python', 'JavaScript', 'TypeScript', 'React', 'Next.js', 'Node.js',
+        'SQL', 'PostgreSQL', 'AWS', 'Docker', 'Git', 'Machine Learning',
+        'Java', 'C++', 'Tailwind', 'REST APIs', 'GraphQL'
+      ];
+      keywords.forEach((k) => {
+        if (lowercase.includes(k.toLowerCase())) detectedSkills.push(k);
+      });
+
+      return {
+        skills: detectedSkills.length > 0 ? detectedSkills : ['Software Engineering', 'Problem Solving', 'Data Structures'],
+        experienceLevel: lowercase.includes('senior') || lowercase.includes('lead') ? 'senior' : 'mid',
+        suggestedRoles: ['Software Engineer', 'Full-Stack Developer', 'Frontend Engineer'],
+        summary: 'Technical professional with verified software development and applied engineering background.',
+        strengths: ['Demonstrated problem solving abilities', 'Full-stack engineering proficiency', 'Modern framework experience'],
+        improvements: ['Include more quantified business impact metrics (e.g. % improvements, user counts)', 'Add explicit technical certifications', 'Optimize header keyword hierarchy for ATS'],
+        searchKeywords: detectedSkills.length > 0 ? detectedSkills.slice(0, 5) : ['Software Engineer', 'Developer'],
+        atsScore: 78,
+        atsGaps: ['Add quantifiable business metrics to project descriptions', 'Standardize skill category headings'],
+      };
+    };
+
+    const analysis = await generateStructuredJSON<ResumeAnalysisResult>(
+      systemPrompt,
+      userPrompt,
+      fallbackAnalysis
+    );
 
     return NextResponse.json({
       success: true,
       data: { analysis, rawText: text.slice(0, 5000) },
     });
   } catch (error: any) {
+    console.error('Resume analysis error:', error);
     return NextResponse.json(
       { success: false, error: error?.message || 'Failed to analyze resume.' },
       { status: 500 }

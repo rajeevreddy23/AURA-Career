@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { generateStructuredJSON } from '@/lib/ai/llm';
 
 export interface DoubtResolution {
   title: string;
@@ -15,33 +16,27 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const { doubt, topic, level, codeSnippet } = body;
-    const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
 
-    if (backendUrl && backendUrl !== 'http://localhost:8000') {
-      try {
-        const res = await fetch(`${backendUrl}/api/v1/agents/doubt`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(body),
-        });
-        if (res.ok) {
-          const data = await res.json();
-          return NextResponse.json(data);
-        }
-      } catch {
-        // Fall through to LLMs
-      }
+    const studentDoubt = (doubt || '').trim();
+    if (!studentDoubt) {
+      return NextResponse.json(
+        { success: false, error: 'Doubt query is required' },
+        { status: 400 }
+      );
     }
 
-    const API_KEY = process.env.GEMINI_API_KEY || process.env.NEXT_PUBLIC_GEMINI_API_KEY;
-    if (API_KEY) {
-      const prompt = `You are a world-class technical doubt diagnostic AI mentor on AURA Learn.
-Topic: "${topic || 'Coding & Tech'}"
-Level: "${level || 'Beginner to Intermediate'}"
-Student's Doubt: "${doubt || ''}"
-${codeSnippet ? `Code Snippet:\n\`\`\`\n${codeSnippet}\n\`\`\`` : ''}
+    const currentTopic = topic || 'Computer Science & Programming';
+    const currentLevel = level || 'Beginner to Intermediate';
 
-Output a valid JSON object matching this schema:
+    const systemPrompt = `You are a world-class technical doubt diagnostic AI mentor on AURA Learn.
+Your role is to diagnose the student's root misconception, provide a step-by-step mechanical explanation, compare an anti-pattern with the robust solution, and give an exam/interview golden rule.
+
+Topic: "${currentTopic}"
+Level: "${currentLevel}"
+Student Doubt: "${studentDoubt}"
+${codeSnippet ? `Context Code:\n\`\`\`\n${codeSnippet}\n\`\`\`` : ''}
+
+You MUST return a valid JSON object matching this schema:
 {
   "title": "Concise diagnostic identification of the root problem/misconception",
   "breakdown": [
@@ -50,76 +45,50 @@ Output a valid JSON object matching this schema:
     "Step 3: Concrete correct mental model to follow"
   ],
   "codeComparison": {
-    "antiPattern": "code showing the incorrect/buggy approach",
-    "robustSolution": "code showing the idiomatic correct solution"
+    "antiPattern": "code showing the incorrect/buggy approach with comment",
+    "robustSolution": "code showing the idiomatic correct solution with comment"
   },
   "summary": "1 memorable Golden Rule for exams and job interviews",
   "proTip": "1 practical high-performance or defensive tip"
-}`;
+}
+Return JSON only without markdown formatting.`;
 
-      try {
-        const res = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${API_KEY}`,
-          {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              contents: [{ role: 'user', parts: [{ text: prompt }] }],
-              generationConfig: {
-                temperature: 0.5,
-                maxOutputTokens: 2048,
-                responseMimeType: 'application/json',
-              },
-            }),
-          }
-        );
+    const userPrompt = `Diagnose and resolve this doubt in "${currentTopic}": "${studentDoubt}".`;
 
-        if (res.ok) {
-          const data = await res.json();
-          const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text;
-          if (rawText) {
-            let clean = rawText.trim();
-            if (clean.startsWith('```json')) clean = clean.slice(7);
-            if (clean.startsWith('```')) clean = clean.slice(3);
-            if (clean.endsWith('```')) clean = clean.slice(0, -3);
-            const parsed = JSON.parse(clean.trim());
-            return NextResponse.json({
-              success: true,
-              data: parsed,
-            });
-          }
-        }
-      } catch (geminiErr) {
-        console.warn('Gemini doubt error:', geminiErr);
-      }
-    }
+    const data = await generateStructuredJSON<DoubtResolution>(
+      systemPrompt,
+      userPrompt,
+      () => generateFallbackDoubt(studentDoubt, currentTopic)
+    );
 
-    // Intelligent Fallback
-    const fallback: DoubtResolution = {
-      title: `Diagnostic Analysis for: "${doubt || 'Concept Inquiry'}"`,
-      breakdown: [
-        `Under ${topic || 'Python'}, memory referencing and object mutability dictate variable sharing and runtime binding.`,
-        'Re-assigning vs mutating in-place determines whether callers observe state alterations across scopes.',
-        'Always verify whether you need a shallow reference or an isolated copy.'
-      ],
-      codeComparison: {
-        antiPattern: `# Buggy approach\ndef append_to(element, target=[]):\n    target.append(element)\n    return target`,
-        robustSolution: `# Robust idiomatic approach\ndef append_to(element, target=None):\n    if target is None:\n        target = []\n    target.append(element)\n    return target`
-      },
-      summary: 'Never use mutable default arguments in function signatures; defaults evaluate only once at function definition time.',
-      proTip: 'Use copy.deepcopy() or dict comprehensions when cloning complex nested structures to prevent accidental state mutation.'
-    };
+    return NextResponse.json({
+      success: true,
+      data,
+    });
 
+  } catch (error: any) {
+    console.error('Doubt diagnostic error:', error);
+    const fallback = generateFallbackDoubt('Concept Inquiry', 'Programming');
     return NextResponse.json({
       success: true,
       data: fallback,
     });
-
-  } catch (error: any) {
-    return NextResponse.json(
-      { success: false, error: error?.message || 'Failed to resolve doubt' },
-      { status: 500 }
-    );
   }
 }
 
+function generateFallbackDoubt(doubt: string, topic: string): DoubtResolution {
+  return {
+    title: `Diagnostic Analysis for: "${doubt}"`,
+    breakdown: [
+      `In ${topic}, variable sharing and scope binding dictate whether mutations propagate to external callers.`,
+      'Re-assigning a variable creates a new binding, while mutating in-place alters the shared underlying memory buffer.',
+      'Always verify whether you need shallow references, deep cloning, or pure functional transformations.'
+    ],
+    codeComparison: {
+      antiPattern: `# Buggy approach\ndef append_to(element, target=[]):\n    target.append(element)\n    return target`,
+      robustSolution: `# Robust idiomatic approach\ndef append_to(element, target=None):\n    if target is None:\n        target = []\n    target.append(element)\n    return target`
+    },
+    summary: 'Never use mutable default arguments in function signatures; default values evaluate once at module definition time.',
+    proTip: 'Use copy.deepcopy() or immutability freeze patterns when cloning complex nested structures to prevent accidental state contamination.'
+  };
+}

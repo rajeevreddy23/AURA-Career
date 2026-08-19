@@ -54,11 +54,11 @@ export const LANGUAGES = [
 ];
 
 export const VOICE_OPTIONS = [
-  { id: 'male-1', label: 'Professor Marcus', gender: 'male' },
-  { id: 'male-2', label: 'Dr. James', gender: 'male' },
-  { id: 'female-1', label: 'Professor Sophia', gender: 'female' },
-  { id: 'female-2', label: 'Dr. Elena', gender: 'female' },
+  { id: 'male', label: 'Male Voice', gender: 'male' },
+  { id: 'female', label: 'Female Voice', gender: 'female' },
 ];
+
+export * from './syllabi';
 
 export const AMBIENT_SOUNDS = [
   { id: 'none', label: 'None', icon: 'VolumeX' },

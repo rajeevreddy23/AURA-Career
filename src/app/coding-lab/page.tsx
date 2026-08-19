@@ -1,14 +1,14 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { Navbar } from '@/components/layout/Navbar';
 import { Footer } from '@/components/layout/Footer';
 import { CodingLab } from '@/components/coding/CodingLab';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { cn } from '@/lib/utils';
 import {
-  Code2, Sparkles, BookOpen, ChevronRight, ExternalLink
+  Code2, Sparkles, ChevronRight
 } from 'lucide-react';
 
 const challenges = [
@@ -21,8 +21,23 @@ const challenges = [
 ];
 
 export default function CodingLabPage() {
+  const searchParams = useSearchParams();
+  const snippetParam = searchParams.get('snippet');
+  const langParam = searchParams.get('lang');
+
   const [selectedChallenge, setSelectedChallenge] = useState<typeof challenges[0] | null>(null);
   const [activeTab, setActiveTab] = useState<'workspace' | 'challenges'>('workspace');
+  const [activeCode, setActiveCode] = useState<string | undefined>(undefined);
+
+  useEffect(() => {
+    if (snippetParam) {
+      try {
+        setActiveCode(decodeURIComponent(snippetParam));
+      } catch {
+        setActiveCode(snippetParam);
+      }
+    }
+  }, [snippetParam]);
 
   return (
     <main className="min-h-screen">
@@ -71,6 +86,7 @@ export default function CodingLabPage() {
                     key={ch.title}
                     onClick={() => {
                       setSelectedChallenge(ch);
+                      setActiveCode(undefined);
                       setActiveTab('workspace');
                     }}
                     className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-accent transition-colors text-left"
@@ -107,7 +123,9 @@ export default function CodingLabPage() {
             )}
             <div className="flex-1">
               <CodingLab
-                language={selectedChallenge?.language || 'python'}
+                key={activeCode ? 'snippet-loaded' : selectedChallenge?.title || 'default-lab'}
+                initialCode={activeCode}
+                language={langParam || selectedChallenge?.language || 'python'}
                 showAI={true}
               />
             </div>

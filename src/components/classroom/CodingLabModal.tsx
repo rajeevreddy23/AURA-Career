@@ -55,9 +55,9 @@ export const CodingLabModal: React.FC<CodingLabModalProps> = ({ isOpen, onClose,
     setTimeout(() => {
       toast.dismiss('run-test');
       // Verify test cases
-      const results = challenge.testCases.map((tc, idx) => ({
+      const results = (challenge.testCases || []).map((tc: any, idx: number) => ({
         passed: true,
-        message: `Test ${idx + 1} (${tc.description}): Passed ✓ [Expected: ${tc.expected}]`,
+        message: `Test ${idx + 1} (${tc.description || tc.input}): Passed ✓ [Expected: ${tc.expected || tc.expectedOutput}]`,
       }));
       setTestResults(results);
       toast.success('All test assertions passed! Great job!');
@@ -124,10 +124,10 @@ export const CodingLabModal: React.FC<CodingLabModalProps> = ({ isOpen, onClose,
               <div className="space-y-2">
                 <span className="text-xs font-semibold text-slate-300">Test Specifications:</span>
                 <div className="space-y-1.5">
-                  {challenge.testCases.map((tc, i) => (
+                  {(challenge.testCases || []).map((tc: any, i: number) => (
                     <div key={i} className="p-2 rounded-lg bg-slate-900 border border-slate-800 text-[11px] font-mono space-y-0.5">
-                      <div className="text-purple-300 font-semibold">{tc.description}</div>
-                      <div className="text-slate-400">Input: {tc.input} ➔ {tc.expected}</div>
+                      <div className="text-purple-300 font-semibold">{tc.description || tc.input}</div>
+                      <div className="text-slate-400">Input: {tc.input} ➔ {tc.expected || tc.expectedOutput}</div>
                     </div>
                   ))}
                 </div>
