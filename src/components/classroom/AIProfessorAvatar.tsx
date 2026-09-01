@@ -227,6 +227,52 @@ export const AIProfessorAvatar: React.FC<AIProfessorAvatarProps> = ({
           <rect x="62" y="125" width="76" height="70" rx="35" fill="url(#bodyGradient)" />
           <path d="M 64 160 Q 100 180 136 160 C 130 185 115 195 100 195 C 85 195 70 185 64 160 Z" fill="#cbd5e1" opacity="0.4" />
 
+          {/* ─── DYNAMIC TEACHER OUTFIT / DRESS ─── */}
+          {normalizedStyle === 'professor' && (
+            <g id="professor-gown">
+              {/* Professor Academic Gown */}
+              <path d="M 64 135 Q 100 148 136 135 L 140 190 Q 100 198 60 190 Z" fill={theme.primary} opacity="0.75" />
+              <path d="M 88 135 L 100 165 L 112 135 Z" fill="#f8fafc" opacity="0.9" />
+              <path d="M 96 142 L 100 175 L 104 142" stroke={theme.glow} strokeWidth="2" fill="none" />
+            </g>
+          )}
+
+          {normalizedStyle === 'coach' && (
+            <g id="coach-vest">
+              {/* Coach Athletic Vest & Straps */}
+              <path d="M 66 132 L 80 190 L 120 190 L 134 132 Q 100 145 66 132 Z" fill="#f59e0b" opacity="0.8" />
+              <line x1="100" y1="135" x2="100" y2="190" stroke="#78350f" strokeWidth="3" />
+              <rect x="74" y="150" width="16" height="4" rx="2" fill="#fef3c7" />
+              <rect x="110" y="150" width="16" height="4" rx="2" fill="#fef3c7" />
+            </g>
+          )}
+
+          {normalizedStyle === 'friend' && (
+            <g id="friend-hoodie">
+              {/* Casual Hoodie & Scarf */}
+              <path d="M 62 135 Q 100 152 138 135 L 135 192 Q 100 198 65 192 Z" fill="#ec4899" opacity="0.8" />
+              <path d="M 85 136 Q 100 155 115 136" stroke="#fce7f3" strokeWidth="4" fill="none" strokeLinecap="round" />
+            </g>
+          )}
+
+          {normalizedStyle === 'expert' && (
+            <g id="expert-suit">
+              {/* Executive Suit & Tie */}
+              <path d="M 64 130 L 82 192 L 118 192 L 136 130 Q 100 142 64 130 Z" fill="#2e1065" opacity="0.9" />
+              <polygon points="90,130 100,165 110,130" fill="#f8fafc" />
+              <polygon points="97,135 103,135 101,175 99,175" fill="#8b5cf6" />
+            </g>
+          )}
+
+          {normalizedStyle === 'simplifier' && (
+            <g id="simplifier-labcoat">
+              {/* Science Lab Coat */}
+              <path d="M 62 130 L 78 192 L 122 192 L 138 130 Q 100 140 62 130 Z" fill="#ecfeff" opacity="0.9" stroke="#06b6d4" strokeWidth="1" />
+              <line x1="100" y1="135" x2="100" y2="190" stroke="#083344" strokeWidth="2" strokeDasharray="3,3" />
+              <rect x="114" y="160" width="12" height="14" rx="2" fill="#cff4fc" stroke="#06b6d4" strokeWidth="1" />
+            </g>
+          )}
+
           {/* Chest Emblem Badge (Dynamic per AI Teacher Persona) */}
           <g>
             <circle cx="100" cy="155" r="14" fill={theme.chestBg} stroke={theme.primary} strokeWidth="2" />
@@ -251,6 +297,15 @@ export const AIProfessorAvatar: React.FC<AIProfessorAvatarProps> = ({
           <rect x="42" y="42" width="116" height="90" rx="42" fill="url(#headGradient)" stroke="#f8fafc" strokeWidth="2" />
           <rect x="36" y="72" width="10" height="30" rx="5" fill="#94a3b8" />
           <rect x="154" y="72" width="10" height="30" rx="5" fill="#94a3b8" />
+
+          {/* Head Accessory according to teacher style */}
+          {normalizedStyle === 'professor' && (
+            <g id="antenna-cap">
+              <polygon points="100,6 128,18 100,30 72,18" fill="#312e81" stroke="#a855f7" strokeWidth="1.5" />
+              <rect x="96" y="18" width="8" height="8" fill="#a855f7" />
+              <line x1="120" y1="18" x2="126" y2="35" stroke="#f59e0b" strokeWidth="1.5" />
+            </g>
+          )}
 
           {/* Black OLED Screen */}
           <rect x="52" y="52" width="96" height="70" rx="32" fill="url(#screenGradient)" stroke="#334155" strokeWidth="1.5" />

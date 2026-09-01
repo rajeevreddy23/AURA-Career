@@ -1,23 +1,6 @@
 import type { Metadata } from 'next';
-import { Inter, Patrick_Hand, Caveat } from 'next/font/google';
 import '@/styles/globals.css';
 import { Providers } from './providers';
-
-const inter = Inter({
-  subsets: ['latin'],
-  variable: '--font-inter',
-});
-
-const patrickHand = Patrick_Hand({
-  weight: '400',
-  subsets: ['latin'],
-  variable: '--font-patrick',
-});
-
-const caveat = Caveat({
-  subsets: ['latin'],
-  variable: '--font-caveat',
-});
 
 export const metadata: Metadata = {
   title: {
@@ -65,8 +48,14 @@ export default function RootLayout({
       <head>
         <link rel="icon" href="/favicon.png" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <link
+          href="https://fonts.googleapis.com/css2?family=Caveat:wght@400..700&family=Inter:wght@300;400;500;600;700;800&family=Patrick+Hand&display=swap"
+          rel="stylesheet"
+        />
       </head>
-      <body className={`${inter.variable} ${patrickHand.variable} ${caveat.variable} font-sans`}>
+      <body className="font-sans antialiased">
         <Providers>{children}</Providers>
       </body>
     </html>

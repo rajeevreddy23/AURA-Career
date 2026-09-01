@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { generateStructuredJSON } from '@/lib/ai/llm';
 
+// Allow up to 60 seconds for AI resume analysis
+export const maxDuration = 60;
+
 interface ResumeAnalysisResult {
   skills: string[];
   experienceLevel: 'entry' | 'mid' | 'senior' | 'lead';

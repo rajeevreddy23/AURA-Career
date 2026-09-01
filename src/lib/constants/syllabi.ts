@@ -20,7 +20,7 @@ export const COURSE_SYLLABI: Record<string, CourseSyllabus> = {
     modules: [
       {
         moduleId: 'py-mod-1',
-        moduleTitle: '1. Python Memory Model & Dynamic Data Structures',
+        moduleTitle: '1. Core Python Fundamentals & Data Types',
         chapterSummary: 'Deep dive into Python memory layout, dynamic array allocation in lists, and immutability guarantees of tuples.',
         status: 'in_progress',
         slides: [

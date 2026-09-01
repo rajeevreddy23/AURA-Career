@@ -5,1169 +5,1138 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Sparkles,
-  Volume2,
-  VolumeX,
-  Mic,
-  MicOff,
-  Send,
-  ChevronLeft,
-  ChevronRight,
-  ChevronDown,
-  ChevronUp,
-  Maximize2,
-  Minimize2,
-  X,
-  BookOpen,
-  FileText,
-  Code,
-  CheckCircle2,
-  Circle,
-  MessageSquare,
-  Bot,
-  Play,
-  Pause,
-  RotateCcw,
-  Terminal,
-  Cpu,
-  Lightbulb,
-  Copy,
-  Check,
-  Loader2,
-  ExternalLink,
-  Download,
-  BookMarked,
-  Layers,
-  ArrowRight,
+  Sparkles, Volume2, VolumeX, Mic, MicOff, Send, Code, Terminal,
+  Cpu, Copy, Check, Loader2, ExternalLink, Bot, ArrowDown, X,
+  FileText, Users, MessageSquare, Download, Share2, BookOpen,
+  Headphones, Globe, Phone, PhoneOff, Lightbulb, Award,
+  ChevronDown, ChevronUp, Eye, Zap, Brain, Settings, SlidersHorizontal,
+  CheckCircle2, XCircle, RotateCcw, HelpCircle, Layers,
 } from 'lucide-react';
 import { AIProfessorAvatar, ProfessorState } from '@/components/classroom/AIProfessorAvatar';
-import { InteractiveDiagram } from '@/components/classroom/InteractiveDiagram';
 import { ExitClassModal } from '@/components/classroom/ExitClassModal';
 import { useClassroomState } from '@/hooks/useClassroomState';
 import { useAuth } from '@/contexts/AuthContext';
+import { playAuraVoice, stopAllVoicePlayback, sanitizeSpeechText } from '@/lib/ai/voice';
 import toast from 'react-hot-toast';
 
-/** Helper to format inline markdown spans (bold, inline code, italics) */
+// ─────────────────────────────────────────────────────────────────────────────
+// Types
+// ─────────────────────────────────────────────────────────────────────────────
+export interface ConceptFeedItem {
+  id: string;
+  type: 'concept' | 'qna' | 'system';
+  title: string;
+  topic: string;
+  explanation: string;
+  code?: string;
+  output?: string;
+  speech?: string;
+  memoryInsight?: string;
+  suggestedFollowUp?: string;
+  nextConcept?: { title: string; teaser: string };
+  timestamp: string;
+}
+
+interface PDFNote {
+  id: string;
+  title: string;
+  content: string;
+  code?: string;
+  timestamp: string;
+}
+
+interface GroupChatMessage {
+  id: string;
+  username: string;
+  text: string;
+  time: string;
+  isMe: boolean;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Markdown Renderer
+// ─────────────────────────────────────────────────────────────────────────────
 function renderInlineSpans(text: string) {
   const parts = text.split(/(\*\*[^*]+\*\*|`[^`]+`|\*[^*]+\*)/g);
   return parts.map((part, i) => {
-    if (part.startsWith('**') && part.endsWith('**')) {
-      return (
-        <strong key={i} className="font-bold text-purple-200">
-          {part.slice(2, -2)}
-        </strong>
-      );
-    }
-    if (part.startsWith('`') && part.endsWith('`')) {
-      return (
-        <code
-          key={i}
-          className="bg-purple-950/90 text-purple-300 px-1.5 py-0.5 rounded font-mono text-[11px] border border-purple-800/60"
-        >
-          {part.slice(1, -1)}
-        </code>
-      );
-    }
-    if (part.startsWith('*') && part.endsWith('*')) {
-      return (
-        <em key={i} className="italic text-slate-300">
-          {part.slice(1, -1)}
-        </em>
-      );
-    }
+    if (part.startsWith('**') && part.endsWith('**'))
+      return <strong key={i} className="font-bold text-purple-200">{part.slice(2, -2)}</strong>;
+    if (part.startsWith('`') && part.endsWith('`'))
+      return <code key={i} className="bg-purple-950/90 text-purple-300 px-1.5 py-0.5 rounded font-mono text-[11.5px] border border-purple-800/60">{part.slice(1, -1)}</code>;
+    if (part.startsWith('*') && part.endsWith('*'))
+      return <em key={i} className="italic text-slate-300">{part.slice(1, -1)}</em>;
     return part;
   });
 }
 
-/** Helper to format assistant multi-line markdown responses */
-function renderFormattedMessage(text: string) {
-  const lines = text.split('\n');
-  return lines.map((line, idx) => {
-    if (line.startsWith('### ')) {
+function renderFormattedText(text: string) {
+  // Handle code blocks
+  const sections = text.split(/(```[\s\S]*?```)/g);
+  return sections.map((section, sidx) => {
+    if (section.startsWith('```')) {
+      const lang = section.match(/```(\w+)/)?.[1] || 'code';
+      const code = section.replace(/```\w*\n?/, '').replace(/```$/, '').trim();
       return (
-        <h4 key={idx} className="font-bold text-purple-300 text-xs mt-2 mb-0.5 tracking-wide uppercase font-mono">
-          {line.slice(4)}
-        </h4>
-      );
-    }
-    if (line.startsWith('## ') || line.startsWith('# ')) {
-      return (
-        <h3 key={idx} className="font-bold text-purple-100 text-xs mt-2.5 mb-1 pb-0.5 border-b border-purple-900/40">
-          {line.replace(/^#+\s/, '')}
-        </h3>
-      );
-    }
-    if (line.match(/^[\*\-•]\s/)) {
-      return (
-        <div key={idx} className="flex items-start space-x-1.5 my-1 pl-1">
-          <span className="text-purple-400 font-bold mt-0.5 shrink-0 text-[10px]">•</span>
-          <span className="text-slate-200">{renderInlineSpans(line.replace(/^[\*\-•]\s/, ''))}</span>
+        <div key={sidx} className="my-3 rounded-xl bg-slate-950 border border-slate-800 overflow-hidden">
+          <div className="px-3 py-1.5 bg-slate-900 border-b border-slate-800 flex items-center space-x-2">
+            <Terminal className="w-3 h-3 text-purple-400" />
+            <span className="text-[10px] font-mono text-slate-400">{lang}</span>
+          </div>
+          <pre className="p-4 text-xs font-mono text-purple-200 overflow-x-auto leading-relaxed whitespace-pre-wrap">
+            <code>{code}</code>
+          </pre>
         </div>
       );
     }
-    if (line.match(/^\d+\.\s/)) {
-      const numMatch = line.match(/^(\d+)\.\s(.*)/);
-      return (
-        <div key={idx} className="flex items-start space-x-1.5 my-1 pl-1">
-          <span className="text-purple-400 font-mono text-[10px] font-bold shrink-0 mt-0.5 bg-purple-950/60 px-1 rounded border border-purple-800/40">
-            {numMatch?.[1]}
-          </span>
-          <span className="text-slate-200">{renderInlineSpans(numMatch?.[2] || '')}</span>
-        </div>
-      );
-    }
-    if (!line.trim()) {
-      return <div key={idx} className="h-1.5" />;
-    }
-    return <p key={idx} className="my-0.5 text-slate-200 leading-relaxed">{renderInlineSpans(line)}</p>;
+    // Normal text lines
+    const lines = section.split('\n');
+    return (
+      <div key={sidx}>
+        {lines.map((line, idx) => {
+          if (!line.trim()) return <div key={idx} className="h-2" />;
+          if (line.startsWith('## 🧠') || line.startsWith('## 🔍') || line.startsWith('## 🌐') || line.startsWith('## 💻') || line.startsWith('## 🔬') || line.startsWith('## ⚙️') || line.startsWith('## 🔗')) {
+            return <h3 key={idx} className="font-bold text-purple-300 text-sm mt-6 mb-2 flex items-center space-x-2 border-b border-purple-900/30 pb-1">{line.replace(/^##\s/, '')}</h3>;
+          }
+          if (line.startsWith('## ') || line.startsWith('# '))
+            return <h2 key={idx} className="font-bold text-white text-base mt-5 mb-2">{line.replace(/^#+\s/, '')}</h2>;
+          if (line.startsWith('### '))
+            return <h4 key={idx} className="font-bold text-purple-200 text-sm mt-3 mb-1 font-mono">{line.slice(4)}</h4>;
+          if (line.match(/^[\*\-•]\s/))
+            return (
+              <div key={idx} className="flex items-start space-x-2 my-1.5">
+                <span className="text-purple-400 mt-1 shrink-0">•</span>
+                <span className="text-slate-200 text-sm leading-relaxed">{renderInlineSpans(line.replace(/^[\*\-•]\s/, ''))}</span>
+              </div>
+            );
+          if (line.match(/^\d+\.\s/)) {
+            const m = line.match(/^(\d+)\.\s(.*)/);
+            return (
+              <div key={idx} className="flex items-start space-x-2 my-1.5">
+                <span className="text-purple-300 font-mono text-xs font-bold shrink-0 mt-0.5 bg-purple-950/80 px-1.5 py-0.5 rounded">{m?.[1]}</span>
+                <span className="text-slate-200 text-sm leading-relaxed">{renderInlineSpans(m?.[2] || '')}</span>
+              </div>
+            );
+          }
+          return <p key={idx} className="my-1 text-slate-200 text-sm leading-relaxed">{renderInlineSpans(line)}</p>;
+        })}
+      </div>
+    );
   });
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Main Page
+// ─────────────────────────────────────────────────────────────────────────────
 export default function LiveClassroomPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { user } = useAuth();
-
   const urlCourseId = searchParams.get('courseId') || searchParams.get('course') || '1';
 
-  const {
-    session,
-    setSession,
-    currentModule,
-    currentSlide,
-    progressPercent,
-    currentOverallSlideNumber,
-    totalSlides,
-    setAIState,
-    setVoiceGender,
-    goToModule,
-    goToSlide,
-    goToSlideInModule,
-    nextSlideOrModule,
-    prevSlideOrModule,
-    addChatMessage,
-    addAutoLiveNote,
-    cancelInFlight,
-  } = useClassroomState(urlCourseId);
+  const { session, currentModule, currentSlide, setAIState, setVoiceGender, addChatMessage } = useClassroomState(urlCourseId);
 
-  // UI state
+  // ── Feed & Input State
+  const [feedItems, setFeedItems] = useState<ConceptFeedItem[]>([]);
   const [chatInput, setChatInput] = useState('');
+  const [isProfessorThinking, setIsProfessorThinking] = useState(false);
+  const [copiedSnippetId, setCopiedSnippetId] = useState<string | null>(null);
+  const [showExitModal, setShowExitModal] = useState(false);
+  const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
+
+  // ── Voice & Advanced Classroom State
+  const [voiceGenderState, setLocalVoiceGender] = useState<'female' | 'male'>('female');
   const [isVoiceEnabled, setIsVoiceEnabled] = useState(true);
   const [isPlayingSpeech, setIsPlayingSpeech] = useState(false);
   const [isMicListening, setIsMicListening] = useState(false);
-  const [isFullscreen, setIsFullscreen] = useState(false);
-  const [isCurriculumOpen, setIsCurriculumOpen] = useState(true);
-  const [isRightSidebarOpen, setIsRightSidebarOpen] = useState(true);
-  const [rightTab, setRightTab] = useState<'chat' | 'notes'>('chat');
-  const [centerTab, setCenterTab] = useState<'code' | 'output'>('code');
-  const [showExitModal, setShowExitModal] = useState(false);
-  const [isProfessorThinking, setIsProfessorThinking] = useState(false);
-  const [copiedSnippetIndex, setCopiedSnippetIndex] = useState<string | null>(null);
-  const [expandedModules, setExpandedModules] = useState<Record<string, boolean>>({});
+  const [isFastMode, setIsFastMode] = useState(false);
+  const [speechSpeed, setSpeechSpeed] = useState(1.0);
 
-  const containerRef = useRef<HTMLDivElement>(null);
-  const chatBottomRef = useRef<HTMLDivElement>(null);
-  const speechRecognitionRef = useRef<any>(null);
+  const urlTeacherStyle = (searchParams.get('teacher') || searchParams.get('style') || 'friend').toLowerCase();
+  const urlDifficulty = (searchParams.get('level') || searchParams.get('diff') || 'intermediate').toLowerCase();
 
-  // Expand active module in curriculum map
-  useEffect(() => {
-    if (currentModule?.moduleId) {
-      setExpandedModules((prev) => ({
-        ...prev,
-        [currentModule.moduleId]: true,
-      }));
-    }
-  }, [currentModule?.moduleId]);
+  const [activeTeacherStyle, setActiveTeacherStyle] = useState<'professor' | 'coach' | 'friend' | 'expert' | 'simplifier'>(
+    urlTeacherStyle.includes('coach') ? 'coach' : urlTeacherStyle.includes('friend') ? 'friend' : urlTeacherStyle.includes('expert') ? 'expert' : urlTeacherStyle.includes('simplifier') ? 'simplifier' : 'professor'
+  );
+  const [activeDifficulty, setActiveDifficulty] = useState<'beginner' | 'intermediate' | 'advanced'>(
+    (urlDifficulty as any) || 'intermediate'
+  );
+  const [showCertModal, setShowCertModal] = useState(false);
+  const [studentCertName, setStudentCertName] = useState(user?.displayName || user?.email?.split('@')[0] || 'Rajeev Reddy');
 
-  // Auto-generate live note summary when entering or completing a slide
-  useEffect(() => {
-    if (currentSlide?.title && currentSlide?.keyPoints && currentSlide.keyPoints.length > 0) {
-      addAutoLiveNote(
-        currentModule.moduleTitle,
-        currentSlide.title,
-        currentSlide.keyPoints.slice(0, 3)
-      );
-    }
-  }, [currentSlide?.title, currentSlide?.keyPoints, currentModule?.moduleTitle, addAutoLiveNote]);
+  // ── Advanced Modals State
+  const [showQuizModal, setShowQuizModal] = useState(false);
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [quizAnswers, setQuizAnswers] = useState<{ [key: number]: number }>({});
+  const [quizSubmitted, setQuizSubmitted] = useState(false);
+  const [liveQuizQuestions, setLiveQuizQuestions] = useState<any[]>([]);
+  const [isQuizLoading, setIsQuizLoading] = useState(false);
+  const [quizTitle, setQuizTitle] = useState('20-Question Live Diagnostic Quiz');
 
-  // Scroll chat to bottom on new messages
-  useEffect(() => {
-    chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [session.conversation, isProfessorThinking]);
-
-  // Fullscreen listener
-  useEffect(() => {
-    const handleFullscreenChange = () => setIsFullscreen(!!document.fullscreenElement);
-    document.addEventListener('fullscreenchange', handleFullscreenChange);
-    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
-  }, []);
-
-  const toggleFullscreen = () => {
-    if (!document.fullscreenElement) {
-      containerRef.current?.requestFullscreen?.();
-    } else {
-      document.exitFullscreen?.();
-    }
-  };
-
-  const toggleModuleAccordion = (moduleId: string) => {
-    setExpandedModules((prev) => ({
-      ...prev,
-      [moduleId]: !prev[moduleId],
-    }));
-  };
-
-  const copyCodeToClipboard = async (code: string, id: string) => {
+  // ── Live Quiz API Generator (20 Questions)
+  const fetchLiveQuiz = async () => {
+    setShowQuizModal(true);
+    setIsQuizLoading(true);
+    setQuizSubmitted(false);
+    setQuizAnswers({});
     try {
-      await navigator.clipboard.writeText(code);
-      setCopiedSnippetIndex(id);
-      toast.success('Code copied to clipboard!');
-      setTimeout(() => setCopiedSnippetIndex(null), 2000);
-    } catch {
-      toast.error('Failed to copy code.');
-    }
-  };
-
-  // Speak current slide narration with Gemini TTS voice profile
-  const speakCurrentSlideNarration = useCallback((customText?: string) => {
-    if (typeof window === 'undefined' || !window.speechSynthesis) return;
-
-    window.speechSynthesis.cancel();
-    const textToSpeak = customText || currentSlide.speech;
-    if (!textToSpeak) return;
-
-    const cleanText = textToSpeak
-      .replace(/[\*#`_~]/g, '')
-      .replace(/\n+/g, '. ')
-      .replace(/\s+/g, ' ')
-      .trim();
-
-    const utterance = new SpeechSynthesisUtterance(cleanText);
-    utterance.rate = 1.0;
-    // Set pitch based on Voice Gender (Step 3: Male vs Female)
-    utterance.pitch = session.voiceGender === 'female' ? 1.15 : 0.88;
-
-    utterance.onstart = () => {
-      setIsPlayingSpeech(true);
-      setAIState('speaking');
-    };
-
-    utterance.onend = () => {
-      setIsPlayingSpeech(false);
-      setAIState('teaching');
-    };
-
-    utterance.onerror = () => {
-      setIsPlayingSpeech(false);
-      setAIState('teaching');
-    };
-
-    window.speechSynthesis.speak(utterance);
-  }, [currentSlide.speech, session.voiceGender, setAIState]);
-
-  const toggleSpeechPlayback = () => {
-    if (isPlayingSpeech) {
-      if (typeof window !== 'undefined' && window.speechSynthesis) {
-        window.speechSynthesis.cancel();
+      const res = await fetch('/api/generate-quiz', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          topic: currentModule.moduleTitle || session.courseTitle || 'Core Concepts',
+          courseTitle: session.courseTitle,
+          chatHistory: feedItems.map((f) => ({ title: f.title, explanation: f.explanation })),
+        }),
+      });
+      const data = await res.json();
+      if (data?.questions && data.questions.length > 0) {
+        setLiveQuizQuestions(data.questions);
+        setQuizTitle(data.quizTitle || '20-Question Live Diagnostic Quiz');
       }
-      setIsPlayingSpeech(false);
-      setAIState('teaching');
-    } else {
-      speakCurrentSlideNarration();
+    } catch {
+      toast.error('Failed to generate live quiz');
+    } finally {
+      setIsQuizLoading(false);
     }
   };
 
-  // Ask Professor inline Q&A (Step 5, 9, 10)
-  const handleAskProfessor = async (questionText?: string) => {
-    const query = questionText || chatInput.trim();
-    if (!query || isProfessorThinking) return;
+  // ── Right Panels
+  const [rightPanel, setRightPanel] = useState<'none' | 'notes'>('none');
 
-    cancelInFlight();
-    addChatMessage('user', query, user?.displayName || 'Student');
+  // ── PDF Notes
+  const [pdfNotes, setPdfNotes] = useState<PDFNote[]>([]);
+
+  const feedBottomRef = useRef<HTMLDivElement>(null);
+  const speechRecognitionRef = useRef<any>(null);
+  const continuousRecogRef = useRef<any>(null);
+
+  // ── Initialize first feed item
+  useEffect(() => {
+    if (feedItems.length === 0 && currentSlide?.title) {
+      const initialItem: ConceptFeedItem = {
+        id: `init-${Date.now()}`,
+        type: 'concept',
+        title: currentSlide.title,
+        topic: currentModule.moduleTitle || 'Core Concepts',
+        explanation: currentSlide.explanation || currentSlide.speech || 'Welcome! Ask any question to get a complete, detailed explanation with code examples.',
+        code: currentSlide.code || undefined,
+        output: currentSlide.code ? '# Output appears here after execution' : undefined,
+        speech: currentSlide.speech,
+        memoryInsight: currentSlide.keyPoints?.[0] || undefined,
+        nextConcept: { title: 'Core Process & Under the Hood', teaser: 'Learn exactly how this works step-by-step at the protocol and memory level.' },
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      };
+      setFeedItems([initialItem]);
+      setExpandedItems(new Set([initialItem.id]));
+      if (isVoiceEnabled && initialItem.speech) speakText(initialItem.speech);
+    }
+  }, [currentSlide, currentModule]);
+
+  // ── Auto-scroll
+  useEffect(() => {
+    feedBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [feedItems, isProfessorThinking]);
+
+  // ── Voice narration
+  const speakText = useCallback((textToSpeak: string) => {
+    if (!isVoiceEnabled || !textToSpeak) return;
+    stopAllVoicePlayback();
+    setIsPlayingSpeech(true);
+    setAIState('speaking' as ProfessorState);
+    playAuraVoice({
+      text: sanitizeSpeechText(textToSpeak),
+      gender: voiceGenderState,
+      speed: speechSpeed,
+      onStart: () => { setIsPlayingSpeech(true); setAIState('speaking' as ProfessorState); },
+      onEnd: () => { setIsPlayingSpeech(false); setAIState('idle' as ProfessorState); },
+      onError: () => { setIsPlayingSpeech(false); setAIState('idle' as ProfessorState); },
+    });
+  }, [isVoiceEnabled, voiceGenderState, speechSpeed, setAIState]);
+
+  const handleSendQuestion = async (queryText?: string) => {
+    const textToSend = (queryText || chatInput).trim();
+    if (!textToSend || isProfessorThinking) return;
     setChatInput('');
-    setAIState('processing_question');
     setIsProfessorThinking(true);
+    setAIState('thinking' as ProfessorState);
+
+    const qId = `q-${Date.now()}`;
+    setFeedItems((prev) => [...prev, {
+      id: qId,
+      type: 'qna',
+      title: `Your Question`,
+      topic: currentModule.moduleTitle || 'Inquiry',
+      explanation: textToSend,
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    }]);
+    setExpandedItems((prev) => new Set([...prev, qId]));
+    addChatMessage('user', textToSend);
 
     try {
       const res = await fetch('/api/ask-professor', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          persona: session.persona,
+          question: textToSend,
+          persona: activeTeacherStyle,
           courseTitle: session.courseTitle,
           currentTopic: currentModule.moduleTitle,
+          difficulty: isFastMode ? 'turbo_fast' : activeDifficulty,
           currentSlide: {
-            title: currentSlide.title,
-            speech: currentSlide.speech,
-            code: currentSlide.code,
-            explanation: currentSlide.explanation,
-            keyPoints: currentSlide.keyPoints,
+            title: feedItems[feedItems.length - 1]?.title || currentSlide?.title || textToSend,
+            explanation: feedItems[feedItems.length - 1]?.explanation || '',
+            code: feedItems[feedItems.length - 1]?.code || '',
           },
-          history: session.conversation.slice(-6).map((m) => ({
-            sender: m.sender,
-            name: m.name,
-            text: m.text,
-          })),
-          question: query,
-          difficulty: session.difficulty,
         }),
       });
 
-      const json = await res.json();
-      setIsProfessorThinking(false);
+      const resJson = await res.json();
+      const d = resJson.data || resJson;
 
-      if (json.success && json.data) {
-        const data = json.data;
-        const answerText = data.answer || 'Here is the step-by-step concept analysis.';
-
-        addChatMessage('professor', answerText, session.persona, {
-          codeSnippet: data.codeSnippet,
-          output: data.output,
-          suggestedFollowUp: data.suggestedFollowUp,
-          memoryInsight: data.memoryInsight,
-        });
-
-        // Append to running live notes
-        if (data.memoryInsight) {
-          addAutoLiveNote(currentModule.moduleTitle, `Q&A: ${query.slice(0, 30)}...`, [
-            `Student Question: "${query}"`,
-            `Professor Insight: ${data.memoryInsight}`,
-          ]);
-        }
-
-        setAIState('answering');
-
-        if (isVoiceEnabled) {
-          speakCurrentSlideNarration(answerText);
-        } else {
-          setTimeout(() => setAIState('teaching'), 3000);
-        }
-      } else {
-        addChatMessage(
-          'professor',
-          `In **${currentModule.moduleTitle}**, execution flow is governed directly by runtime memory layout. Let's inspect the code on the blackboard.`,
-          session.persona
-        );
-        setAIState('teaching');
-      }
-    } catch (err) {
-      setIsProfessorThinking(false);
-      addChatMessage(
-        'professor',
-        `Under the hood in **${currentModule.moduleTitle}**, memory structures allocate runtime values predictably. Let's step through the implementation.`,
-        session.persona
-      );
-      setAIState('teaching');
-    }
-  };
-
-  // Mic Speech-To-Text Handler
-  const toggleMicListening = () => {
-    if (isMicListening) {
-      speechRecognitionRef.current?.stop();
-      setIsMicListening(false);
-      setAIState('teaching');
-      return;
-    }
-
-    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SpeechRecognition) {
-      toast.error('Speech recognition is not supported in this browser. Please type your question!');
-      return;
-    }
-
-    try {
-      const recognition = new SpeechRecognition();
-      recognition.continuous = false;
-      recognition.interimResults = false;
-      recognition.lang = 'en-US';
-
-      recognition.onstart = () => {
-        setIsMicListening(true);
-        setAIState('listening');
-        toast.success('Listening... Ask your question!');
+      const aId = `a-${Date.now()}`;
+      const newItem: ConceptFeedItem = {
+        id: aId,
+        type: 'concept',
+        title: d.nextConcept?.title || textToSend.slice(0, 50),
+        topic: currentModule.moduleTitle || '',
+        explanation: d.answer || 'Here is the step-by-step breakdown.',
+        code: d.codeSnippet || undefined,
+        output: d.output || undefined,
+        speech: d.speech || undefined,
+        memoryInsight: d.memoryInsight || undefined,
+        suggestedFollowUp: d.suggestedFollowUp || undefined,
+        nextConcept: d.nextConcept || undefined,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       };
 
-      recognition.onerror = () => {
-        setIsMicListening(false);
-        setAIState('error');
-        setTimeout(() => setAIState('teaching'), 1500);
-      };
+      setFeedItems((prev) => [...prev, newItem]);
+      setExpandedItems((prev) => new Set([...prev, aId]));
+      addChatMessage('professor', d.answer);
+      setAIState('idle' as ProfessorState);
 
-      recognition.onend = () => setIsMicListening(false);
+      setPdfNotes((prev) => [
+        {
+          id: `note-${Date.now()}`,
+          title: textToSend.slice(0, 60),
+          content: d.answer,
+          code: d.codeSnippet,
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        },
+        ...prev,
+      ]);
 
-      recognition.onresult = (event: any) => {
-        const transcript = event.results[0][0].transcript;
-        if (transcript) {
-          toast.success(`Heard: "${transcript}"`);
-          handleAskProfessor(transcript);
-        }
-      };
-
-      recognition.start();
-      speechRecognitionRef.current = recognition;
+      if (isVoiceEnabled && d.speech) speakText(d.speech);
     } catch {
-      toast.error('Could not activate microphone.');
+      toast.error('AI Professor is busy. Please retry.');
+      setAIState('idle' as ProfessorState);
+    } finally {
+      setIsProfessorThinking(false);
     }
   };
 
-  // Export Notes (Step 6)
-  const exportNotesAsMarkdown = () => {
-    const lines: string[] = [];
-    lines.push(`# Study Notes: ${session.courseTitle}`);
-    lines.push(`**Level**: ${session.difficulty.toUpperCase()} | **Date**: ${new Date().toLocaleDateString()}`);
-    lines.push(`---\n`);
-
-    session.notes.forEach((note) => {
-      lines.push(`### ${note.moduleTitle} — ${note.slideTitle}`);
-      lines.push(`*Recorded at ${note.timestamp}*\n`);
-      note.bullets.forEach((b) => lines.push(`- ${b}`));
-      lines.push('');
+  const toggleExpand = (id: string) => {
+    setExpandedItems((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
     });
+  };
 
-    const blob = new Blob([lines.join('\n')], { type: 'text/markdown' });
+  const toggleMic = () => {
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition) { toast.error('Voice input not supported'); return; }
+    if (isMicListening) { speechRecognitionRef.current?.stop(); setIsMicListening(false); return; }
+    const r = new SpeechRecognition();
+    r.continuous = false; r.interimResults = false; r.lang = 'en-US';
+    r.onstart = () => { setIsMicListening(true); setAIState('listening' as ProfessorState); };
+    r.onresult = (e: any) => { const t = e.results[0][0].transcript; setChatInput(t); };
+    r.onend = () => { setIsMicListening(false); setAIState('idle' as ProfessorState); };
+    r.onerror = () => { setIsMicListening(false); };
+    speechRecognitionRef.current = r;
+    r.start();
+  };
+
+  const downloadPDFNotes = () => {
+    if (pdfNotes.length === 0) { toast.error('No notes yet! Ask a question first.'); return; }
+    
+    const notesHtml = pdfNotes.map((n, i) => `
+      <div style="background: #111827; border: 1px solid #1f2937; border-radius: 16px; padding: 24px; margin-bottom: 24px; box-shadow: 0 10px 25px rgba(0,0,0,0.3);">
+        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #374151; padding-bottom: 12px; margin-bottom: 16px;">
+          <h3 style="margin: 0; font-size: 18px; color: #f59e0b; font-weight: 700;">Note ${i + 1}: ${n.title}</h3>
+          <span style="font-family: monospace; font-size: 12px; color: #9ca3af; background: #1f2937; padding: 4px 10px; border-radius: 8px;">${n.timestamp}</span>
+        </div>
+        <div style="font-size: 14px; line-height: 1.7; color: #e5e7eb; white-space: pre-wrap; margin-bottom: 16px;">${n.content}</div>
+        ${n.code ? `
+          <div style="background: #030712; border: 1px solid #374151; border-radius: 12px; overflow: hidden; margin-top: 12px;">
+            <div style="background: #1f2937; padding: 8px 16px; font-size: 12px; font-family: monospace; color: #c084fc; font-weight: bold;">💻 Code Example</div>
+            <pre style="padding: 16px; margin: 0; font-family: monospace; font-size: 13px; color: #e9d5ff; overflow-x: auto; line-height: 1.5;"><code>${n.code}</code></pre>
+          </div>
+        ` : ''}
+      </div>
+    `).join('');
+
+    const fullDoc = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <title>AURA Learn Session Notes — ${session.courseTitle}</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #070b14; color: #f3f4f6; margin: 0; padding: 40px 20px; }
+    .container { max-width: 800px; margin: 0 auto; }
+    .header { text-align: center; margin-bottom: 40px; padding-bottom: 24px; border-bottom: 2px solid #1f2937; }
+    .badge { display: inline-block; background: #a855f720; border: 1px solid #a855f760; color: #c084fc; font-size: 12px; font-weight: bold; font-family: monospace; padding: 6px 16px; border-radius: 20px; margin-bottom: 12px; text-transform: uppercase; }
+    h1 { margin: 8px 0; font-size: 28px; color: #ffffff; }
+    p.meta { margin: 0; font-size: 13px; color: #9ca3af; font-family: monospace; }
+    .print-btn { display: inline-block; margin-top: 16px; background: #f59e0b; color: #000; font-weight: bold; font-size: 13px; border: none; padding: 10px 20px; border-radius: 12px; cursor: pointer; text-decoration: none; }
+    @media print { .print-btn { display: none; } body { background: #fff; color: #000; } }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div class="badge">🎓 AURA Learn University</div>
+      <h1>${session.courseTitle}</h1>
+      <p class="meta">Generated Session Notes • ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}</p>
+      <button onclick="window.print()" class="print-btn">🖨️ Print / Save as PDF</button>
+    </div>
+    ${notesHtml}
+  </div>
+</body>
+</html>`;
+
+    const blob = new Blob([fullDoc], { type: 'text/html' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `${session.courseTitle.replace(/[^a-z0-9]/gi, '_')}_Notes.md`;
+    a.download = `AURA_Notes_${session.courseTitle?.replace(/[^a-zA-Z0-9]/g, '_') || 'Session'}.html`;
     a.click();
     URL.revokeObjectURL(url);
-    toast.success('Notes downloaded as Markdown!');
+    toast.success('Neat formatted notes exported!');
   };
 
+  const copyCode = (code: string, id: string) => {
+    navigator.clipboard.writeText(code);
+    setCopiedSnippetId(id);
+    toast.success('Code copied!');
+    setTimeout(() => setCopiedSnippetId(null), 2000);
+  };
+
+  const voiceGenderLabel = voiceGenderState === 'female' ? 'Bekki (♀)' : 'Ben (♂)';
+
   return (
-    <div
-      ref={containerRef}
-      className="flex flex-col h-screen w-screen bg-[#070b14] text-slate-100 font-sans overflow-hidden select-none"
-    >
-      {/* ========================================================================= */}
-      {/* 1. MINIMAL CLEAN HEADER (STEP 1 & STEP 3) */}
-      {/* ========================================================================= */}
-      <header className="h-13 bg-[#0d1322] border-b border-slate-800/90 px-4 flex items-center justify-between shrink-0 z-30 shadow-md">
-        {/* Left: Course Title + Current Module & Slide Breadcrumb */}
-        <div className="flex items-center space-x-3 min-w-0">
-          <button
-            onClick={() => setIsCurriculumOpen(!isCurriculumOpen)}
-            className={`p-1.5 rounded-lg text-xs font-semibold flex items-center space-x-1.5 transition border ${
-              isCurriculumOpen
-                ? 'bg-purple-950/60 text-purple-300 border-purple-700/60'
-                : 'bg-slate-800/80 text-slate-400 border-slate-700 hover:text-slate-200'
-            }`}
-            title="Toggle Curriculum Map"
-          >
-            <BookMarked className="w-4 h-4" />
-            <span className="hidden sm:inline">Syllabus</span>
-          </button>
+    <div className="h-screen w-screen bg-[#070b14] text-slate-100 flex flex-col overflow-hidden font-sans">
 
-          <div className="flex items-center space-x-2 min-w-0">
-            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0" />
-            <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-400 bg-emerald-950/60 px-2 py-0.5 rounded border border-emerald-800/50 shrink-0 font-mono">
-              ● LIVE
-            </span>
-
-            <span className="text-xs md:text-sm font-bold text-slate-100 truncate">
-              {session.courseTitle}
-            </span>
-            <span className="text-slate-600 hidden md:inline">·</span>
-            <span className="text-xs text-purple-300 font-medium truncate hidden md:inline">
-              Module {session.currentModuleIndex + 1} of {session.modules.length}: {currentModule.moduleTitle}
-            </span>
+      {/* ═══ TOP HEADER BAR ═══ */}
+      <header className="h-16 bg-slate-900/95 border-b border-slate-800 px-4 flex items-center justify-between z-30 shrink-0 backdrop-blur-md">
+        <div className="flex items-center space-x-3">
+          <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
+          <span className="text-xs font-mono font-bold uppercase tracking-wider text-emerald-400">LIVE</span>
+          <div className="h-4 w-px bg-slate-700 hidden sm:block" />
+          <div className="hidden sm:block">
+            <h1 className="text-sm font-bold text-white truncate max-w-[280px] md:max-w-md">{session.courseTitle}</h1>
+            <p className="text-[10px] text-purple-300 font-mono">{currentModule.moduleTitle || 'Interactive Session'}</p>
           </div>
         </div>
 
-        {/* Right: Dual Voice Toggle, Fullscreen & Exit */}
-        <div className="flex items-center space-x-2 shrink-0">
-          {/* Dual Voice Toggle: Exactly Male & Female (Step 3) */}
-          <div className="flex items-center bg-slate-800/90 border border-slate-700/90 rounded-lg p-0.5 text-xs font-medium">
-            <button
-              onClick={() => setVoiceGender('female')}
-              className={`px-2.5 py-1 rounded-md transition flex items-center space-x-1 ${
-                session.voiceGender === 'female'
-                  ? 'bg-purple-600 text-white font-bold shadow-sm'
-                  : 'text-slate-400 hover:text-slate-200'
-              }`}
-            >
-              <span>Female Voice</span>
-            </button>
-            <button
-              onClick={() => setVoiceGender('male')}
-              className={`px-2.5 py-1 rounded-md transition flex items-center space-x-1 ${
-                session.voiceGender === 'male'
-                  ? 'bg-purple-600 text-white font-bold shadow-sm'
-                  : 'text-slate-400 hover:text-slate-200'
-              }`}
-            >
-              <span>Male Voice</span>
-            </button>
+        {/* Controls */}
+        <div className="flex items-center space-x-1.5 sm:space-x-2">
+          {/* Teacher Style Persona Pill Switcher */}
+          <div className="hidden lg:flex bg-slate-950 p-1 rounded-xl border border-slate-800 shadow-inner">
+            {[
+              { id: 'friend', label: '🤝 Friend' },
+              { id: 'coach', label: '⚡ Coach' },
+              { id: 'professor', label: '🎓 Prof' },
+              { id: 'expert', label: '🧠 Expert' },
+              { id: 'simplifier', label: '💡 Simple' },
+            ].map((t) => (
+              <button
+                key={t.id}
+                onClick={() => {
+                  setActiveTeacherStyle(t.id as any);
+                  toast.success(`Switched AI Teacher style & avatar outfit to ${t.label}`);
+                }}
+                className={`px-2 py-1 rounded-lg text-xs font-bold transition ${
+                  activeTeacherStyle === t.id
+                    ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                {t.label}
+              </button>
+            ))}
           </div>
 
-          {/* Voice Mute/Unmute */}
-          <button
-            onClick={() => setIsVoiceEnabled(!isVoiceEnabled)}
-            className={`p-1.5 rounded-lg border transition ${
-              isVoiceEnabled
-                ? 'bg-purple-950/60 text-purple-300 border-purple-800/60'
-                : 'bg-slate-800 text-slate-500 border-slate-700'
-            }`}
-            title={isVoiceEnabled ? 'Voice enabled' : 'Voice muted'}
-          >
+          {/* Teaching Difficulty Level Switcher */}
+          <div className="hidden xl:flex bg-slate-950 p-1 rounded-xl border border-slate-800 shadow-inner">
+            {[
+              { id: 'beginner', label: '🟢 Beg' },
+              { id: 'intermediate', label: '🟡 Int' },
+              { id: 'advanced', label: '🔴 Adv' },
+            ].map((d) => (
+              <button
+                key={d.id}
+                onClick={() => {
+                  setActiveDifficulty(d.id as any);
+                  toast.success(`Teaching depth set to ${d.label}`);
+                }}
+                className={`px-2 py-1 rounded-lg text-xs font-bold transition ${
+                  activeDifficulty === d.id
+                    ? 'bg-amber-500 text-slate-950 shadow'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                {d.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Teacher Voice Toggle */}
+          <div className="flex bg-slate-950 p-1 rounded-xl border border-slate-800 shadow-inner">
+            {(['female', 'male'] as const).map((g) => (
+              <button key={g} onClick={() => { setLocalVoiceGender(g); setVoiceGender(g); stopAllVoicePlayback(); toast.success(`Switched voice to ${g === 'female' ? '♀ Bekki' : '♂ Ben'}`); }}
+                className={`px-2 py-1 rounded-lg text-xs font-bold transition flex items-center space-x-1 ${voiceGenderState === g ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-md' : 'text-slate-400 hover:text-white'}`}>
+                <span>{g === 'female' ? '♀ Bekki' : '♂ Ben'}</span>
+              </button>
+            ))}
+          </div>
+
+          {/* ⚡ Turbo Fast Mode Toggle */}
+          <button onClick={() => { const next = !isFastMode; setIsFastMode(next); toast(next ? '⚡ Turbo Mode Activated' : '🎓 Switched to Deep Mode', { icon: next ? '⚡' : '🎓' }); }}
+            className={`px-2.5 py-1.5 rounded-xl border transition flex items-center space-x-1.5 text-xs font-bold ${isFastMode ? 'bg-amber-500/20 border-amber-500/50 text-amber-300 shadow-[0_0_12px_rgba(245,158,11,0.25)]' : 'bg-slate-800 border-slate-700 text-slate-400 hover:text-white'}`}
+            title="Toggle Turbo Fast Replies vs Deep Masterclass Explanations">
+            <Zap className={`w-3.5 h-3.5 ${isFastMode ? 'text-amber-400 fill-amber-400 animate-pulse' : ''}`} />
+            <span className="hidden lg:inline">{isFastMode ? 'Turbo Fast' : 'Deep Mode'}</span>
+          </button>
+
+          {/* 🧪 AI Diagnostic Quiz Challenge Button (20 Live Questions) */}
+          <button onClick={fetchLiveQuiz}
+            className="px-2.5 py-1.5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 transition flex items-center space-x-1.5 text-xs font-bold"
+            title="Generate a live 20-question diagnostic quiz from present classroom chat">
+            <HelpCircle className="w-3.5 h-3.5 text-emerald-400" />
+            <span className="hidden md:inline">20-Q Quiz</span>
+          </button>
+
+          {/* 🎓 Download Course Certificate */}
+          <button onClick={() => setShowCertModal(true)}
+            className="px-2.5 py-1.5 rounded-xl border border-amber-500/40 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 transition flex items-center space-x-1.5 text-xs font-bold"
+            title="View & Download Official Course Completion Certificate">
+            <Award className="w-3.5 h-3.5 text-amber-400" />
+            <span className="hidden md:inline">Certificate</span>
+          </button>
+
+          {/* 🔊 Audio Mute / Unmute */}
+          <button onClick={() => { isVoiceEnabled ? (stopAllVoicePlayback(), setIsVoiceEnabled(false), toast('Muted', { icon: '🔇' })) : (setIsVoiceEnabled(true), toast.success('Voice enabled')); }}
+            className={`p-2 rounded-xl border transition ${isVoiceEnabled ? 'bg-purple-500/15 border-purple-500/30 text-purple-300' : 'bg-slate-800 border-slate-700 text-slate-500'}`}
+            title={isVoiceEnabled ? 'Mute AI Voice' : 'Enable AI Voice'}>
             {isVoiceEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
           </button>
 
-          {/* Right Sidebar Toggle (Chat / Notes) */}
-          <button
-            onClick={() => setIsRightSidebarOpen(!isRightSidebarOpen)}
-            className={`p-1.5 rounded-lg transition border ${
-              isRightSidebarOpen
-                ? 'bg-purple-600/30 text-purple-300 border-purple-500/50'
-                : 'bg-slate-800 text-slate-400 border-slate-700 hover:text-slate-200'
-            }`}
-            title="Toggle Live Chat & Notes"
-          >
-            <MessageSquare className="w-4 h-4" />
+          {/* 📝 PDF Notes */}
+          <button onClick={() => setRightPanel(rightPanel === 'notes' ? 'none' : 'notes')}
+            className={`p-2 rounded-xl border transition flex items-center space-x-1.5 text-xs font-bold ${rightPanel === 'notes' ? 'bg-amber-500/20 border-amber-500/40 text-amber-300' : 'bg-slate-800 border-slate-700 text-slate-300 hover:text-white'}`}
+            title="Session Notes">
+            <FileText className="w-4 h-4" />
+            <span className="hidden xl:inline">Notes</span>
+            {pdfNotes.length > 0 && <span className="bg-amber-500 text-slate-950 text-[9px] font-bold rounded-full w-4 h-4 flex items-center justify-center">{pdfNotes.length}</span>}
           </button>
 
-          {/* Fullscreen */}
-          <button
-            onClick={toggleFullscreen}
-            className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-slate-200 transition border border-slate-700"
-            title="Toggle Fullscreen"
-          >
-            {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+          {/* 💻 Coding Lab */}
+          <Link href={`/coding-lab?courseId=${urlCourseId}`}
+            className="px-2.5 py-1.5 rounded-xl border border-purple-500/30 bg-purple-600/20 hover:bg-purple-600/30 text-purple-200 transition hidden md:flex items-center space-x-1.5 text-xs font-bold"
+            title="Open Interactive Coding Lab">
+            <Code className="w-3.5 h-3.5 text-purple-400" />
+            <span>Code Lab</span>
+          </Link>
+
+          {/* ⚙️ Classroom Control Center */}
+          <button onClick={() => setShowSettingsModal(true)}
+            className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition"
+            title="Classroom Control Center">
+            <SlidersHorizontal className="w-4 h-4 text-purple-400" />
           </button>
 
-          {/* Exit Class */}
-          <button
-            onClick={() => setShowExitModal(true)}
-            className="flex items-center space-x-1 px-2.5 py-1 rounded-lg bg-red-950/50 hover:bg-red-900/60 text-xs text-red-300 border border-red-800/60 transition"
-            title="Exit Classroom"
-          >
-            <X className="w-3.5 h-3.5 text-red-400" />
-            <span className="hidden sm:inline">Exit</span>
+          {/* ❌ Exit Class */}
+          <button onClick={() => setShowExitModal(true)} className="p-2 rounded-xl bg-slate-800 hover:bg-red-950/60 hover:text-red-300 text-slate-400 border border-slate-700 transition" title="Exit Classroom">
+            <X className="w-4 h-4" />
           </button>
         </div>
       </header>
 
-      {/* ========================================================================= */}
-      {/* MAIN VIEWPORT: CURRICULUM DRAWER + CENTRAL PLAYER + CHAT/NOTES SIDEBAR */}
-      {/* ========================================================================= */}
-      <div className="flex-1 flex overflow-hidden relative">
-        {/* ----------------------------------------------------------------------- */}
-        {/* 2. LEFT PANEL — PERSISTENT COMPLETE CURRICULUM MAP (STEP 8 & 9) */}
-        {/* ----------------------------------------------------------------------- */}
-        <AnimatePresence>
-          {isCurriculumOpen && (
-            <motion.aside
-              initial={{ width: 0, opacity: 0 }}
-              animate={{ width: 300, opacity: 1 }}
-              exit={{ width: 0, opacity: 0 }}
-              className="bg-[#0b101e] border-r border-slate-800/90 flex flex-col shrink-0 overflow-hidden shadow-2xl z-20"
-            >
-              {/* Header */}
-              <div className="p-3.5 border-b border-slate-800 flex items-center justify-between bg-slate-900/70">
-                <div className="flex items-center space-x-2">
-                  <BookMarked className="w-4 h-4 text-purple-400" />
-                  <h3 className="text-xs font-bold text-slate-200 uppercase tracking-wider font-mono">
-                    COURSE ROADMAP
-                  </h3>
-                </div>
-                <span className="text-[10px] font-mono text-purple-300 bg-purple-950/80 px-2 py-0.5 rounded border border-purple-800/50">
-                  {progressPercent}% Done
-                </span>
-              </div>
+      {/* ═══ MAIN AREA ═══ */}
+      <div className="flex-1 flex overflow-hidden">
 
-              {/* Progress Bar */}
-              <div className="px-3.5 py-2 border-b border-slate-800/60 bg-slate-950/40">
-                <div className="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-gradient-to-r from-purple-500 via-indigo-500 to-emerald-400 transition-all duration-500"
-                    style={{ width: `${progressPercent}%` }}
-                  />
-                </div>
-                <div className="flex justify-between items-center text-[10px] text-slate-400 mt-1.5 font-mono">
-                  <span>Concept {currentOverallSlideNumber} of {totalSlides}</span>
-                  <span className="capitalize text-purple-300 font-semibold">{session.difficulty} level</span>
-                </div>
-              </div>
+        {/* ── LEFT: Concept Feed ── */}
+        <div className={`flex-1 overflow-y-auto px-4 sm:px-6 lg:px-10 py-6 space-y-5 pb-40 ${rightPanel !== 'none' ? 'max-w-3xl' : 'max-w-5xl'} mx-auto w-full`}>
 
-              {/* Modules & Slides Accordion List */}
-              <div className="flex-1 p-2.5 space-y-2 overflow-y-auto scrollbar-thin">
-                {session.modules.map((mod, modIdx) => {
-                  const isCurrentMod = modIdx === session.currentModuleIndex;
-                  const isModCompleted = mod.status === 'completed';
-                  const isExpanded = !!expandedModules[mod.moduleId];
-
-                  return (
-                    <div
-                      key={mod.moduleId}
-                      className={`rounded-xl border transition-all duration-200 overflow-hidden ${
-                        isCurrentMod
-                          ? 'bg-purple-950/30 border-purple-500/50 shadow-sm'
-                          : isModCompleted
-                          ? 'bg-slate-900/50 border-slate-800/80 hover:border-slate-700'
-                          : 'bg-slate-950/40 border-slate-900 hover:border-slate-800'
-                      }`}
-                    >
-                      {/* Module Title */}
-                      <div
-                        onClick={() => {
-                          goToModule(modIdx);
-                          toggleModuleAccordion(mod.moduleId);
-                        }}
-                        className="p-2.5 cursor-pointer flex items-start space-x-2 hover:bg-white/[0.02] transition"
-                      >
-                        <div className="mt-0.5 shrink-0">
-                          {isModCompleted ? (
-                            <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                          ) : isCurrentMod ? (
-                            <div className="w-4 h-4 rounded-full bg-purple-500/20 border border-purple-400 flex items-center justify-center">
-                              <div className="w-1.5 h-1.5 rounded-full bg-purple-400 animate-ping" />
-                            </div>
-                          ) : (
-                            <div className="w-4 h-4 rounded-full border border-slate-700 flex items-center justify-center text-[9px] font-mono text-slate-500">
-                              {modIdx + 1}
-                            </div>
-                          )}
-                        </div>
-
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center justify-between">
-                            <p
-                              className={`text-xs font-bold truncate ${
-                                isCurrentMod ? 'text-purple-200' : isModCompleted ? 'text-slate-300' : 'text-slate-400'
-                              }`}
-                            >
-                              {mod.moduleTitle}
-                            </p>
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                toggleModuleAccordion(mod.moduleId);
-                              }}
-                              className="p-0.5 text-slate-500 hover:text-slate-300"
-                            >
-                              {isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-                            </button>
-                          </div>
-                          <span className="text-[9px] text-slate-500 font-mono block mt-0.5">
-                            {mod.slides.length} concepts · {isModCompleted ? 'Completed' : isCurrentMod ? 'Active' : 'Upcoming'}
-                          </span>
-                        </div>
-                      </div>
-
-                      {/* Expandable Sub-Topic Slides (Review completed concepts) */}
-                      <AnimatePresence>
-                        {isExpanded && (
-                          <motion.div
-                            initial={{ opacity: 0, height: 0 }}
-                            animate={{ opacity: 1, height: 'auto' }}
-                            exit={{ opacity: 0, height: 0 }}
-                            className="bg-slate-950/80 border-t border-slate-800/60 px-1.5 py-1 space-y-0.5"
-                          >
-                            {mod.slides.map((slide, slideIdx) => {
-                              const isCurrentSlide = isCurrentMod && slideIdx === session.currentSlideIndex;
-                              const canJump = modIdx <= session.currentModuleIndex;
-
-                              return (
-                                <button
-                                  key={slide.slideId || slideIdx}
-                                  onClick={() => canJump && goToSlideInModule(modIdx, slideIdx)}
-                                  disabled={!canJump}
-                                  className={`w-full text-left p-2 rounded-lg transition-all flex items-start space-x-2 text-xs border ${
-                                    isCurrentSlide
-                                      ? 'bg-purple-900/40 border-purple-500/60 text-purple-100 font-medium'
-                                      : canJump
-                                      ? 'border-transparent hover:bg-slate-900/70 text-slate-400 hover:text-slate-200'
-                                      : 'border-transparent text-slate-600 cursor-not-allowed opacity-60'
-                                  }`}
-                                >
-                                  <div className="mt-0.5 shrink-0">
-                                    {isCurrentSlide ? (
-                                      <div className="w-3 h-3 rounded-full bg-purple-400" />
-                                    ) : (
-                                      <Circle className="w-3 h-3 text-slate-600" />
-                                    )}
-                                  </div>
-                                  <div className="min-w-0 flex-1">
-                                    <div className="flex items-center space-x-1.5">
-                                      <span className="text-[9px] font-mono text-purple-400 font-bold shrink-0">
-                                        {modIdx + 1}.{slideIdx + 1}
-                                      </span>
-                                      <p className="text-[11px] truncate">{slide.title}</p>
-                                    </div>
-                                  </div>
-                                </button>
-                              );
-                            })}
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
-                    </div>
-                  );
-                })}
-              </div>
-            </motion.aside>
-          )}
-        </AnimatePresence>
-
-        {/* ----------------------------------------------------------------------- */}
-        {/* 3. CENTRAL YOUTUBE-LECTURE-STYLE TEACHING VIEWPORT (STEP 7) */}
-        {/* ----------------------------------------------------------------------- */}
-        <main className="flex-1 flex flex-col bg-[#070b14] relative overflow-y-auto">
-          <div className="flex-1 p-4 md:p-6 flex flex-col justify-between max-w-5xl mx-auto w-full space-y-4">
-            {/* Lecture Slide Header & Animated Narration Bubble */}
-            <motion.div
-              key={currentSlide.slideId || `${session.currentModuleIndex}-${session.currentSlideIndex}`}
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.2 }}
-              className="bg-slate-900/90 border border-slate-800 rounded-2xl p-5 shadow-2xl relative backdrop-blur-md space-y-3.5"
-            >
-              <div className="flex items-center justify-between flex-wrap gap-2">
-                <div className="flex items-center space-x-2">
-                  <span className="px-2.5 py-0.5 rounded-full bg-purple-500/20 text-purple-300 font-mono text-[10px] font-bold uppercase tracking-wider border border-purple-500/40">
-                    {currentSlide.conceptTag || 'CORE CONCEPT'}
-                  </span>
-                  <span className="text-sm md:text-base font-bold text-slate-100">
-                    {currentSlide.title}
-                  </span>
-                </div>
-                <div className="flex items-center space-x-2 text-xs text-slate-400 font-mono">
-                  <span className="bg-slate-800 px-2 py-0.5 rounded text-slate-300">
-                    Chapter {session.currentModuleIndex + 1}
-                  </span>
-                  <span>
-                    Slide {session.currentSlideIndex + 1} of {currentModule.slides.length}
-                  </span>
-                </div>
-              </div>
-
-              {/* High-Impact Lecture Script Narration */}
-              <div className="p-4 bg-gradient-to-r from-purple-950/40 via-indigo-950/30 to-slate-900/50 border border-purple-800/40 rounded-xl shadow-inner">
-                <div className="flex items-center justify-between text-[10px] font-mono text-purple-300 font-bold mb-2">
-                  <div className="flex items-center space-x-2">
-                    <Bot className="w-3.5 h-3.5 text-purple-400" />
-                    <span>PROFESSOR LECTURE NARRATION:</span>
-                  </div>
-                  <button
-                    onClick={toggleSpeechPlayback}
-                    className="flex items-center space-x-1 text-purple-300 hover:text-white bg-purple-900/50 px-2 py-0.5 rounded border border-purple-700/50 transition"
-                  >
-                    {isPlayingSpeech ? <Pause className="w-3 h-3" /> : <Play className="w-3 h-3" />}
-                    <span>{isPlayingSpeech ? 'Pause Voice' : 'Play Narration'}</span>
-                  </button>
-                </div>
-                <p className="text-xs md:text-sm text-purple-100 leading-relaxed font-medium">
-                  {currentSlide.speech}
-                </p>
-              </div>
-
-              {/* Conceptual Mechanics Deep-Dive */}
-              {currentSlide.explanation && (
-                <div className="text-xs text-slate-300 leading-relaxed bg-slate-950/70 p-3.5 rounded-xl border border-slate-800/80 flex items-start space-x-2.5">
-                  <Lightbulb className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
-                  <div className="flex-1 space-y-1">
-                    <span className="text-[10px] font-mono font-bold text-amber-400 uppercase tracking-wider block">
-                      UNDER THE HOOD & RUNTIME INTERNALS:
-                    </span>
-                    <p className="text-slate-200">{currentSlide.explanation}</p>
-                  </div>
-                </div>
-              )}
-            </motion.div>
-
-            {/* Video-weight Grid: Code Viewport + Architecture Diagram + Robot Avatar */}
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start flex-1">
-              {/* Left 7 Columns: Verified Code Viewer + Terminal Tab + "Try in Coding Lab" Link (Step 4) */}
-              <div className="lg:col-span-7 flex flex-col bg-slate-950 border border-slate-800 rounded-2xl overflow-hidden shadow-2xl min-h-[300px]">
-                {/* Code Header Bar */}
-                <div className="bg-slate-900/90 px-4 py-2 border-b border-slate-800 flex items-center justify-between">
-                  <div className="flex items-center space-x-2">
-                    <span className="w-2.5 h-2.5 rounded-full bg-red-500/80" />
-                    <span className="w-2.5 h-2.5 rounded-full bg-yellow-500/80" />
-                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-500/80" />
-                    <div className="flex space-x-1 ml-2">
-                      <button
-                        onClick={() => setCenterTab('code')}
-                        className={`px-2.5 py-0.5 rounded text-[11px] font-mono transition ${
-                          centerTab === 'code' ? 'bg-purple-600 text-white font-bold' : 'text-slate-400 hover:text-slate-200'
-                        }`}
-                      >
-                        lesson_demo.code
-                      </button>
-                      <button
-                        onClick={() => setCenterTab('output')}
-                        className={`px-2.5 py-0.5 rounded text-[11px] font-mono flex items-center space-x-1 transition ${
-                          centerTab === 'output' ? 'bg-purple-600 text-white font-bold' : 'text-slate-400 hover:text-slate-200'
-                        }`}
-                      >
-                        <Terminal className="w-3 h-3" />
-                        <span>Execution Output</span>
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Actions: Copy & "Try in Coding Lab" (Step 4) */}
-                  <div className="flex items-center space-x-2">
-                    <button
-                      type="button"
-                      onClick={() => copyCodeToClipboard(currentSlide.code, 'center-code')}
-                      className="p-1 rounded text-slate-400 hover:text-purple-300 transition"
-                      title="Copy slide code"
-                    >
-                      {copiedSnippetIndex === 'center-code' ? (
-                        <Check className="w-3.5 h-3.5 text-emerald-400" />
-                      ) : (
-                        <Copy className="w-3.5 h-3.5" />
-                      )}
-                    </button>
-                    <Link
-                      href={`/coding-lab?snippet=${encodeURIComponent(currentSlide.code)}`}
-                      target="_blank"
-                      className="flex items-center space-x-1 text-[10.5px] font-mono font-semibold bg-indigo-950/80 hover:bg-indigo-900 text-indigo-300 px-2 py-0.5 rounded border border-indigo-700/60 transition"
-                      title="Open snippet in full Coding Lab"
-                    >
-                      <span>Try in Coding Lab</span>
-                      <ExternalLink className="w-3 h-3" />
-                    </Link>
-                  </div>
-                </div>
-
-                {/* Tab Content */}
-                {centerTab === 'code' ? (
-                  <div className="p-4 font-mono text-xs text-slate-200 overflow-x-auto flex-1 leading-relaxed bg-[#0a0f1d] select-text">
-                    <pre className="text-purple-200 font-mono">
-                      <code>{currentSlide.code}</code>
-                    </pre>
-                  </div>
-                ) : (
-                  <div className="p-4 font-mono text-xs text-emerald-400 overflow-x-auto flex-1 leading-relaxed bg-black/95 select-text">
-                    <pre className="font-mono">
-                      <code>{currentSlide.output || '>>> Execution completed with exit code 0.'}</code>
-                    </pre>
-                  </div>
-                )}
-
-                {/* Key Takeaways Footer */}
-                {currentSlide.keyPoints && currentSlide.keyPoints.length > 0 && (
-                  <div className="p-3 bg-slate-900/70 border-t border-slate-800 text-[11px] space-y-1">
-                    <span className="font-mono text-[10px] font-bold text-purple-400 uppercase tracking-wider block">
-                      📌 CORE PRINCIPLES & RULES:
-                    </span>
-                    <div className="flex flex-wrap gap-1.5">
-                      {currentSlide.keyPoints.map((kp, idx) => (
-                        <span
-                          key={idx}
-                          className="bg-slate-950 border border-slate-800 text-slate-300 px-2 py-0.5 rounded-lg text-[10.5px]"
-                        >
-                          • {kp}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Right 5 Columns: Architecture Diagram & Animated AI Professor Avatar */}
-              <div className="lg:col-span-5 flex flex-col space-y-3.5">
-                {/* Interactive Diagram */}
-                {currentSlide.diagramType && currentSlide.diagramType !== 'none' && (
-                  <InteractiveDiagram type={currentSlide.diagramType} />
-                )}
-
-                {/* Animated Robot Avatar */}
-                <div className="flex flex-col items-center justify-center relative min-h-[200px] bg-slate-950/50 border border-slate-800/80 rounded-2xl p-4 shadow-xl">
-                  <AIProfessorAvatar state={session.aiState} size="lg" />
-                  <div className="mt-2 text-center">
-                    <span className="text-[10px] font-mono text-purple-300 bg-purple-950/70 border border-purple-800/40 px-3 py-0.5 rounded-full inline-flex items-center space-x-1.5 shadow-sm">
-                      <span className="w-1.5 h-1.5 rounded-full bg-purple-400 animate-pulse" />
-                      <span>{session.aiState.toUpperCase()}</span>
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Playback Scrubber & Dots */}
-            <div className="flex items-center justify-center space-x-2 py-1">
-              <span className="text-[10px] font-mono text-slate-500 mr-1 uppercase">
-                Slides:
-              </span>
-              {currentModule.slides.map((_, i) => (
-                <button
-                  key={i}
-                  onClick={() => goToSlide(i)}
-                  className={`h-2 rounded-full transition-all ${
-                    i === session.currentSlideIndex
-                      ? 'w-7 bg-purple-500 shadow-[0_0_10px_rgba(168,85,247,0.8)]'
-                      : 'w-2 bg-slate-700 hover:bg-slate-600'
-                  }`}
-                  title={`Slide ${i + 1}`}
-                />
-              ))}
-            </div>
-
-            {/* Playback Controls (Previous / Mic Q&A / Next) */}
-            <div className="flex items-center justify-between pt-2 border-t border-slate-800/80">
-              <button
-                onClick={prevSlideOrModule}
-                className="flex items-center space-x-1.5 px-4 py-2 rounded-xl bg-slate-800/90 hover:bg-slate-700 text-xs font-semibold text-slate-200 transition border border-slate-700 shadow-sm"
-              >
-                <ChevronLeft className="w-4 h-4" />
-                <span>Previous Slide</span>
-              </button>
-
-              {/* Mic Ask Professor Button */}
-              <button
-                onClick={toggleMicListening}
-                className={`px-6 py-2.5 rounded-full text-xs font-bold transition-all shadow-lg flex items-center space-x-2 ${
-                  isMicListening
-                    ? 'bg-red-600 text-white shadow-red-500/50 animate-bounce'
-                    : 'bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white shadow-purple-500/30'
+          {feedItems.map((item) => {
+            const isExpanded = expandedItems.has(item.id);
+            return (
+              <motion.div
+                key={item.id}
+                initial={{ opacity: 0, y: 18 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.3 }}
+                className={`rounded-3xl border shadow-2xl overflow-hidden ${
+                  item.type === 'qna'
+                    ? 'bg-purple-950/30 border-purple-600/40 ml-auto max-w-2xl w-full'
+                    : 'bg-slate-900/90 border-slate-800'
                 }`}
               >
-                <Mic className={`w-4 h-4 ${isMicListening ? 'animate-pulse' : ''}`} />
-                <span>{isMicListening ? 'Listening... Speak!' : 'Ask Professor (Voice)'}</span>
-              </button>
-
-              <button
-                onClick={nextSlideOrModule}
-                className="flex items-center space-x-1.5 px-4 py-2 rounded-xl bg-slate-800/90 hover:bg-slate-700 text-xs font-semibold text-slate-200 transition border border-slate-700 shadow-sm"
-              >
-                <span>Next Slide</span>
-                <ChevronRight className="w-4 h-4" />
-              </button>
-            </div>
-          </div>
-        </main>
-
-        {/* ----------------------------------------------------------------------- */}
-        {/* 4. RIGHT SIDEBAR — LIVE Q&A CHAT & LIVE NOTES SUMMARY (STEP 6, 7) */}
-        {/* ----------------------------------------------------------------------- */}
-        <AnimatePresence>
-          {isRightSidebarOpen && (
-            <motion.aside
-              initial={{ width: 0, opacity: 0 }}
-              animate={{ width: 350, opacity: 1 }}
-              exit={{ width: 0, opacity: 0 }}
-              className="bg-[#0b101e] border-l border-slate-800/90 flex flex-col shrink-0 h-full shadow-2xl z-20"
-            >
-              {/* Tab Selector: Live Q&A vs Running Notes (Step 6) */}
-              <div className="p-2 border-b border-slate-800 bg-slate-900/80 flex items-center justify-between">
-                <div className="flex space-x-1">
-                  <button
-                    onClick={() => setRightTab('chat')}
-                    className={`px-3 py-1 rounded-lg text-xs font-semibold transition flex items-center space-x-1.5 ${
-                      rightTab === 'chat'
-                        ? 'bg-purple-600 text-white shadow-sm'
-                        : 'text-slate-400 hover:text-slate-200'
-                    }`}
-                  >
-                    <MessageSquare className="w-3.5 h-3.5" />
-                    <span>Live Q&A</span>
-                  </button>
-                  <button
-                    onClick={() => setRightTab('notes')}
-                    className={`px-3 py-1 rounded-lg text-xs font-semibold transition flex items-center space-x-1.5 ${
-                      rightTab === 'notes'
-                        ? 'bg-purple-600 text-white shadow-sm'
-                        : 'text-slate-400 hover:text-slate-200'
-                    }`}
-                  >
-                    <FileText className="w-3.5 h-3.5" />
-                    <span>Live Notes ({session.notes.length})</span>
-                  </button>
+                {/* Card header — always visible, click to expand/collapse */}
+                <div
+                  className="flex items-center justify-between px-5 py-4 cursor-pointer hover:bg-slate-800/30 transition"
+                  onClick={() => toggleExpand(item.id)}
+                >
+                  <div className="flex items-center space-x-3">
+                    <span className={`p-1.5 rounded-xl border ${item.type === 'qna' ? 'bg-purple-500/15 border-purple-500/30 text-purple-400' : 'bg-indigo-500/15 border-indigo-500/30 text-indigo-400'}`}>
+                      {item.type === 'qna' ? <Bot className="w-4 h-4" /> : <Sparkles className="w-4 h-4" />}
+                    </span>
+                    <div>
+                      <h2 className="text-sm sm:text-base font-bold text-white leading-snug truncate max-w-xs sm:max-w-md">{item.title}</h2>
+                      <span className="text-[10px] font-mono text-slate-500">{item.topic} • {item.timestamp}</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    {item.speech && (
+                      <button onClick={(e) => { e.stopPropagation(); speakText(item.speech!); }}
+                        className="p-1.5 rounded-lg bg-slate-800 hover:bg-purple-900/60 text-purple-300 border border-slate-700 transition" title="Listen">
+                        <Volume2 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                    {isExpanded ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
+                  </div>
                 </div>
 
-                <button
-                  onClick={() => setIsRightSidebarOpen(false)}
-                  className="p-1 text-slate-400 hover:text-slate-200"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
+                {/* Expandable content */}
+                <AnimatePresence initial={false}>
+                  {isExpanded && (
+                    <motion.div
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: 'auto', opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      transition={{ duration: 0.25 }}
+                      className="px-5 pb-6 space-y-4 overflow-hidden"
+                    >
+                      {/* Full explanation */}
+                      <div className="space-y-1 select-text">
+                        {renderFormattedText(item.explanation)}
+                      </div>
 
-              {/* Tab 1: Live Chat */}
-              {rightTab === 'chat' ? (
-                <>
-                  <div className="flex-1 p-3 overflow-y-auto space-y-3 scrollbar-thin select-text">
-                    {session.conversation.map((msg) => (
-                      <div
-                        key={msg.id}
-                        className={`flex items-start space-x-2 ${
-                          msg.sender === 'user' ? 'flex-row-reverse space-x-reverse' : ''
-                        }`}
-                      >
-                        <div
-                          className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shrink-0 shadow-sm ${
-                            msg.isAI
-                              ? 'bg-gradient-to-br from-purple-600 to-indigo-600 text-white border border-purple-400/40'
-                              : 'bg-slate-700 text-slate-200 border border-slate-600'
-                          }`}
-                        >
-                          {msg.isAI ? '🤖' : msg.name.charAt(0)}
-                        </div>
-                        <div
-                          className={`max-w-[88%] p-3 rounded-2xl text-xs leading-relaxed space-y-2 shadow-md ${
-                            msg.isAI
-                              ? 'bg-gradient-to-b from-purple-950/40 to-slate-900/90 border border-purple-800/40 text-purple-100 rounded-tl-none'
-                              : 'bg-slate-800 text-slate-200 rounded-tr-none border border-slate-700/80'
-                          }`}
-                        >
-                          <div className="flex items-center justify-between space-x-2 border-b border-purple-900/30 pb-1">
-                            <span className="font-semibold text-[11px] text-purple-300">
-                              {msg.name}
-                            </span>
-                            <span className="text-[9px] text-slate-500 font-mono">{msg.timestamp}</span>
+                      {/* Stand-alone code block (if not inlined in explanation) */}
+                      {item.code && !item.explanation.includes('```') && (
+                        <div className="rounded-2xl bg-slate-950 border border-slate-800 overflow-hidden">
+                          <div className="flex items-center justify-between px-4 py-2 bg-slate-900 border-b border-slate-800">
+                            <div className="flex items-center space-x-2">
+                              <Terminal className="w-3.5 h-3.5 text-purple-400" />
+                              <span className="text-xs font-mono font-bold text-slate-300">Code Example</span>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                              <button onClick={() => copyCode(item.code!, item.id)}
+                                className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] font-mono flex items-center space-x-1 transition">
+                                {copiedSnippetId === item.id ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                                <span>{copiedSnippetId === item.id ? 'Copied' : 'Copy'}</span>
+                              </button>
+                              <Link href={`/coding-lab?courseId=${urlCourseId}`}
+                                className="px-2.5 py-1 rounded-lg bg-purple-600 hover:bg-purple-500 text-white text-[11px] font-bold flex items-center space-x-1 transition">
+                                <ExternalLink className="w-3 h-3" />
+                                <span>Try in Lab</span>
+                              </Link>
+                            </div>
                           </div>
-
-                          <div className="text-xs text-slate-200 leading-relaxed">
-                            {msg.isAI ? renderFormattedMessage(msg.text) : <p className="whitespace-pre-wrap">{msg.text}</p>}
-                          </div>
-
-                          {msg.codeSnippet && (
-                            <div className="rounded-xl bg-black/80 border border-purple-900/60 overflow-hidden">
-                              <div className="px-2.5 py-1 bg-slate-900 border-b border-slate-800 flex items-center justify-between text-[9.5px] font-mono text-purple-300">
-                                <span>CODE SOLUTION</span>
-                                <button
-                                  type="button"
-                                  onClick={() => copyCodeToClipboard(msg.codeSnippet || '', msg.id)}
-                                  className="text-slate-400 hover:text-purple-300"
-                                >
-                                  {copiedSnippetIndex === msg.id ? 'Copied' : 'Copy'}
-                                </button>
-                              </div>
-                              <div className="p-2 font-mono text-[11px] text-purple-200 overflow-x-auto">
-                                <pre><code>{msg.codeSnippet}</code></pre>
-                              </div>
+                          <pre className="p-4 text-xs font-mono text-purple-200 overflow-x-auto leading-relaxed whitespace-pre-wrap">
+                            <code>{item.code}</code>
+                          </pre>
+                          {item.output && (
+                            <div className="px-4 py-2.5 bg-slate-900/60 border-t border-slate-800 text-[11px] font-mono text-emerald-300">
+                              <span className="text-slate-500 select-none">▶ Output: </span>{item.output}
                             </div>
                           )}
-
-                          {msg.suggestedFollowUp && (
-                            <button
-                              type="button"
-                              onClick={() => handleAskProfessor(msg.suggestedFollowUp)}
-                              className="w-full text-left p-2 rounded-xl bg-purple-950/50 hover:bg-purple-900/60 text-[10.5px] text-purple-200 border border-purple-700/50 transition flex items-center space-x-1.5"
-                            >
-                              <Sparkles className="w-3.5 h-3.5 text-purple-400 shrink-0" />
-                              <span className="truncate">Ask: {msg.suggestedFollowUp}</span>
-                            </button>
-                          )}
                         </div>
-                      </div>
-                    ))}
+                      )}
 
-                    {isProfessorThinking && (
-                      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex items-start space-x-2">
-                        <div className="w-7 h-7 rounded-full bg-purple-600/30 text-purple-300 border border-purple-500/50 flex items-center justify-center text-xs font-bold shrink-0 animate-pulse">
-                          🤖
+                      {/* Memory / Performance Insight */}
+                      {item.memoryInsight && (
+                        <div className="p-3 rounded-2xl bg-purple-950/40 border border-purple-800/40 text-xs text-purple-200 flex items-center space-x-2">
+                          <Cpu className="w-4 h-4 text-purple-400 shrink-0" />
+                          <span className="font-mono">{item.memoryInsight}</span>
                         </div>
-                        <div className="bg-purple-950/50 border border-purple-800/50 text-purple-200 rounded-2xl rounded-tl-none p-3 text-xs flex items-center space-x-2">
-                          <Loader2 className="w-3.5 h-3.5 animate-spin text-purple-400" />
-                          <span className="text-[11px]">Professor is analyzing your question...</span>
-                        </div>
-                      </motion.div>
-                    )}
+                      )}
 
-                    <div ref={chatBottomRef} />
-                  </div>
-
-                  {/* Input form */}
-                  <form
-                    onSubmit={(e) => {
-                      e.preventDefault();
-                      handleAskProfessor();
-                    }}
-                    className="p-2.5 border-t border-slate-800 bg-slate-900/80 flex items-center space-x-2"
-                  >
-                    <input
-                      type="text"
-                      value={chatInput}
-                      onChange={(e) => setChatInput(e.target.value)}
-                      placeholder="Ask the professor anything..."
-                      className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-purple-500"
-                    />
-                    <button
-                      type="button"
-                      onClick={toggleMicListening}
-                      className={`p-2 rounded-xl border transition ${
-                        isMicListening
-                          ? 'bg-red-600 text-white border-red-500 animate-pulse'
-                          : 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700'
-                      }`}
-                      title="Speak Question"
-                    >
-                      <Mic className="w-3.5 h-3.5" />
-                    </button>
-                    <button
-                      type="submit"
-                      disabled={!chatInput.trim()}
-                      className="p-2 rounded-xl bg-purple-600 hover:bg-purple-500 disabled:opacity-40 text-white transition shadow-md"
-                    >
-                      <Send className="w-3.5 h-3.5" />
-                    </button>
-                  </form>
-                </>
-              ) : (
-                /* Tab 2: Live Running Notes Summary Panel (Step 6) */
-                <div className="flex-1 flex flex-col overflow-hidden">
-                  <div className="p-3 border-b border-slate-800/80 flex items-center justify-between bg-slate-950/40">
-                    <span className="text-[11px] font-mono text-slate-400">
-                      Auto-generated lesson summary
-                    </span>
-                    <button
-                      onClick={exportNotesAsMarkdown}
-                      className="flex items-center space-x-1 px-2.5 py-1 rounded-lg bg-purple-950 hover:bg-purple-900 text-purple-300 border border-purple-700/60 text-xs font-semibold transition"
-                    >
-                      <Download className="w-3 h-3" />
-                      <span>Download .MD</span>
-                    </button>
-                  </div>
-
-                  <div className="flex-1 p-3 overflow-y-auto space-y-3.5 scrollbar-thin select-text">
-                    {session.notes.length === 0 ? (
-                      <div className="text-center py-12 text-slate-500 text-xs">
-                        Notes will auto-generate as you step through each slide!
-                      </div>
-                    ) : (
-                      session.notes.map((note) => (
-                        <div
-                          key={note.id}
-                          className="bg-slate-950/70 border border-slate-800/80 rounded-xl p-3 space-y-1.5 shadow-sm"
+                      {/* Suggested Follow-up */}
+                      {item.suggestedFollowUp && (
+                        <button
+                          onClick={() => handleSendQuestion(item.suggestedFollowUp)}
+                          disabled={isProfessorThinking}
+                          className="w-full text-left p-3 rounded-2xl bg-slate-950/80 border border-slate-700 hover:border-purple-500/50 text-xs text-slate-300 hover:text-white transition flex items-center space-x-2"
                         >
-                          <div className="flex items-center justify-between border-b border-slate-800/60 pb-1">
-                            <span className="text-xs font-bold text-purple-200 truncate">
-                              {note.slideTitle}
-                            </span>
-                            <span className="text-[9.5px] font-mono text-slate-500">{note.timestamp}</span>
+                          <Lightbulb className="w-4 h-4 text-amber-400 shrink-0" />
+                          <span>💡 <strong>Suggested:</strong> {item.suggestedFollowUp}</span>
+                        </button>
+                      )}
+
+                      {/* Next Concept Roadmap */}
+                      {item.nextConcept && (
+                        <div className="p-4 rounded-2xl bg-gradient-to-r from-purple-950/50 via-slate-950 to-indigo-950/50 border border-purple-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                          <div>
+                            <span className="text-[10px] font-mono text-purple-400 font-bold uppercase tracking-wider">🧭 EXPLORE NEXT</span>
+                            <h3 className="text-sm font-bold text-white">{item.nextConcept.title}</h3>
+                            <p className="text-xs text-slate-400">{item.nextConcept.teaser}</p>
                           </div>
-                          <p className="text-[10px] font-mono text-slate-400">{note.moduleTitle}</p>
-                          <ul className="space-y-1 pt-1">
-                            {note.bullets.map((b, idx) => (
-                              <li key={idx} className="text-xs text-slate-300 flex items-start space-x-1.5 leading-snug">
-                                <span className="text-purple-400 font-bold shrink-0">•</span>
-                                <span>{b}</span>
-                              </li>
-                            ))}
-                          </ul>
+                          <button
+                            onClick={() => handleSendQuestion(`Explain in full detail: ${item.nextConcept!.title}. ${item.nextConcept!.teaser}`)}
+                            disabled={isProfessorThinking}
+                            className="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold rounded-xl transition shadow-md flex items-center space-x-1.5 shrink-0"
+                          >
+                            <span>Go Deeper</span>
+                            <ArrowDown className="w-3.5 h-3.5" />
+                          </button>
                         </div>
-                      ))
-                    )}
-                  </div>
+                      )}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </motion.div>
+            );
+          })}
+
+          {/* AI Thinking indicator */}
+          {isProfessorThinking && (
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="bg-slate-900/90 border border-purple-500/40 rounded-3xl p-5 flex items-center space-x-3 shadow-xl max-w-sm"
+            >
+              <AIProfessorAvatar state="thinking" size="sm" teacherStyle={activeTeacherStyle} />
+              <div>
+                <p className="text-xs font-bold text-white">Preparing full concept explanation...</p>
+                <p className="text-[11px] font-mono text-purple-300 mt-0.5">Generating complete analysis with code</p>
+              </div>
+            </motion.div>
+          )}
+
+          <div ref={feedBottomRef} />
+        </div>
+
+        {/* ── RIGHT PANEL: Notes / Group Chat ── */}
+        <AnimatePresence>
+          {rightPanel !== 'none' && (
+            <motion.div
+              initial={{ width: 0, opacity: 0 }}
+              animate={{ width: 340, opacity: 1 }}
+              exit={{ width: 0, opacity: 0 }}
+              transition={{ duration: 0.25 }}
+              className="border-l border-slate-800 bg-slate-950/90 flex flex-col overflow-hidden shrink-0"
+            >
+              {/* Panel header */}
+              <div className="px-4 py-3 border-b border-slate-800 flex items-center justify-between">
+                <div className="flex items-center space-x-2">
+                  {rightPanel === 'notes' && <><FileText className="w-4 h-4 text-amber-400" /><span className="font-bold text-sm text-white">Session Notes ({pdfNotes.length})</span></>}
+                  {rightPanel === 'group' && <><Users className="w-4 h-4 text-blue-400" /><span className="font-bold text-sm text-white">Group Study Chat</span></>}
+                </div>
+                <div className="flex items-center space-x-2">
+                  {rightPanel === 'notes' && (
+                    <button onClick={downloadPDFNotes} className="px-2.5 py-1 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold flex items-center space-x-1 transition">
+                      <Download className="w-3.5 h-3.5" />
+                      <span>Download</span>
+                    </button>
+                  )}
+                  <button onClick={() => setRightPanel('none')} className="p-1 text-slate-400 hover:text-white">
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+
+              {/* PDF Notes Panel */}
+              {rightPanel === 'notes' && (
+                <div className="flex-1 overflow-y-auto p-3 space-y-3">
+                  {pdfNotes.length === 0 ? (
+                    <div className="text-center text-slate-500 text-xs mt-10 space-y-2">
+                      <FileText className="w-10 h-10 mx-auto text-slate-700" />
+                      <p>Ask questions to auto-generate notes.</p>
+                      <p className="text-slate-600">Every answer is saved here.</p>
+                    </div>
+                  ) : pdfNotes.map((note) => (
+                    <div key={note.id} className="p-3 bg-slate-900 rounded-2xl border border-slate-800 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <h4 className="text-xs font-bold text-amber-300 truncate max-w-[200px]">{note.title}</h4>
+                        <span className="text-[9px] font-mono text-slate-500">{note.timestamp}</span>
+                      </div>
+                      <p className="text-[11px] text-slate-300 leading-relaxed line-clamp-4">{note.content.slice(0, 200)}...</p>
+                      {note.code && (
+                        <pre className="text-[10px] font-mono text-purple-300 bg-slate-950 rounded-lg p-2 overflow-x-auto max-h-20">
+                          {note.code.slice(0, 150)}...
+                        </pre>
+                      )}
+                    </div>
+                  ))}
                 </div>
               )}
-            </motion.aside>
+
+            </motion.div>
           )}
         </AnimatePresence>
       </div>
 
-      {/* Exit Confirmation Modal */}
-      <ExitClassModal
-        isOpen={showExitModal}
-        onClose={() => setShowExitModal(false)}
-        courseTitle={session.courseTitle}
-      />
+      {/* ═══ FLOATING AVATAR (bottom-right corner) ═══ */}
+      <div className="fixed bottom-32 right-4 z-50 hidden lg:flex flex-col items-center">
+        <AIProfessorAvatar
+          state={isPlayingSpeech ? 'speaking' : isProfessorThinking ? 'thinking' : 'idle'}
+          size="md"
+          teacherStyle={activeTeacherStyle}
+        />
+        <div className="mt-1 text-[10px] font-mono font-bold text-center" style={{ color: '#a855f7' }}>
+          {voiceGenderState === 'female' ? 'Bekki' : 'Ben'}
+        </div>
+      </div>
+
+      {/* ═══ BOTTOM INPUT BAR ═══ */}
+      <footer className="fixed bottom-0 left-0 right-0 bg-slate-900/95 border-t border-slate-800 p-3 z-40 backdrop-blur-lg">
+        <div className="max-w-4xl mx-auto space-y-2">
+          {/* Suggestion chips */}
+          <div className="flex items-center space-x-2 overflow-x-auto pb-1 no-scrollbar">
+            <span className="text-[10px] text-slate-500 font-mono shrink-0">Quick:</span>
+            {[
+              'Explain the full core process',
+              'Show complete production code example',
+              'What are all the real-world use cases?',
+              'Explain the security architecture',
+              'Walk me through line by line',
+            ].map((chip) => (
+              <button key={chip} onClick={() => handleSendQuestion(chip)} disabled={isProfessorThinking}
+                className="px-3 py-1 rounded-xl bg-slate-800 hover:bg-purple-900/50 text-slate-300 hover:text-white border border-slate-700 text-[11px] shrink-0 transition whitespace-nowrap">
+                {chip}
+              </button>
+            ))}
+          </div>
+
+          {/* Input row */}
+          <form onSubmit={(e) => { e.preventDefault(); handleSendQuestion(); }} className="flex items-center space-x-2">
+            <div className="relative flex-1">
+              <input
+                type="text"
+                value={chatInput}
+                onChange={(e) => setChatInput(e.target.value)}
+                placeholder="Ask any question — e.g. 'Explain HTTPS in full detail with code'..."
+                disabled={isProfessorThinking}
+                className="w-full bg-slate-950 border border-slate-700 focus:border-purple-500 rounded-2xl pl-4 pr-12 py-3 text-sm text-slate-100 placeholder-slate-500 focus:outline-none"
+              />
+              <button type="button" onClick={toggleMic}
+                className={`absolute right-3 top-2.5 p-1.5 rounded-xl transition ${isMicListening ? 'bg-red-500 text-white animate-pulse' : 'text-slate-400 hover:text-white hover:bg-slate-800'}`}>
+                {isMicListening ? <Mic className="w-4 h-4" /> : <MicOff className="w-4 h-4" />}
+              </button>
+            </div>
+            <button type="submit" disabled={!chatInput.trim() || isProfessorThinking}
+              className="px-5 py-3 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 disabled:opacity-50 text-white rounded-2xl font-bold text-sm shadow-lg transition flex items-center space-x-1.5 shrink-0">
+              <Send className="w-4 h-4" />
+              <span>Ask</span>
+            </button>
+          </form>
+        </div>
+      </footer>
+
+      {/* ═══ AI DIAGNOSTIC QUIZ CHALLENGE MODAL (20 Live Questions) ═══ */}
+      <AnimatePresence>
+        {showQuizModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4"
+          >
+            <motion.div
+              initial={{ scale: 0.9, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.9, y: 20 }}
+              className="bg-slate-900 border border-emerald-500/40 rounded-3xl p-6 max-w-2xl w-full max-h-[85vh] flex flex-col shadow-2xl relative overflow-hidden"
+            >
+              {/* Modal Header */}
+              <div className="flex items-center justify-between border-b border-slate-800 pb-4 shrink-0">
+                <div className="flex items-center space-x-3">
+                  <div className="p-2.5 rounded-2xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                    <Award className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-bold text-white">{quizTitle}</h3>
+                    <p className="text-xs text-emerald-300 font-mono">20 Live Questions Generated From Current Lesson</p>
+                  </div>
+                </div>
+                <button onClick={() => { setShowQuizModal(false); setQuizSubmitted(false); setQuizAnswers({}); }} className="p-2 text-slate-400 hover:text-white rounded-xl bg-slate-800">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Quiz Body */}
+              <div className="flex-1 overflow-y-auto py-4 space-y-4 pr-2">
+                {isQuizLoading ? (
+                  <div className="py-16 flex flex-col items-center justify-center space-y-3">
+                    <div className="w-10 h-10 border-4 border-emerald-500/30 border-t-emerald-400 rounded-full animate-spin" />
+                    <p className="text-sm font-bold text-white">Generating 20 custom questions from your chat feed...</p>
+                    <p className="text-xs text-slate-400 font-mono">Analyzing classroom concepts & code snippets</p>
+                  </div>
+                ) : liveQuizQuestions.length === 0 ? (
+                  <div className="py-12 text-center space-y-3">
+                    <HelpCircle className="w-10 h-10 text-emerald-400 mx-auto" />
+                    <p className="text-sm font-bold text-white">Ready for your Diagnostic Quiz?</p>
+                    <button onClick={fetchLiveQuiz} className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition">
+                      Generate 20 Questions Now
+                    </button>
+                  </div>
+                ) : (
+                  liveQuizQuestions.map((item, qIdx) => (
+                    <div key={item.id || qIdx} className="p-4 bg-slate-950 rounded-2xl border border-slate-800 space-y-3">
+                      <p className="text-xs font-bold text-slate-100 flex items-start space-x-2">
+                        <span className="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400 font-mono shrink-0">Q{qIdx + 1}</span>
+                        <span>{item.question}</span>
+                      </p>
+                      <div className="grid grid-cols-1 gap-2">
+                        {item.options.map((opt: string, oIdx: number) => {
+                          const isSelected = quizAnswers[qIdx] === oIdx;
+                          const isCorrectOption = oIdx === item.correctIndex;
+                          let btnStyle = 'bg-slate-900 border-slate-800 text-slate-300 hover:border-slate-700';
+
+                          if (quizSubmitted) {
+                            if (isCorrectOption) {
+                              btnStyle = 'bg-emerald-500/20 border-emerald-500 text-emerald-300 font-bold';
+                            } else if (isSelected) {
+                              btnStyle = 'bg-red-500/20 border-red-500 text-red-300 font-bold';
+                            }
+                          } else if (isSelected) {
+                            btnStyle = 'bg-purple-600/30 border-purple-500 text-white font-bold';
+                          }
+
+                          return (
+                            <button
+                              key={oIdx}
+                              onClick={() => !quizSubmitted && setQuizAnswers((prev) => ({ ...prev, [qIdx]: oIdx }))}
+                              disabled={quizSubmitted}
+                              className={`w-full text-left p-3 rounded-xl text-xs font-mono transition border ${btnStyle}`}
+                            >
+                              {opt}
+                            </button>
+                          );
+                        })}
+                      </div>
+                      {quizSubmitted && item.explanation && (
+                        <div className="p-3 rounded-xl bg-slate-900 border border-slate-800 text-xs text-slate-300 font-mono">
+                          💡 <strong>Explanation:</strong> {item.explanation}
+                        </div>
+                      )}
+                    </div>
+                  ))
+                )}
+              </div>
+
+              {/* Modal Footer */}
+              {!isQuizLoading && liveQuizQuestions.length > 0 && (
+                <div className="pt-4 border-t border-slate-800 flex justify-between items-center shrink-0">
+                  <span className="text-xs font-mono text-emerald-400 font-bold">
+                    {quizSubmitted
+                      ? `Score: ${liveQuizQuestions.reduce((acc, q, idx) => (quizAnswers[idx] === q.correctIndex ? acc + 1 : acc), 0)} / ${liveQuizQuestions.length} (${Math.round((liveQuizQuestions.reduce((acc, q, idx) => (quizAnswers[idx] === q.correctIndex ? acc + 1 : acc), 0) / liveQuizQuestions.length) * 100)}%)`
+                      : `Answered ${Object.keys(quizAnswers).length} of ${liveQuizQuestions.length} questions`}
+                  </span>
+                  <div className="flex space-x-2">
+                    {!quizSubmitted ? (
+                      <button onClick={() => { setQuizSubmitted(true); toast.success('Quiz Submitted! Check your score 🎉'); }}
+                        disabled={Object.keys(quizAnswers).length === 0}
+                        className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white rounded-xl text-xs font-bold transition">
+                        Submit Answers
+                      </button>
+                    ) : (
+                      <button onClick={fetchLiveQuiz}
+                        className="px-5 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-bold transition flex items-center space-x-1.5">
+                        <RotateCcw className="w-3.5 h-3.5" />
+                        <span>Generate New 20 Questions</span>
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ═══ CLASSROOM CONTROL CENTER MODAL ═══ */}
+      <AnimatePresence>
+        {showSettingsModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4"
+          >
+            <motion.div
+              initial={{ scale: 0.9, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.9, y: 20 }}
+              className="bg-slate-900 border border-purple-500/40 rounded-3xl p-6 max-w-lg w-full shadow-2xl space-y-5 relative overflow-hidden"
+            >
+              <div className="flex items-center justify-between border-b border-slate-800 pb-4">
+                <div className="flex items-center space-x-3">
+                  <div className="p-2 rounded-2xl bg-purple-500/20 text-purple-400 border border-purple-500/30">
+                    <SlidersHorizontal className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-bold text-white">Classroom Control Center</h3>
+                    <p className="text-xs text-purple-300 font-mono">Customize speech speed, AI persona & preferences</p>
+                  </div>
+                </div>
+                <button onClick={() => setShowSettingsModal(false)} className="p-2 text-slate-400 hover:text-white rounded-xl bg-slate-800">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                {/* Speech Speed Multiplier */}
+                <div className="p-4 bg-slate-950 rounded-2xl border border-slate-800 space-y-2">
+                  <div className="flex justify-between items-center">
+                    <span className="text-xs font-bold text-slate-200">AI Speech Speed Multiplier</span>
+                    <span className="text-xs font-mono font-bold text-purple-400">{speechSpeed}x</span>
+                  </div>
+                  <div className="flex space-x-2">
+                    {[0.8, 1.0, 1.25, 1.5].map((spd) => (
+                      <button key={spd} onClick={() => { setSpeechSpeed(spd); toast.success(`Speech speed set to ${spd}x`); }}
+                        className={`flex-1 py-1.5 rounded-xl text-xs font-mono font-bold transition border ${speechSpeed === spd ? 'bg-purple-600 text-white border-purple-500' : 'bg-slate-900 text-slate-400 border-slate-800'}`}>
+                        {spd}x
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Voice Gender Switch */}
+                <div className="p-4 bg-slate-950 rounded-2xl border border-slate-800 flex justify-between items-center">
+                  <div>
+                    <h4 className="text-xs font-bold text-slate-200">Selected Professor Voice</h4>
+                    <p className="text-[11px] text-slate-400">Bekki (Sweet) or Ben (Deep Bass)</p>
+                  </div>
+                  <div className="flex bg-slate-900 p-1 rounded-xl border border-slate-800">
+                    {(['female', 'male'] as const).map((g) => (
+                      <button key={g} onClick={() => { setLocalVoiceGender(g); setVoiceGender(g); stopAllVoicePlayback(); toast.success(`Voice set to ${g === 'female' ? '♀ Bekki' : '♂ Ben'}`); }}
+                        className={`px-3 py-1 rounded-lg text-xs font-bold transition ${voiceGenderState === g ? 'bg-purple-600 text-white' : 'text-slate-400'}`}>
+                        {g === 'female' ? '♀ Bekki' : '♂ Ben'}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <div className="pt-2 flex justify-end">
+                <button onClick={() => setShowSettingsModal(false)} className="px-5 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-xl text-xs font-bold transition">
+                  Done
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ═══ OFFICIAL COURSE COMPLETION CERTIFICATE MODAL ═══ */}
+      <AnimatePresence>
+        {showCertModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4"
+          >
+            <motion.div
+              initial={{ scale: 0.9, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.9, y: 20 }}
+              className="bg-slate-900 border border-amber-500/40 rounded-3xl p-6 max-w-xl w-full shadow-2xl space-y-5 relative overflow-hidden"
+            >
+              <div className="flex items-center justify-between border-b border-slate-800 pb-4">
+                <div className="flex items-center space-x-3">
+                  <div className="p-2.5 rounded-2xl bg-amber-500/20 text-amber-400 border border-amber-500/30">
+                    <Award className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-bold text-white">Course Completion Certificate</h3>
+                    <p className="text-xs text-amber-300 font-mono">Official AURA Learn Certification</p>
+                  </div>
+                </div>
+                <button onClick={() => setShowCertModal(false)} className="p-2 text-slate-400 hover:text-white rounded-xl bg-slate-800">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Certificate Card Preview */}
+              <div className="p-6 rounded-2xl bg-gradient-to-br from-slate-950 via-slate-900 to-purple-950/40 border-2 border-amber-500/30 text-center space-y-4 shadow-xl relative">
+                <div className="inline-block px-3 py-1 rounded-full bg-amber-500/20 text-amber-400 font-mono text-[11px] font-bold border border-amber-500/30 uppercase tracking-widest">
+                  OFFICIAL DIPLOMA
+                </div>
+                <p className="text-xs text-slate-400 font-mono uppercase">This certifies that</p>
+                <input
+                  type="text"
+                  value={studentCertName}
+                  onChange={(e) => setStudentCertName(e.target.value)}
+                  className="text-xl font-extrabold text-amber-300 bg-slate-950/80 border border-slate-700 focus:border-amber-500 rounded-xl px-4 py-2 text-center w-full focus:outline-none"
+                />
+                <p className="text-xs text-slate-300">has successfully completed the interactive mastery course on</p>
+                <h2 className="text-lg font-bold text-white">{session.courseTitle}</h2>
+                <div className="pt-3 border-t border-slate-800 flex justify-between items-center text-[10px] font-mono text-slate-400">
+                  <span>Grade: A+ (Honors)</span>
+                  <span>Date: {new Date().toLocaleDateString()}</span>
+                  <span>ID: AURA-CERT-{urlCourseId}-8924</span>
+                </div>
+              </div>
+
+              <div className="pt-2 flex justify-between items-center">
+                <span className="text-xs text-slate-400 font-mono">Click name above to edit</span>
+                <button
+                  onClick={() => {
+                    const doc = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <title>AURA Learn Certificate — ${studentCertName}</title>
+  <style>
+    body { font-family: 'Segoe UI', Roboto, sans-serif; background: #070b14; color: #fff; text-align: center; padding: 60px 40px; }
+    .cert { max-width: 800px; margin: 0 auto; border: 4px double #f59e0b; padding: 50px; background: #0f172a; border-radius: 20px; box-shadow: 0 20px 50px rgba(0,0,0,0.5); }
+    h1 { font-size: 32px; color: #f59e0b; letter-spacing: 2px; }
+    h2 { font-size: 26px; color: #38bdf8; margin: 20px 0; }
+    p { font-size: 16px; color: #94a3b8; }
+    .footer { margin-top: 40px; display: flex; justify-content: space-between; font-size: 12px; color: #64748b; font-family: monospace; }
+  </style>
+</head>
+<body>
+  <div class="cert">
+    <p>AURA LEARN UNIVERSITY</p>
+    <h1>CERTIFICATE OF MASTERY</h1>
+    <p>This certifies that</p>
+    <h2>${studentCertName}</h2>
+    <p>has demonstrated exceptional comprehension and successfully completed</p>
+    <h3>${session.courseTitle}</h3>
+    <div class="footer">
+      <span>Grade: A+ (Honors)</span>
+      <span>Date: ${new Date().toLocaleDateString()}</span>
+      <span>Verification ID: AURA-CERT-${urlCourseId}-8924</span>
+    </div>
+  </div>
+  <script>window.print();</script>
+</body>
+</html>`;
+                    const blob = new Blob([doc], { type: 'text/html' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `AURA_Certificate_${studentCertName.replace(/\s+/g, '_')}.html`;
+                    a.click();
+                    URL.revokeObjectURL(url);
+                    toast.success('Certificate exported! Opening print dialog...');
+                  }}
+                  className="px-5 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl text-xs transition flex items-center space-x-1.5 shadow-lg"
+                >
+                  <Download className="w-4 h-4" />
+                  <span>Download Certificate</span>
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <ExitClassModal isOpen={showExitModal} onClose={() => setShowExitModal(false)} courseTitle={session.courseTitle} />
     </div>
   );
 }

@@ -54,8 +54,8 @@ export const LANGUAGES = [
 ];
 
 export const VOICE_OPTIONS = [
-  { id: 'male', label: 'Male Voice', gender: 'male' },
-  { id: 'female', label: 'Female Voice', gender: 'female' },
+  { id: 'female', label: 'Bekki (Female - Sweet)', name: 'Bekki', gender: 'female' },
+  { id: 'male', label: 'Ben (Male - Deep Bass)', name: 'Ben', gender: 'male' },
 ];
 
 export * from './syllabi';

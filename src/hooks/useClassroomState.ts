@@ -32,10 +32,12 @@ export interface ChatMessage {
   text: string;
   timestamp: string;
   isAI?: boolean;
+  speech?: string;
   codeSnippet?: string;
   output?: string;
   suggestedFollowUp?: string;
   memoryInsight?: string;
+  nextConcept?: { title: string; teaser: string };
 }
 
 export interface LiveSessionNote {

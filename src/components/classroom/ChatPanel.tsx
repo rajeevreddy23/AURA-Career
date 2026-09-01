@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/Input';
 import { cn } from '@/lib/utils';
 import { Bot, User, Mic, MicOff, Send, Volume2, VolumeX, Loader2, Sparkles, Copy, Check } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { playAuraVoice, stopAllVoicePlayback } from '@/lib/ai/voice';
 import toast from 'react-hot-toast';
 
 export interface ChatMessage {
@@ -26,33 +27,51 @@ interface ChatPanelProps {
 }
 
 /** Render markdown-lite: bold, inline code, numbered list items, bullet points */
-function renderContent(text: string) {
+function renderContent(text: string, onSelectPrompt?: (prompt: string) => void) {
   const lines = text.split('\n');
   return lines.map((line, i) => {
     // Render code blocks header
     if (line.startsWith('```')) {
-      return <div key={i} className="h-px bg-white/10 my-1" />;
+      return <div key={i} className="h-px bg-white/10 my-1.5" />;
     }
     // Heading lines
+    if (line.startsWith('### ')) {
+      return (
+        <h4 key={i} className="font-bold text-emerald-400 text-xs mt-2.5 mb-1 tracking-wide uppercase font-mono">
+          {line.slice(4)}
+        </h4>
+      );
+    }
     if (line.startsWith('## ')) {
       return (
-        <p key={i} className="font-bold text-primary text-[11px] mt-2 mb-0.5 uppercase tracking-wide">
+        <h3 key={i} className="font-bold text-primary text-xs mt-2 mb-0.5 uppercase tracking-wide">
           {line.slice(3)}
-        </p>
+        </h3>
       );
     }
     if (line.startsWith('# ')) {
       return (
-        <p key={i} className="font-bold text-white text-xs mt-2 mb-0.5">
+        <h2 key={i} className="font-bold text-white text-xs mt-2.5 mb-1 pb-0.5 border-b border-white/10">
           {line.slice(2)}
-        </p>
+        </h2>
+      );
+    }
+    // Next Concept Roadmap Banner
+    if (line.includes('🧭') || line.startsWith('**Next Up:**') || line.startsWith('Next Up:')) {
+      return (
+        <div key={i} className="mt-2.5 p-2 rounded-xl bg-gradient-to-r from-emerald-950/50 to-primary/20 border border-emerald-500/30 text-emerald-200">
+          <div className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-emerald-400 font-mono">
+            <span>🧭 NEXT CONCEPT ROADMAP</span>
+          </div>
+          <p className="mt-0.5 text-[11px] text-slate-200">{renderInline(line.replace(/^[🧭#\*\s]+/, ''))}</p>
+        </div>
       );
     }
     // Bullet lines
     if (line.match(/^[\-\*•]\s/)) {
       return (
-        <div key={i} className="flex gap-1.5 mt-0.5">
-          <span className="text-primary mt-0.5 shrink-0">•</span>
+        <div key={i} className="flex gap-1.5 mt-1 pl-1">
+          <span className="text-primary mt-0.5 shrink-0 text-[10px]">•</span>
           <span>{renderInline(line.slice(2))}</span>
         </div>
       );
@@ -61,14 +80,16 @@ function renderContent(text: string) {
     if (line.match(/^\d+\.\s/)) {
       const num = line.match(/^(\d+)\./)?.[1];
       return (
-        <div key={i} className="flex gap-1.5 mt-0.5">
-          <span className="text-primary/70 shrink-0 font-mono text-[10px] mt-0.5">{num}.</span>
+        <div key={i} className="flex gap-1.5 mt-1 pl-1">
+          <span className="text-primary/90 shrink-0 font-mono text-[10px] mt-0.5 bg-primary/20 px-1 rounded border border-primary/30">
+            {num}.
+          </span>
           <span>{renderInline(line.replace(/^\d+\.\s/, ''))}</span>
         </div>
       );
     }
     if (line.trim() === '') return <div key={i} className="h-1.5" />;
-    return <p key={i} className="mt-0.5">{renderInline(line)}</p>;
+    return <p key={i} className="mt-0.5 text-slate-200 leading-relaxed">{renderInline(line)}</p>;
   });
 }
 
@@ -183,12 +204,17 @@ export function ChatPanel({
   const speakWithDefault = useCallback((text: string) => {
     if (speakRef.current) {
       speakRef.current(text);
-    } else if (typeof window !== 'undefined' && window.speechSynthesis) {
-      const utterance = new SpeechSynthesisUtterance(text);
-      window.speechSynthesis.cancel();
-      window.speechSynthesis.speak(utterance);
+    } else {
+      playAuraVoice({
+        text,
+        onEnd: () => {
+          if (voiceModeRef.current && !isStreamingRef.current) {
+            setTimeout(() => startListening(), 500);
+          }
+        },
+      });
     }
-  }, []);
+  }, [startListening]);
 
   const copyMessage = useCallback(async (content: string, index: number) => {
     await navigator.clipboard.writeText(content);

@@ -33,10 +33,10 @@ def client():
          patch("google.generativeai.GenerativeModel") as MockGenAI, \
          patch("firebase_admin.initialize_app"), \
          patch("firebase_admin.credentials.Certificate", return_value=MagicMock()), \
-         patch("backend.app.core.redis.get_redis", new_callable=lambda: lambda: AsyncMock(return_value=None)), \
-         patch("backend.app.core.redis.close_redis", new_callable=lambda: lambda: AsyncMock()), \
-         patch("backend.app.core.security.verify_firebase_token", return_value=AsyncMock(return_value=mock_user)), \
-         patch("backend.app.core.security.rate_limit", return_value=AsyncMock(return_value=True)):
+         patch("backend.app.core.redis.get_redis", new_callable=AsyncMock, return_value=None), \
+         patch("backend.app.core.redis.close_redis", new_callable=AsyncMock), \
+         patch("backend.app.core.security.verify_firebase_token", return_value=mock_user), \
+         patch("backend.app.core.security.rate_limit", new_callable=AsyncMock, return_value=True):
 
         MockGenAI.return_value = MagicMock()
 

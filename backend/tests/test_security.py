@@ -47,9 +47,10 @@ class TestInitFirebase:
 
 class TestRateLimit:
     @pytest.mark.asyncio
+    @pytest.mark.asyncio
     async def test_returns_true_when_redis_unavailable(self):
         """If Redis client is None, rate_limit always returns True (allow)."""
-        with patch("backend.app.core.redis.get_redis", return_value=AsyncMock(return_value=None)):
+        with patch("backend.app.core.redis.get_redis", new_callable=AsyncMock, return_value=None):
             from backend.app.core.security import rate_limit
             result = await rate_limit("test_key", limit=5, window=60)
             assert result is True
@@ -60,7 +61,7 @@ class TestRateLimit:
         mock_redis = AsyncMock()
         mock_redis.get = AsyncMock(return_value=b"10")  # already at 10 hits
 
-        with patch("backend.app.core.redis.get_redis", return_value=AsyncMock(return_value=mock_redis)):
+        with patch("backend.app.core.redis.get_redis", new_callable=AsyncMock, return_value=mock_redis):
             from backend.app.core.security import rate_limit
             result = await rate_limit("ip:1.2.3.4", limit=5, window=60)
             assert result is False
@@ -79,7 +80,7 @@ class TestRateLimit:
         mock_redis.get = AsyncMock(return_value=b"3")  # 3 < limit of 5
         mock_redis.pipeline = MagicMock(return_value=mock_pipeline)
 
-        with patch("backend.app.core.redis.get_redis", return_value=AsyncMock(return_value=mock_redis)):
+        with patch("backend.app.core.redis.get_redis", new_callable=AsyncMock, return_value=mock_redis):
             from backend.app.core.security import rate_limit
             result = await rate_limit("ip:1.2.3.4", limit=5, window=60)
             assert result is True
@@ -106,7 +107,7 @@ class TestRateLimit:
         mock_redis.get = AsyncMock(return_value=None)  # first hit
         mock_redis.pipeline = MagicMock(return_value=mock_pipeline)
 
-        with patch("backend.app.core.redis.get_redis", return_value=AsyncMock(return_value=mock_redis)):
+        with patch("backend.app.core.redis.get_redis", new_callable=AsyncMock, return_value=mock_redis):
             from backend.app.core.security import rate_limit
             result = await rate_limit("new_key", limit=10, window=60)
             assert result is True

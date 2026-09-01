@@ -1,4 +1,8 @@
 import asyncio
+import hashlib
+import json
+import logging
+import re
 from typing import AsyncGenerator
 import google.generativeai as genai
 from google.api_core.exceptions import ResourceExhausted
@@ -6,17 +10,19 @@ from groq import AsyncGroq
 from openai import AsyncOpenAI
 from ..core.config import settings
 
+logger = logging.getLogger(__name__)
+
 genai.configure(api_key=settings.gemini_api_key)
 
 class RateLimitFallback(Exception):
     pass
 
 class BaseAgent:
-    model: str = "gemini-2.0-flash"
-    groq_model: str = "llama-3.3-70b-versatile"
+    model: str = "gemini-2.5-flash"
+    groq_model: str = "qwen/qwen3.6-27b"
 
     def __init__(self):
-        self.client = genai.GenerativeModel(self.model)
+        self.client = genai.GenerativeModel(self.model) if (settings.gemini_api_key and settings.gemini_api_key != "MOCK_KEY") else None
         self.groq_client = AsyncGroq(api_key=settings.groq_api_key) if settings.groq_api_key else None
         self.nvidia_client = AsyncOpenAI(
             api_key=settings.nvidia_api_key,
@@ -30,10 +36,10 @@ class BaseAgent:
         """Name of the LLM provider currently in use (for UI badges / status)."""
         if self.nvidia_client:
             return f"nvidia:{settings.nvidia_model}"
+        if self.client:
+            return f"gemini:{self.model}"
         if self.groq_client:
             return f"groq:{self.groq_model}"
-        if settings.gemini_api_key and settings.gemini_api_key != "MOCK_KEY":
-            return f"gemini:{self.model}"
         return "mock"
 
     def set_fallback(self, func):
@@ -41,7 +47,8 @@ class BaseAgent:
 
     async def generate(self, prompt: str) -> str:
         full_prompt = f"{self.system_prompt}\n\n{prompt}"
-        # Try NVIDIA NIM (primary), then Groq, then Gemini, then mock
+        
+        # 1. Tier 1 (Main Preference): NVIDIA Nemotron 3 Nano Omni via OpenRouter
         if self.nvidia_client:
             try:
                 coro = self.nvidia_client.chat.completions.create(
@@ -51,10 +58,26 @@ class BaseAgent:
                         {"role": "user", "content": prompt},
                     ],
                 )
-                response = await asyncio.wait_for(coro, timeout=8.0)
-                return response.choices[0].message.content or ""
-            except Exception:
-                pass
+                response = await asyncio.wait_for(coro, timeout=25.0)
+                if response and response.choices and response.choices[0].message.content:
+                    return response.choices[0].message.content
+            except Exception as e:
+                logger.warning(f"[BaseAgent] NVIDIA Nemotron generate failed, falling back to Gemini: {e}")
+
+        # 2. Tier 2: Google Gemini (gemini-2.5-flash)
+        if settings.gemini_api_key and settings.gemini_api_key != "MOCK_KEY":
+            try:
+                def _call_gemini():
+                    m = genai.GenerativeModel(self.model)
+                    return m.generate_content(full_prompt)
+
+                response = await asyncio.wait_for(asyncio.to_thread(_call_gemini), timeout=25.0)
+                if response and response.text:
+                    return response.text
+            except Exception as e:
+                logger.warning(f"[BaseAgent] Gemini generate failed: {e}")
+
+        # 3. Tier 3: Groq (qwen/qwen3.6-27b)
         if self.groq_client:
             try:
                 coro = self.groq_client.chat.completions.create(
@@ -64,18 +87,14 @@ class BaseAgent:
                         {"role": "user", "content": prompt},
                     ],
                 )
-                response = await asyncio.wait_for(coro, timeout=8.0)
-                return response.choices[0].message.content or ""
-            except Exception:
-                pass
-        try:
-            if not settings.gemini_api_key or settings.gemini_api_key == "MOCK_KEY":
-                raise Exception("Missing API key")
-            coro = self.client.generate_content_async(full_prompt)
-            response = await asyncio.wait_for(coro, timeout=8.0)
-            return response.text
-        except Exception:
-            return self._mock_response(prompt, self.system_prompt)
+                response = await asyncio.wait_for(coro, timeout=25.0)
+                if response and response.choices and response.choices[0].message.content:
+                    return response.choices[0].message.content
+            except Exception as e:
+                logger.warning(f"[BaseAgent] Groq generate failed: {e}")
+
+        # 4. Intelligent contextual mock fallback
+        return self._mock_response(prompt, self.system_prompt)
 
     async def chat(self, message: str, history: list[dict], context: dict | None = None) -> AsyncGenerator[str, None]:
         """
@@ -160,21 +179,17 @@ class BaseAgent:
 
         fallbacks = {
             "teacher": (
-                f"##TITLE## Immersive Lesson on Topic\n"
-                f"##OBJECTIVES## Understand core building blocks||Establish structural dependencies||Solve conceptual checkpoints\n"
-                f"##HEADING## Slide 1: Core Fundamentals & Analogy\n"
-                f"##BULLETS## Let's start with first principles logic||Analogies help bridge theory with visual structures||Analyze the visual map on the board\n"
-                f"##DIAGRAM## {{\"root\": {{\"label\": \"Fundamentals\"}}, \"children\": [{{\"label\": \"Logic Rules\"}}, {{\"label\": \"Concept Map\"}}]}}\n"
-                f"##QUIZ## {{\"question\": \"What helps bridge theory with visual structures?\", \"options\": [\"Conceptual analogies\", \"Rote memorization\", \"Ignoring logic\"], \"answer\": \"Conceptual analogies\", \"explanation\": \"Analogies provide cognitive hooks connecting known things to abstract rules.\"}}\n"
-                f"##HEADING## Slide 2: Structural Layout & Code\n"
-                f"##BULLETS## Concepts are organized hierarchically||Each node represents a distinct block||Review the implementation example below\n"
-                f"##DIAGRAM## {{\"root\": {{\"label\": \"Layout\"}}, \"children\": [{{\"label\": \"Interface\"}}, {{\"label\": \"State Manager\"}}]}}\n"
-                f"##CODE## typescript\\n// System implementation sample\\nfunction initializeSystem() {{\\n    console.log('System initialized successfully');\\n}}\\n\\ninitializeSystem();\\n\n"
-                f"##QUIZ## {{\"question\": \"What layout structure is used on the visual board?\", \"options\": [\"Hierarchical trees\", \"Linear grids\", \"None of these\"], \"answer\": \"Hierarchical trees\", \"explanation\": \"A tree diagram branches parent to child nodes.\"}}\n"
-                f"##HEADING## Slide 3: Pitfalls & Summary\n"
-                f"##BULLETS## Avoid skipping basic principles||Continuous practice is key to long-term memory||Keep asking doubts to refine your logic\n"
-                f"##DIAGRAM## {{\"root\": {{\"label\": \"Refinement\"}}, \"children\": [{{\"label\": \"Practice\"}}, {{\"label\": \"Review Check\"}}]}}\n"
-                f"##QUIZ## {{\"question\": \"Why is continuous practice recommended?\", \"options\": [\"To build coding muscle memory\", \"Only to clear exams\", \"It is not necessary\"], \"answer\": \"To build coding muscle memory\", \"explanation\": \"Regular typing and problem-solving embeds syntactical layouts in long-term memory.\"}}"
+                "Let's break this concept down from first principles so it makes complete intuitive sense.\n\n"
+                "### The Core Intuition\n"
+                "Think of this like an organized workspace. When you want to store, query, and transform information efficiently, "
+                "you need a deterministic system where every piece of data has a known, predictable place.\n\n"
+                "### Step-by-Step Mechanism\n"
+                "1. **Input & Processing:** The system takes your request and processes it using structured logic.\n"
+                "2. **State & Memory:** Data is organized with optimal time complexity (often O(1) or O(log n)) in memory.\n"
+                "3. **Execution Safety:** By keeping data flow explicit, you eliminate unexpected mutation and side effects.\n\n"
+                "### Golden Rule\n"
+                "Always focus on the underlying data flow rather than memorizing syntax. Once you understand the mechanism, "
+                "writing the code becomes second nature."
             ),
             "coding": (
                 f"# Code Analysis: {prompt[:40]}\n\n"
@@ -203,10 +218,20 @@ class BaseAgent:
                 "• Mentored 4 junior developers, reducing onboarding time by 50%\n"
                 "• Implemented CI/CD pipelines reducing deployment time from 2hrs to 15min"
             ),
+            "voice": (
+                "Welcome! Let's explore this concept together from the ground up. "
+                "Imagine you have a complex problem to solve. Instead of tackling the whole thing at once, "
+                "we break it down into small, digestible pieces that fit naturally together. "
+                "Notice how each step builds directly on the last, giving you a crystal-clear mental roadmap. "
+                "That is the core intuition to keep in mind, and once you grasp this foundation, everything else falls right into place."
+            ),
         }
 
         sp_lower = system_prompt.lower()
         prompt_lower = prompt.lower()
+
+        if "voice" in sp_lower or "speech" in sp_lower or "audio" in prompt_lower or "narration" in prompt_lower or "script" in prompt_lower:
+            return fallbacks["voice"]
 
         if "interactive curriculum" in prompt_lower or "progressive topic modules" in prompt_lower:
             return json.dumps({

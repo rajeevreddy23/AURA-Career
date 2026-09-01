@@ -1,68 +1,78 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Navbar } from '@/components/layout/Navbar';
 import { Footer } from '@/components/layout/Footer';
-import { Map, ArrowLeft, CheckCircle, Lock, PlayCircle, BookOpen, Clock, Signal, Award, Sparkles, ChevronRight } from 'lucide-react';
+import {
+  Map, ArrowLeft, CheckCircle, Lock, PlayCircle, BookOpen,
+  Clock, Signal, Award, Sparkles, ChevronRight, Filter,
+  CheckCircle2, Circle, ArrowUpRight, Flame, Shield, Cpu,
+  Database, Globe, Terminal, Briefcase
+} from 'lucide-react';
 import Link from 'next/link';
-import { COURSE_SYLLABI } from '@/lib/constants/syllabi';
-import { MOCK_COURSES } from '@/lib/constants';
+import toast from 'react-hot-toast';
 
-interface RoadmapDefinition {
+export interface RoadmapNode {
+  id: string;
+  courseId: string;
+  title: string;
+  duration: string;
+  description: string;
+  concepts: string[];
+}
+
+export interface RoadmapDefinition {
   id: string;
   title: string;
-  category: string;
+  category: 'Software' | 'AI' | 'Cloud' | 'Security' | 'FinTech' | 'Data';
   description: string;
   duration: string;
+  salaryRange: string;
   difficulty: 'Beginner' | 'Intermediate' | 'Advanced';
-  nodes: {
-    id: string;
-    courseId: string;
-    title: string;
-    duration: string;
-    description: string;
-    concepts: string[];
-  }[];
+  icon: React.ElementType;
+  nodes: RoadmapNode[];
 }
 
 const CAREER_ROADMAPS: RoadmapDefinition[] = [
   {
     id: 'fullstack-engineer',
     title: 'Full-Stack Software Engineer',
-    category: 'Software Engineering',
-    description: 'From Python data structures to modern React, Next.js Server Components, relational databases, and AWS deployment.',
+    category: 'Software',
+    description: 'Master end-to-end modern application engineering from Python & TypeScript to Next.js App Router, PostgreSQL, and AWS deployment.',
     duration: '6 Months',
+    salaryRange: '$95k – $165k / yr',
     difficulty: 'Beginner',
+    icon: Globe,
     nodes: [
       {
-        id: 'node-1',
+        id: 'fs-1',
         courseId: '1',
-        title: 'Complete Python Programming',
+        title: 'Complete Python Programming & Concurrency',
         duration: '4 weeks',
-        description: 'Master memory models, OOP, dunder methods, generators, and AsyncIO concurrency.',
-        concepts: ['Dynamic arrays & slicing', 'Classes & encapsulation', 'Iterators & generators', 'AsyncIO event loop'],
+        description: 'Master memory models, OOP, dunder methods, generators, and AsyncIO event loops.',
+        concepts: ['Dynamic arrays & slicing', 'Classes & encapsulation', 'Iterators & generators', 'AsyncIO concurrency'],
       },
       {
-        id: 'node-2',
+        id: 'fs-2',
         courseId: '3',
-        title: 'Full-Stack Web Development',
+        title: 'Full-Stack Web Development & Next.js',
         duration: '6 weeks',
-        description: 'React 19, Next.js App Router, Zod validation, and SQL database transactions.',
+        description: 'React 19, Server Components, Zod validation, and ACID relational transactions.',
         concepts: ['TypeScript generics', 'Server Components', 'REST & Route Handlers', 'ACID transactions'],
       },
       {
-        id: 'node-3',
+        id: 'fs-3',
         courseId: '8',
-        title: 'Cloud Computing & AWS',
+        title: 'Cloud Architecture & AWS Infrastructure',
         duration: '4 weeks',
         description: 'Deploy resilient multi-AZ VPCs, Lambda serverless functions, and IAM policies.',
         concepts: ['VPC Subnets & NAT', 'Auto Scaling & ALB', 'Lambda & SQS pipelines', 'IAM least privilege'],
       },
       {
-        id: 'node-4',
+        id: 'fs-4',
         courseId: '5',
-        title: 'Cybersecurity Fundamentals',
+        title: 'Cybersecurity Fundamentals & Defense',
         duration: '3 weeks',
         description: 'OWASP Top 10 defenses, parameterized SQL queries, bcrypt hashing, and incident triage.',
         concepts: ['TCP Handshake & SYN flood', 'Password hashing & salts', 'SQLi & XSS prevention', 'NIST IR framework'],
@@ -72,29 +82,31 @@ const CAREER_ROADMAPS: RoadmapDefinition[] = [
   {
     id: 'ai-ml-engineer',
     title: 'AI & Machine Learning Engineer',
-    category: 'Artificial Intelligence',
-    description: 'Master mathematical foundations, PyTorch neural networks, Transformer attention models, and LoRA LLM fine-tuning.',
+    category: 'AI',
+    description: 'Build production neural networks, Transformer self-attention mechanisms, and LoRA parameter-efficient LLM adaptations.',
     duration: '8 Months',
+    salaryRange: '$120k – $210k / yr',
     difficulty: 'Intermediate',
+    icon: Cpu,
     nodes: [
       {
-        id: 'node-ai-1',
+        id: 'ai-1',
         courseId: '7',
-        title: 'Calculus & Linear Algebra Mastery',
+        title: 'Calculus & Linear Algebra Foundations',
         duration: '4 weeks',
         description: 'Gradients, Jacobian matrices, eigenvalues, SVD, and PCA dimensionality reduction.',
         concepts: ['Gradient vectors & ascent', 'Matrix transformations', 'Eigen decomposition', 'SVD & PCA energy'],
       },
       {
-        id: 'node-ai-2',
+        id: 'ai-2',
         courseId: '4',
-        title: 'Data Science & Analytics',
+        title: 'Data Science & Applied Analytics',
         duration: '4 weeks',
         description: 'Pandas vectorized aggregations, A/B hypothesis testing, and Scikit-Learn pipelines.',
         concepts: ['Vectorized GroupBy', 'Two-sample t-tests', 'Random Forests & ROC-AUC', 'KPI storytelling'],
       },
       {
-        id: 'node-ai-3',
+        id: 'ai-3',
         courseId: '2',
         title: 'Deep Learning & Neural Networks',
         duration: '6 weeks',
@@ -102,9 +114,9 @@ const CAREER_ROADMAPS: RoadmapDefinition[] = [
         concepts: ['ReLU & Softmax loss', 'Chain rule autograd', '2D convolutions & pooling', 'Adam training loop'],
       },
       {
-        id: 'node-ai-4',
+        id: 'ai-4',
         courseId: '11',
-        title: 'Natural Language Processing',
+        title: 'Natural Language Processing & Transformers',
         duration: '6 weeks',
         description: 'Vector embeddings, Multi-Head Self-Attention, BERT, and LoRA PEFT adaptation.',
         concepts: ['Cosine similarity', 'Scaled Dot-Product Attention', 'Masked LM context', 'LoRA parameter reduction'],
@@ -112,291 +124,381 @@ const CAREER_ROADMAPS: RoadmapDefinition[] = [
     ],
   },
   {
-    id: 'fintech-strategist',
-    title: 'FinTech Strategist & Quantitative Modeler',
-    category: 'Finance & Strategy',
-    description: 'Integrate financial statement linkages, Black-Scholes options math, LBO private equity, and SaaS unit economics.',
-    duration: '5 Months',
-    difficulty: 'Intermediate',
+    id: 'cloud-devops-architect',
+    title: 'Cloud & DevOps Solutions Architect',
+    category: 'Cloud',
+    description: 'Architect multi-region fault-tolerant distributed clouds with Kubernetes container orchestration and automated CI/CD pipelines.',
+    duration: '6 Months',
+    salaryRange: '$115k – $185k / yr',
+    difficulty: 'Advanced',
+    icon: Terminal,
     nodes: [
       {
-        id: 'node-fin-1',
+        id: 'cloud-1',
+        courseId: '1',
+        title: 'Python Scripting & Automation',
+        duration: '4 weeks',
+        description: 'Automate cloud provisioning, CLI tools, and background worker queues.',
+        concepts: ['Process automation', 'CLI toolkits', 'Socket networking', 'Async worker tasks'],
+      },
+      {
+        id: 'cloud-2',
+        courseId: '8',
+        title: 'Cloud Computing & AWS Architecture',
+        duration: '6 weeks',
+        description: 'Multi-AZ VPCs, S3 object storage policies, CloudFront CDN, and DynamoDB.',
+        concepts: ['Multi-AZ Resiliency', 'ECS & EKS Containerization', 'CloudWatch Telemetry', 'Terraform IaC'],
+      },
+      {
+        id: 'cloud-3',
+        courseId: '5',
+        title: 'Cloud Security & Zero-Trust Governance',
+        duration: '4 weeks',
+        description: 'Zero-trust network architecture, mutual TLS, automated vulnerability patching, and compliance.',
+        concepts: ['Zero-Trust IAM', 'mTLS encryption', 'WAF rate limiting', 'Automated security pipelines'],
+      },
+    ],
+  },
+  {
+    id: 'fintech-strategist',
+    title: 'FinTech Strategist & Quantitative Modeler',
+    category: 'FinTech',
+    description: 'Bridge software engineering with 3-statement financial modeling, Black-Scholes options math, and algorithmic trading.',
+    duration: '5 Months',
+    salaryRange: '$110k – $190k / yr',
+    difficulty: 'Intermediate',
+    icon: Briefcase,
+    nodes: [
+      {
+        id: 'fin-1',
         courseId: '6',
-        title: 'Business Strategy & Management',
+        title: 'Business Strategy & Platform Economics',
         duration: '3 weeks',
-        description: "Porter's 5 Forces, SaaS LTV:CAC ratios, OKR design, and DCF valuation modeling.",
+        description: "Porter's 5 Forces, SaaS LTV:CAC unit economics, OKR design, and DCF valuation modeling.",
         concepts: ["Porter's Five Forces", 'LTV:CAC & Payback', 'Measurable OKRs', 'Discounted Cash Flow'],
       },
       {
-        id: 'node-fin-2',
+        id: 'fin-2',
         courseId: '10',
-        title: 'Financial Modeling & Investment',
+        title: 'Financial Modeling & Quantitative Valuation',
         duration: '5 weeks',
-        description: '3-statement model linkages, CAPM beta, Black-Scholes pricing, and LBO sponsor returns.',
+        description: '3-statement model linkages, CAPM beta, Black-Scholes options pricing, and LBO sponsor returns.',
         concepts: ['3-statement integration', 'Sharpe ratio & CAPM', 'Black-Scholes & Greeks', 'LBO 5-year IRR'],
       },
       {
-        id: 'node-fin-3',
+        id: 'fin-3',
         courseId: '4',
-        title: 'Data Science & Analytics',
+        title: 'Data Science & Statistical Modeling',
         duration: '4 weeks',
-        description: 'Quantitative modeling, hypothesis testing, and executive visual reporting.',
-        concepts: ['Pandas aggregation', 'A/B significance', 'Predictive modeling', 'Executive KPIs'],
+        description: 'Quantitative modeling, time-series forecasting, and automated executive reporting.',
+        concepts: ['Pandas aggregation', 'Time-series forecasting', 'Predictive modeling', 'Executive KPIs'],
+      },
+    ],
+  },
+  {
+    id: 'cybersecurity-analyst',
+    title: 'Cybersecurity Analyst & Threat Hunter',
+    category: 'Security',
+    description: 'Defend enterprise infrastructure with reverse engineering, cryptographic encryption, intrusion detection, and incident triage.',
+    duration: '6 Months',
+    salaryRange: '$105k – $175k / yr',
+    difficulty: 'Intermediate',
+    icon: Shield,
+    nodes: [
+      {
+        id: 'sec-1',
+        courseId: '5',
+        title: 'Cybersecurity Fundamentals & Network Defense',
+        duration: '5 weeks',
+        description: 'Network packet analysis, firewalls, cryptographic ciphers, and threat modeling.',
+        concepts: ['TCP/IP deep inspection', 'Public Key Infrastructure', 'Firewall rules', 'Threat modeling'],
+      },
+      {
+        id: 'sec-2',
+        courseId: '1',
+        title: 'Python for Security Automation & Forensics',
+        duration: '4 weeks',
+        description: 'Build log parsers, packet sniffers, and automated security incident response scripts.',
+        concepts: ['Scapy packet crafting', 'Log forensic parsing', 'Automated scanning', 'Memory triage'],
+      },
+      {
+        id: 'sec-3',
+        courseId: '8',
+        title: 'Cloud Security Architecture',
+        duration: '4 weeks',
+        description: 'AWS GuardDuty, CloudTrail audit logs, least-privilege RBAC, and container sandbox isolation.',
+        concepts: ['Audit logging', 'RBAC policies', 'Vulnerability scanning', 'Incident mitigation'],
       },
     ],
   },
 ];
 
 export default function RoadmapPage() {
-  const [selectedRoadmap, setSelectedRoadmap] = useState<RoadmapDefinition | null>(null);
-  const [completedNodes, setCompletedNodes] = useState<string[]>([]);
-  const [enrolledCourseIds, setEnrolledCourseIds] = useState<string[]>([]);
+  const [selectedRoadmap, setSelectedRoadmap] = useState<RoadmapDefinition>(CAREER_ROADMAPS[0]);
+  const [completedNodes, setCompletedNodes] = useState<Set<string>>(new Set());
+  const [activeCategory, setActiveCategory] = useState<string>('All');
 
   useEffect(() => {
-    // Read completed nodes
-    const storedNodes = localStorage.getItem('aura_completed_roadmap_nodes');
-    if (storedNodes) {
-      try {
-        setCompletedNodes(JSON.parse(storedNodes));
-      } catch {}
-    }
-
-    // Check localStorage for enrolled courses
-    const enrolled: string[] = [];
-    MOCK_COURSES.forEach((c) => {
-      if (localStorage.getItem(`aura_enrollment_${c.id}`)) {
-        enrolled.push(c.id);
+    // Load completed nodes from localStorage
+    try {
+      const stored = localStorage.getItem('aura_completed_roadmap_nodes');
+      if (stored) {
+        setCompletedNodes(new Set(JSON.parse(stored)));
+      } else {
+        setCompletedNodes(new Set(['fs-1', 'ai-1']));
       }
-    });
-    setEnrolledCourseIds(enrolled);
+    } catch {}
   }, []);
 
-  const handleNodeComplete = (nodeId: string, courseId: string, e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-
-    let newCompleted: string[];
-    if (completedNodes.includes(nodeId)) {
-      newCompleted = completedNodes.filter((id) => id !== nodeId);
+  const toggleNodeCompletion = (nodeId: string) => {
+    const updated = new Set(completedNodes);
+    if (updated.has(nodeId)) {
+      updated.delete(nodeId);
+      toast('Milestone marked as in-progress', { icon: '⏳' });
     } else {
-      newCompleted = [...completedNodes, nodeId];
+      updated.add(nodeId);
+      toast.success('Milestone completed! +100 XP');
     }
-    setCompletedNodes(newCompleted);
-    localStorage.setItem('aura_completed_roadmap_nodes', JSON.stringify(newCompleted));
+    setCompletedNodes(updated);
+    try {
+      localStorage.setItem('aura_completed_roadmap_nodes', JSON.stringify(Array.from(updated)));
+    } catch {}
   };
 
+  const filteredRoadmaps = activeCategory === 'All'
+    ? CAREER_ROADMAPS
+    : CAREER_ROADMAPS.filter((r) => r.category === activeCategory);
+
+  const totalNodesInSelected = selectedRoadmap.nodes.length;
+  const completedNodesInSelected = selectedRoadmap.nodes.filter((n) => completedNodes.has(n.id)).length;
+  const roadmapProgress = Math.round((completedNodesInSelected / totalNodesInSelected) * 100);
+
   return (
-    <main className="min-h-screen bg-background">
+    <main className="min-h-screen bg-[#070b14] text-slate-100 font-sans">
       <Navbar />
+
       <div className="pt-24 pb-16 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto space-y-10">
-        {!selectedRoadmap ? (
-          <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} className="space-y-10">
-            {/* Hero */}
-            <div className="text-center space-y-4 max-w-3xl mx-auto">
-              <div className="inline-flex items-center space-x-2 px-3 py-1 rounded-full bg-primary/10 border border-primary/20 text-primary text-xs font-semibold">
-                <Sparkles className="w-3.5 h-3.5" />
-                <span>Structured Career Tracks</span>
+        {/* Header Banner */}
+        <div className="text-center space-y-4 max-w-3xl mx-auto">
+          <div className="inline-flex items-center space-x-2 px-3 py-1 rounded-full bg-purple-500/10 border border-purple-500/30 text-purple-400 text-xs font-semibold">
+            <Map className="w-4 h-4 text-purple-400" />
+            <span>Interactive Industry Roadmaps</span>
+          </div>
+          <h1 className="text-3xl sm:text-5xl font-extrabold tracking-tight text-white">
+            Career Learning <span className="bg-gradient-to-r from-purple-400 via-indigo-400 to-emerald-400 bg-clip-text text-transparent">Roadmaps</span>
+          </h1>
+          <p className="text-slate-400 text-base sm:text-lg">
+            Structured step-by-step pathways designed by industry practitioners with direct links into the AI Live Classroom.
+          </p>
+        </div>
+
+        {/* Category Filters */}
+        <div className="flex flex-wrap items-center justify-center gap-2">
+          {['All', 'Software', 'AI', 'Cloud', 'Security', 'FinTech'].map((cat) => (
+            <button
+              key={cat}
+              onClick={() => setActiveCategory(cat)}
+              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all border ${
+                activeCategory === cat
+                  ? 'bg-purple-600 text-white border-purple-500 shadow-md shadow-purple-500/20'
+                  : 'bg-slate-900/80 text-slate-400 border-slate-800 hover:text-white hover:border-slate-700'
+              }`}
+            >
+              {cat} Pathways
+            </button>
+          ))}
+        </div>
+
+        {/* Pathway Selector Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {filteredRoadmaps.map((rm) => {
+            const Icon = rm.icon;
+            const isSelected = selectedRoadmap.id === rm.id;
+            const doneCount = rm.nodes.filter((n) => completedNodes.has(n.id)).length;
+            const pct = Math.round((doneCount / rm.nodes.length) * 100);
+
+            return (
+              <motion.div
+                key={rm.id}
+                whileHover={{ y: -3 }}
+                onClick={() => setSelectedRoadmap(rm)}
+                className={`p-5 rounded-3xl border cursor-pointer transition-all shadow-xl flex flex-col justify-between space-y-4 ${
+                  isSelected
+                    ? 'bg-purple-950/40 border-purple-500/70 shadow-purple-500/15'
+                    : 'bg-slate-900/80 border-slate-800 hover:border-slate-700'
+                }`}
+              >
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="p-2.5 rounded-2xl bg-purple-500/15 border border-purple-500/30 text-purple-400">
+                      <Icon className="w-5 h-5" />
+                    </div>
+                    <span className="text-[10px] font-mono font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-slate-800 text-purple-300 border border-slate-700">
+                      {rm.difficulty}
+                    </span>
+                  </div>
+
+                  <div>
+                    <h3 className="font-bold text-base text-white group-hover:text-purple-300 transition">
+                      {rm.title}
+                    </h3>
+                    <p className="text-xs text-slate-400 mt-1 line-clamp-2 leading-relaxed">
+                      {rm.description}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="space-y-2 pt-2 border-t border-slate-800">
+                  <div className="flex justify-between items-center text-[11px] font-mono text-slate-400">
+                    <span>{rm.duration}</span>
+                    <span className="text-emerald-400 font-semibold">{rm.salaryRange}</span>
+                  </div>
+
+                  {/* Progress Bar */}
+                  <div className="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-gradient-to-r from-purple-500 to-emerald-400 transition-all duration-500"
+                      style={{ width: `${pct}%` }}
+                    />
+                  </div>
+                  <div className="flex justify-between text-[10px] font-mono text-slate-500">
+                    <span>{doneCount} of {rm.nodes.length} Milestones</span>
+                    <span className="text-purple-300 font-bold">{pct}% Completed</span>
+                  </div>
+                </div>
+              </motion.div>
+            );
+          })}
+        </div>
+
+        {/* Selected Roadmap Interactive Interactive Timeline */}
+        <div className="bg-slate-900/90 border border-slate-800 rounded-3xl p-6 sm:p-10 shadow-2xl space-y-8">
+          {/* Pathway Header Details */}
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 pb-6 border-b border-slate-800">
+            <div className="space-y-2">
+              <div className="flex items-center space-x-2">
+                <span className="px-2.5 py-0.5 rounded-full bg-purple-500/20 text-purple-300 font-mono text-[11px] font-bold uppercase tracking-wider border border-purple-500/40">
+                  ACTIVE ROADMAP
+                </span>
+                <span className="text-xs font-mono text-emerald-400 font-bold">
+                  {selectedRoadmap.salaryRange}
+                </span>
               </div>
-              <h1 className="text-3xl sm:text-5xl font-extrabold tracking-tight text-foreground">
-                Verified <span className="text-gradient">Career Roadmaps</span>
-              </h1>
-              <p className="text-muted-foreground text-base sm:text-lg">
-                Step-by-step curriculum tracks directly mapped to live AI masterclasses, hands-on coding labs, and certified milestones.
+              <h2 className="text-2xl sm:text-4xl font-bold text-white tracking-tight">
+                {selectedRoadmap.title}
+              </h2>
+              <p className="text-sm text-slate-300 max-w-2xl leading-relaxed">
+                {selectedRoadmap.description}
               </p>
             </div>
 
-            {/* Roadmaps Grid */}
-            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {CAREER_ROADMAPS.map((roadmap) => {
-                const totalNodes = roadmap.nodes.length;
-                const completedCount = roadmap.nodes.filter((n) => completedNodes.includes(n.id)).length;
-                const pct = Math.round((completedCount / totalNodes) * 100);
-
-                return (
-                  <div
-                    key={roadmap.id}
-                    onClick={() => setSelectedRoadmap(roadmap)}
-                    className="bg-card border border-border rounded-3xl p-6 shadow-sm hover:shadow-xl hover:border-primary/50 transition-all cursor-pointer group flex flex-col justify-between"
-                  >
-                    <div className="space-y-4">
-                      <div className="flex items-center justify-between">
-                        <div className="p-3 bg-primary/10 text-primary rounded-2xl group-hover:bg-primary group-hover:text-primary-foreground transition">
-                          <Map className="w-6 h-6" />
-                        </div>
-                        <span className="px-3 py-1 bg-accent text-foreground text-xs font-bold rounded-full flex items-center gap-1 border border-border">
-                          <Signal className="w-3 h-3" /> {roadmap.difficulty}
-                        </span>
-                      </div>
-
-                      <div>
-                        <span className="text-[11px] font-mono uppercase text-primary font-bold">{roadmap.category}</span>
-                        <h3 className="text-xl font-bold text-foreground group-hover:text-primary transition">{roadmap.title}</h3>
-                        <p className="text-muted-foreground text-xs leading-relaxed mt-1.5 line-clamp-2">{roadmap.description}</p>
-                      </div>
-                    </div>
-
-                    <div className="mt-6 pt-4 border-t border-border space-y-3">
-                      <div className="flex items-center justify-between text-xs text-muted-foreground">
-                        <span className="flex items-center gap-1.5 font-medium"><Clock className="w-3.5 h-3.5" /> {roadmap.duration}</span>
-                        <span className="flex items-center gap-1.5 font-medium"><BookOpen className="w-3.5 h-3.5" /> {totalNodes} Mastery Courses</span>
-                      </div>
-
-                      {/* Mini Progress */}
-                      <div className="space-y-1">
-                        <div className="flex justify-between text-[11px] font-mono">
-                          <span className="text-muted-foreground">Track Progress</span>
-                          <span className="font-bold text-primary">{pct}%</span>
-                        </div>
-                        <div className="w-full h-1.5 bg-accent rounded-full overflow-hidden">
-                          <div className="h-full bg-primary transition-all duration-300" style={{ width: `${pct}%` }} />
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
+            {/* Overall Progress Gauge */}
+            <div className="flex items-center space-x-4 bg-slate-950 p-4 rounded-2xl border border-slate-800 shrink-0">
+              <div className="text-right">
+                <p className="text-2xl font-bold text-white font-mono">{roadmapProgress}%</p>
+                <p className="text-[10px] font-mono text-slate-400 uppercase">PATHWAY PROGRESS</p>
+              </div>
+              <div className="w-12 h-12 rounded-full border-4 border-slate-800 border-t-purple-500 border-r-indigo-500 flex items-center justify-center font-bold text-xs text-purple-300 font-mono">
+                {completedNodesInSelected}/{totalNodesInSelected}
+              </div>
             </div>
-          </motion.div>
-        ) : (
-          /* Roadmap Detail View */
-          <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="space-y-8">
-            <button
-              onClick={() => setSelectedRoadmap(null)}
-              className="flex items-center gap-2 text-muted-foreground hover:text-foreground font-semibold text-sm transition"
-            >
-              <ArrowLeft className="w-4 h-4" /> Back to all roadmaps
-            </button>
+          </div>
 
-            <div className="bg-card border border-border rounded-3xl p-6 sm:p-10 shadow-lg space-y-8">
-              {/* Header */}
-              <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 pb-6 border-b border-border">
-                <div>
-                  <span className="text-xs font-mono uppercase text-primary font-bold">{selectedRoadmap.category} TRACK</span>
-                  <h2 className="text-2xl sm:text-4xl font-extrabold text-foreground mt-1">{selectedRoadmap.title}</h2>
-                  <p className="text-muted-foreground text-sm max-w-2xl mt-2">{selectedRoadmap.description}</p>
-                </div>
-                <div className="text-right shrink-0 bg-accent/40 p-4 rounded-2xl border border-border">
-                  <div className="text-3xl font-extrabold text-primary">
-                    {Math.round(
-                      (selectedRoadmap.nodes.filter((n) => completedNodes.includes(n.id)).length /
-                        selectedRoadmap.nodes.length) *
-                        100
-                    )}%
-                  </div>
-                  <div className="text-[11px] text-muted-foreground font-mono uppercase tracking-wider font-semibold">Track Completion</div>
-                </div>
-              </div>
+          {/* Sequential Milestones Flow */}
+          <div className="space-y-6 relative">
+            {/* Connecting Vertical Line */}
+            <div className="absolute left-6 top-8 bottom-8 w-0.5 bg-gradient-to-b from-purple-500 via-indigo-500 to-slate-800 hidden sm:block pointer-events-none" />
 
-              {/* Vertical Timeline */}
-              <div className="relative pl-4 sm:pl-10 space-y-8">
-                {/* Timeline Line */}
-                <div className="absolute left-7 sm:left-[3.25rem] top-6 bottom-6 w-0.5 bg-border" />
+            {selectedRoadmap.nodes.map((node, index) => {
+              const isCompleted = completedNodes.has(node.id);
 
-                {selectedRoadmap.nodes.map((node, index) => {
-                  const isCompleted = completedNodes.includes(node.id);
-                  const isEnrolled = enrolledCourseIds.includes(node.courseId);
-
-                  return (
-                    <div key={node.id} className="relative flex items-start gap-6 sm:gap-8 group">
-                      {/* Status Icon */}
-                      <div
-                        className={`relative z-10 w-9 h-9 sm:w-12 sm:h-12 rounded-full flex items-center justify-center shrink-0 shadow-md font-bold text-xs sm:text-sm transition-all ${
-                          isCompleted
-                            ? 'bg-emerald-500 text-white shadow-emerald-500/30'
-                            : 'bg-primary text-primary-foreground ring-4 ring-primary/20'
-                        }`}
-                      >
-                        {isCompleted ? <CheckCircle className="w-5 h-5" /> : index + 1}
-                      </div>
-
-                      {/* Content Card */}
-                      <div
-                        className={`flex-1 p-5 sm:p-6 rounded-2xl border transition-all ${
-                          isCompleted
-                            ? 'border-emerald-500/30 bg-emerald-950/10'
-                            : 'border-border bg-card shadow-sm hover:border-primary/50'
-                        }`}
-                      >
-                        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-                          <div className="space-y-2 flex-1">
-                            <div className="flex items-center space-x-2">
-                              <h4 className="text-base sm:text-lg font-bold text-foreground">{node.title}</h4>
-                              {isEnrolled && (
-                                <span className="text-[10px] font-mono font-bold bg-primary/20 text-primary px-2 py-0.5 rounded-full border border-primary/30">
-                                  Enrolled
-                                </span>
-                              )}
-                            </div>
-                            <p className="text-xs sm:text-sm text-muted-foreground">{node.description}</p>
-
-                            {/* Concepts badges */}
-                            <div className="flex flex-wrap gap-1.5 pt-1">
-                              {node.concepts.map((c, ci) => (
-                                <span
-                                  key={ci}
-                                  className="text-[11px] font-mono bg-accent/60 text-muted-foreground px-2 py-0.5 rounded border border-border/80"
-                                >
-                                  {c}
-                                </span>
-                              ))}
-                            </div>
-                          </div>
-
-                          {/* Action Buttons */}
-                          <div className="flex items-center gap-2.5 shrink-0">
-                            <button
-                              onClick={(e) => handleNodeComplete(node.id, node.courseId, e)}
-                              className={`px-3 py-2 rounded-xl text-xs font-semibold transition border ${
-                                isCompleted
-                                  ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/20'
-                                  : 'bg-accent text-muted-foreground border-border hover:text-foreground'
-                              }`}
-                            >
-                              {isCompleted ? '✓ Completed' : 'Mark Done'}
-                            </button>
-
-                            <Link
-                              href={`/courses/${node.courseId}`}
-                              className="px-4 py-2 bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-md shadow-primary/20"
-                            >
-                              <PlayCircle className="w-4 h-4" />
-                              <span>Go to Course</span>
-                            </Link>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-
-              {/* Completion Banner */}
-              {selectedRoadmap.nodes.every((n) => completedNodes.includes(n.id)) && (
+              return (
                 <motion.div
-                  initial={{ opacity: 0, y: 15 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="bg-gradient-to-r from-emerald-600 to-teal-600 rounded-2xl p-6 sm:p-8 text-center text-white shadow-2xl space-y-3"
+                  key={node.id}
+                  initial={{ opacity: 0, x: -10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: index * 0.08 }}
+                  className={`relative sm:pl-16 p-5 sm:p-6 rounded-3xl border transition-all ${
+                    isCompleted
+                      ? 'bg-slate-950/80 border-emerald-500/40 shadow-emerald-500/5'
+                      : 'bg-slate-950/50 border-slate-800 hover:border-slate-700'
+                  }`}
                 >
-                  <div className="w-12 h-12 rounded-full bg-white/20 flex items-center justify-center mx-auto">
-                    <Award className="w-7 h-7" />
-                  </div>
-                  <h3 className="text-2xl font-extrabold">Track Completed!</h3>
-                  <p className="text-emerald-100 text-sm max-w-lg mx-auto">
-                    You have mastered all core courses in the {selectedRoadmap.title} track. Your verified skill credentials are ready in Certificates.
-                  </p>
-                  <Link
-                    href="/certificates"
-                    className="inline-flex items-center space-x-1.5 px-6 py-2.5 bg-white text-emerald-900 rounded-xl text-xs font-bold hover:bg-emerald-50 transition shadow-lg mt-2"
+                  {/* Timeline Badge Node */}
+                  <div
+                    onClick={() => toggleNodeCompletion(node.id)}
+                    className={`sm:absolute sm:left-3 sm:top-6 w-7 h-7 rounded-full flex items-center justify-center cursor-pointer transition-all border shrink-0 mb-3 sm:mb-0 ${
+                      isCompleted
+                        ? 'bg-emerald-500 border-emerald-400 text-slate-950 shadow-md shadow-emerald-500/40'
+                        : 'bg-slate-900 border-slate-700 text-slate-400 hover:border-purple-400'
+                    }`}
+                    title={isCompleted ? 'Click to unmark milestone' : 'Click to complete milestone'}
                   >
-                    <span>View Certificates</span>
-                    <ChevronRight className="w-4 h-4" />
-                  </Link>
+                    {isCompleted ? (
+                      <CheckCircle2 className="w-4 h-4" />
+                    ) : (
+                      <span className="text-xs font-mono font-bold">{index + 1}</span>
+                    )}
+                  </div>
+
+                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div className="space-y-2 flex-1">
+                      <div className="flex items-center space-x-2">
+                        <span className="text-[11px] font-mono text-purple-400 font-bold">
+                          PHASE {index + 1} · {node.duration}
+                        </span>
+                        {isCompleted && (
+                          <span className="text-[10px] font-mono font-bold text-emerald-400 bg-emerald-950/60 px-2 py-0.5 rounded border border-emerald-800/40">
+                            COMPLETED
+                          </span>
+                        )}
+                      </div>
+
+                      <h3 className="text-lg font-bold text-white">{node.title}</h3>
+                      <p className="text-xs text-slate-300 leading-relaxed">{node.description}</p>
+
+                      {/* Concept Badges */}
+                      <div className="flex flex-wrap gap-1.5 pt-1">
+                        {node.concepts.map((concept, cIdx) => (
+                          <span
+                            key={cIdx}
+                            className="bg-slate-900 text-slate-300 text-[10.5px] font-mono px-2.5 py-0.5 rounded-lg border border-slate-800"
+                          >
+                            • {concept}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Actions: Direct Classroom Link + Toggle */}
+                    <div className="flex items-center space-x-2 shrink-0 pt-2 md:pt-0">
+                      <button
+                        onClick={() => toggleNodeCompletion(node.id)}
+                        className={`px-3.5 py-2 rounded-xl text-xs font-bold transition border ${
+                          isCompleted
+                            ? 'bg-slate-900 hover:bg-slate-800 text-slate-300 border-slate-700'
+                            : 'bg-emerald-950/60 hover:bg-emerald-900/60 text-emerald-300 border-emerald-700/50'
+                        }`}
+                      >
+                        {isCompleted ? 'Mark Incomplete' : 'Complete Phase'}
+                      </button>
+
+                      <Link
+                        href={`/classroom?courseId=${node.courseId}&level=intermediate`}
+                        className="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs rounded-xl shadow-md transition flex items-center space-x-1.5"
+                      >
+                        <PlayCircle className="w-4 h-4" />
+                        <span>Launch in Classroom</span>
+                      </Link>
+                    </div>
+                  </div>
                 </motion.div>
-              )}
-            </div>
-          </motion.div>
-        )}
+              );
+            })}
+          </div>
+        </div>
       </div>
+
       <Footer />
     </main>
   );

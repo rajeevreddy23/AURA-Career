@@ -73,10 +73,10 @@ async function callGemini(
   if (!apiKey) return null;
 
   const candidateModels = [
-    'gemini-flash-latest',
     'gemini-2.5-flash',
-    'gemini-3.5-flash',
-    'gemini-3.7-flash',
+    'gemini-1.5-flash-latest',
+    'gemini-2.0-flash',
+    'gemini-flash-latest',
   ];
 
   const fullPrompt = systemPrompt ? `${systemPrompt}\n\n${userPrompt}` : userPrompt;
@@ -92,10 +92,11 @@ async function callGemini(
             contents: [{ role: 'user', parts: [{ text: fullPrompt }] }],
             generationConfig: {
               temperature: options.temperature ?? 0.6,
-              maxOutputTokens: options.maxTokens ?? 8192,
+              maxOutputTokens: options.maxTokens ?? 4096,
               responseMimeType: options.jsonMode ? 'application/json' : undefined,
             },
           }),
+          signal: AbortSignal.timeout(5000),
         }
       );
 
@@ -129,18 +130,21 @@ async function callGroq(
   if (!apiKey) return null;
 
   const candidateModels = [
-    'openai/gpt-oss-120b',
-    'qwen/qwen3.6-27b',
-    'openai/gpt-oss-20b',
-    'groq/compound',
+    { id: 'llama-3.3-70b-specdec', maxTok: 4096 },
+    { id: 'qwen-2.5-coder-32b', maxTok: 4096 },
+    { id: 'deepseek-r1-distill-llama-70b', maxTok: 4096 },
+    { id: 'llama-3.2-3b-preview', maxTok: 4096 },
   ];
+
+  const safeSystem = systemPrompt.slice(0, 4000);
+  const safeUser = userPrompt.slice(0, 4000);
 
   const messages = [
-    ...(systemPrompt ? [{ role: 'system', content: systemPrompt }] : []),
-    { role: 'user', content: userPrompt },
+    ...(safeSystem ? [{ role: 'system', content: safeSystem }] : []),
+    { role: 'user', content: safeUser },
   ];
 
-  for (const model of candidateModels) {
+  for (const { id: model, maxTok } of candidateModels) {
     try {
       const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
         method: 'POST',
@@ -152,9 +156,10 @@ async function callGroq(
           model,
           messages,
           temperature: options.temperature ?? 0.6,
-          max_tokens: options.maxTokens ?? 8192,
-          response_format: options.jsonMode ? { type: 'json_object' } : undefined,
+          max_tokens: Math.min(options.maxTokens ?? 4096, maxTok),
+          response_format: options.jsonMode && model.includes('llama') ? { type: 'json_object' } : undefined,
         }),
+        signal: AbortSignal.timeout(4000),
       });
 
       if (res.ok) {
@@ -187,9 +192,9 @@ async function callOpenRouter(
   if (!apiKey) return null;
 
   const candidateModels = [
-    'google/gemini-2.5-flash',
-    'google/gemini-3.7-flash',
+    'google/gemini-2.0-flash-lite-001',
     'meta-llama/llama-3.3-70b-instruct',
+    'qwen/qwen-2.5-coder-32b-instruct',
   ];
 
   const messages = [
@@ -203,15 +208,18 @@ async function callOpenRouter(
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${apiKey}`,
+          'Authorization': `Bearer ${apiKey}`,
+          'HTTP-Referer': 'https://auralearn.com',
+          'X-Title': 'AURA Learn',
         },
         body: JSON.stringify({
           model,
           messages,
-          temperature: options.temperature ?? 0.6,
-          max_tokens: options.maxTokens ?? 8192,
+          temperature: options.temperature ?? 0.7,
+          max_tokens: options.maxTokens ?? 4096,
           response_format: options.jsonMode ? { type: 'json_object' } : undefined,
         }),
+        signal: AbortSignal.timeout(6000),
       });
 
       if (res.ok) {
@@ -220,6 +228,9 @@ async function callOpenRouter(
         if (text && text.trim().length > 0) {
           return text.trim();
         }
+      } else {
+        const errData = await res.json().catch(() => null);
+        console.warn(`OpenRouter model ${model} returned ${res.status}:`, errData?.error?.message || res.statusText);
       }
     } catch (err: any) {
       console.warn(`OpenRouter call error on ${model}:`, err?.message || err);
@@ -229,23 +240,24 @@ async function callOpenRouter(
   return null;
 }
 
+
 /**
- * Generates text using the best available LLM provider
+ * Generates text using the best available LLM provider (Fastest tier first for instant replies)
  */
 export async function generateLLMText(
   systemPrompt: string,
   userPrompt: string,
   options: LLMOptions = {}
 ): Promise<string | null> {
-  // 1. Try Gemini
-  const geminiRes = await callGemini(systemPrompt, userPrompt, options);
-  if (geminiRes) return geminiRes;
-
-  // 2. Try Groq
+  // 1. Tier 1 (ULTRA-FAST < 1s): Groq Llama 3.1 & 3.3 Engine
   const groqRes = await callGroq(systemPrompt, userPrompt, options);
   if (groqRes) return groqRes;
 
-  // 3. Try OpenRouter
+  // 2. Tier 2 (LIVE REAL AI ~ 1s): Google Gemini API
+  const geminiRes = await callGemini(systemPrompt, userPrompt, options);
+  if (geminiRes) return geminiRes;
+
+  // 3. Tier 3 (BACKUP): OpenRouter API
   const openRouterRes = await callOpenRouter(systemPrompt, userPrompt, options);
   if (openRouterRes) return openRouterRes;
 

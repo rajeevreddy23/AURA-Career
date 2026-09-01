@@ -36,30 +36,132 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
   const [ambientVolume, setAmbientVolume] = useState(30);
   const [showAmbient, setShowAmbient] = useState(false);
   const audioContextRef = useRef<AudioContext | null>(null);
+  const gainNodeRef = useRef<GainNode | null>(null);
+  const sourceNodeRef = useRef<AudioNode | null>(null);
+
+  // Procedural Web Audio Ambient Sound Synthesizer
+  const stopAmbientSound = useCallback(() => {
+    if (sourceNodeRef.current) {
+      try {
+        if ('stop' in sourceNodeRef.current && typeof (sourceNodeRef.current as any).stop === 'function') {
+          (sourceNodeRef.current as any).stop();
+        }
+        sourceNodeRef.current.disconnect();
+      } catch {}
+      sourceNodeRef.current = null;
+    }
+  }, []);
+
+  const playAmbientSound = useCallback((ambientId: string, currentVolume: number) => {
+    stopAmbientSound();
+    if (ambientId === 'none') return;
+
+    try {
+      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+      if (!AudioCtx) return;
+
+      if (!audioContextRef.current || audioContextRef.current.state === 'closed') {
+        audioContextRef.current = new AudioCtx();
+      }
+      const ctx = audioContextRef.current;
+      if (ctx.state === 'suspended') {
+        ctx.resume();
+      }
+
+      const gain = ctx.createGain();
+      gain.gain.value = Math.max(0.001, (currentVolume / 100) * 0.15);
+      gain.connect(ctx.destination);
+      gainNodeRef.current = gain;
+
+      if (ambientId === 'white-noise' || ambientId === 'rain' || ambientId === 'waves' || ambientId === 'nature' || ambientId === 'classroom' || ambientId === 'coffee-shop') {
+        // Generate continuous pink/brown noise
+        const bufferSize = ctx.sampleRate * 2;
+        const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+        const data = buffer.getChannelData(0);
+        let b0 = 0, b1 = 0, b2 = 0;
+
+        for (let i = 0; i < bufferSize; i++) {
+          const white = Math.random() * 2 - 1;
+          b0 = 0.99765 * b0 + white * 0.0990460;
+          b1 = 0.96300 * b1 + white * 0.2965164;
+          b2 = 0.57000 * b2 + white * 1.0526913;
+          data[i] = (b0 + b1 + b2 + white * 0.1848) * 0.08;
+        }
+
+        const noise = ctx.createBufferSource();
+        noise.buffer = buffer;
+        noise.loop = true;
+
+        const filter = ctx.createBiquadFilter();
+        if (ambientId === 'rain') {
+          filter.type = 'lowpass';
+          filter.frequency.value = 900;
+        } else if (ambientId === 'waves') {
+          filter.type = 'bandpass';
+          filter.frequency.value = 400;
+        } else if (ambientId === 'classroom' || ambientId === 'coffee-shop') {
+          filter.type = 'lowpass';
+          filter.frequency.value = 650;
+        } else {
+          filter.type = 'lowpass';
+          filter.frequency.value = 1400;
+        }
+
+        noise.connect(filter);
+        filter.connect(gain);
+        noise.start();
+        sourceNodeRef.current = noise;
+      } else if (ambientId === 'instrumental' || ambientId === 'library') {
+        // Generate gentle warm harmonic drone
+        const osc = ctx.createOscillator();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(174.61, ctx.currentTime); // F3 calming frequency
+        
+        const filter = ctx.createBiquadFilter();
+        filter.type = 'lowpass';
+        filter.frequency.value = 500;
+
+        osc.connect(filter);
+        filter.connect(gain);
+        osc.start();
+        sourceNodeRef.current = osc;
+      }
+    } catch (e) {
+      console.warn('Ambient sound synthesis unavailable:', e);
+    }
+  }, [stopAmbientSound]);
 
   useEffect(() => {
-    if (isPlaying && !audioContextRef.current) {
-      audioContextRef.current = new AudioContext();
+    if (gainNodeRef.current && audioContextRef.current) {
+      gainNodeRef.current.gain.setValueAtTime(
+        Math.max(0.001, (ambientVolume / 100) * 0.15),
+        audioContextRef.current.currentTime
+      );
     }
+  }, [ambientVolume]);
+
+  useEffect(() => {
     return () => {
+      stopAmbientSound();
       audioContextRef.current?.close();
     };
-  }, [isPlaying]);
+  }, [stopAmbientSound]);
 
   const togglePlay = useCallback(() => {
     if (isPlaying) {
       window.speechSynthesis?.pause();
+      stopAmbientSound();
     } else {
       window.speechSynthesis?.resume();
+      if (selectedAmbient !== 'none') {
+        playAmbientSound(selectedAmbient, ambientVolume);
+      }
     }
     setIsPlaying(!isPlaying);
-  }, [isPlaying]);
+  }, [isPlaying, selectedAmbient, ambientVolume, playAmbientSound, stopAmbientSound]);
 
   const handleVolumeChange = useCallback((value: number[]) => {
     setVolume(value[0]);
-    if (window.speechSynthesis) {
-      window.speechSynthesis.getVoices().forEach(() => {});
-    }
   }, []);
 
   const handleSpeedChange = useCallback((value: number[]) => {
@@ -68,10 +170,11 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
 
   const handleAmbientSelect = useCallback((ambientId: string) => {
     setSelectedAmbient(ambientId);
+    playAmbientSound(ambientId, ambientVolume);
     if (ambientId !== 'none') {
       setIsPlaying(true);
     }
-  }, []);
+  }, [ambientVolume, playAmbientSound]);
 
   if (!visible) return null;
 

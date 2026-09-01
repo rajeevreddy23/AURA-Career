@@ -15,6 +15,7 @@ import type {
   Resource,
 } from '@/types';
 import { generateId } from '@/lib/utils';
+import { playAuraVoice, stopAllVoicePlayback } from '@/lib/ai/voice';
 
 interface AIContextType {
   assistant: AIAssistantState;
@@ -75,7 +76,7 @@ export const AIProvider: React.FC<{ children: React.ReactNode }> = ({ children }
   const [agentMessages, setAgentMessages] = useState<AIAgentMessage[]>([]);
   const [activeDoubt, setActiveDoubt] = useState<Doubt | null>(null);
   const [isDoubtPanelOpen, setIsDoubtPanelOpen] = useState(false);
-  const speechRef = useRef<SpeechSynthesisUtterance | null>(null);
+  const activeVoiceHandleRef = useRef<{ stop: () => void } | null>(null);
 
   const setAssistantVisible = useCallback((visible: boolean) => {
     setAssistant((prev) => ({ ...prev, isVisible: visible }));
@@ -94,27 +95,33 @@ export const AIProvider: React.FC<{ children: React.ReactNode }> = ({ children }
   }, []);
 
   const speak = useCallback((text: string) => {
-    if (!window.speechSynthesis) return;
+    if (activeVoiceHandleRef.current) {
+      activeVoiceHandleRef.current.stop();
+      activeVoiceHandleRef.current = null;
+    }
 
-    window.speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.rate = 1;
-    utterance.pitch = 1;
-    utterance.volume = 1;
-
-    utterance.onstart = () => {
-      setAssistant((prev) => ({ ...prev, isSpeaking: true, speech: text, animation: 'speaking' }));
-    };
-    utterance.onend = () => {
-      setAssistant((prev) => ({ ...prev, isSpeaking: false, speech: '', animation: 'idle' }));
-    };
-
-    speechRef.current = utterance;
-    window.speechSynthesis.speak(utterance);
+    activeVoiceHandleRef.current = playAuraVoice({
+      text,
+      onStart: () => {
+        setAssistant((prev) => ({ ...prev, isSpeaking: true, speech: text, animation: 'speaking' }));
+      },
+      onEnd: () => {
+        setAssistant((prev) => ({ ...prev, isSpeaking: false, speech: '', animation: 'idle' }));
+        activeVoiceHandleRef.current = null;
+      },
+      onError: () => {
+        setAssistant((prev) => ({ ...prev, isSpeaking: false, speech: '', animation: 'idle' }));
+        activeVoiceHandleRef.current = null;
+      },
+    });
   }, []);
 
   const stopSpeaking = useCallback(() => {
-    window.speechSynthesis.cancel();
+    if (activeVoiceHandleRef.current) {
+      activeVoiceHandleRef.current.stop();
+      activeVoiceHandleRef.current = null;
+    }
+    stopAllVoicePlayback();
     setAssistant((prev) => ({ ...prev, isSpeaking: false, speech: '', animation: 'idle' }));
   }, []);
 

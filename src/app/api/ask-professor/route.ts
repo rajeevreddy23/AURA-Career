@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { generateStructuredJSON } from '@/lib/ai/llm';
 
+// Allow up to 60 seconds for deep AI concept generation
+export const maxDuration = 60;
+
 interface AskProfessorPayload {
   question?: string;
   query?: string;
@@ -30,10 +33,12 @@ interface AskProfessorPayload {
 
 interface ProfessorResponseData {
   answer: string;
+  speech?: string;
   codeSnippet?: string;
   output?: string;
   memoryInsight?: string;
   suggestedFollowUp?: string;
+  nextConcept?: { title: string; teaser: string };
 }
 
 export async function POST(req: NextRequest) {
@@ -45,7 +50,7 @@ export async function POST(req: NextRequest) {
     const courseTitle = body.courseTitle || 'Masterclass';
     const currentSlide = body.currentSlide || {};
     const history = body.history || [];
-    const difficulty = body.difficulty || 'beginner';
+    const difficulty = body.difficulty || 'deep_masterclass';
 
     if (!studentQuestion) {
       return NextResponse.json(
@@ -54,48 +59,79 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // System prompt engineered for authentic Gemini/Groq production AI responses
-    const systemPrompt = `You are "Professor Aura", an elite AI computer science educator and real-time coding tutor on the AURA Learn platform.
-Your teaching persona is: "${persona}".
-Target student difficulty level: "${difficulty}".
-Current masterclass course: "${courseTitle}".
-Active module/topic: "${topic}".
-Currently active slide on blackboard:
-- Slide Title: "${currentSlide.title || 'Interactive Lesson'}"
-${currentSlide.speech ? `- Slide Script: "${currentSlide.speech}"` : ''}
-${currentSlide.code ? `- Slide Code Snippet:\n\`\`\`\n${currentSlide.code}\n\`\`\`` : ''}
-${currentSlide.explanation ? `- Slide Concept: "${currentSlide.explanation}"` : ''}
+    const pLower = persona.toLowerCase();
+    let personaDirective = 'TEACHING STYLE: Structured, clear academic explanation.';
+    if (pLower.includes('friend')) {
+      personaDirective = 'TEACHING STYLE: FRIEND / PEER MENTOR. Speak warmly and encouragingly like a supportive coding friend ("Hey friend!"). Use casual relatable analogies, warm encouragement, and accessible explanations.';
+    } else if (pLower.includes('coach')) {
+      personaDirective = 'TEACHING STYLE: MOTIVATIONAL COACH. High-energy, action-oriented, sports/gym training style ("Let us crush this concept!", "Training Step 1"). Push the student to master skills with high enthusiasm.';
+    } else if (pLower.includes('expert')) {
+      personaDirective = 'TEACHING STYLE: SENIOR PRINCIPAL ARCHITECT. Deep engineering focus on system design, micro-optimizations, edge cases, scalability, and production trade-offs.';
+    } else if (pLower.includes('simplifier')) {
+      personaDirective = 'TEACHING STYLE: SIMPLIFIER (ELI5). Explain like I am 5 years old. Break down every complex term into super simple everyday metaphors (like LEGO bricks, recipes, or postal mail).';
+    } else if (pLower.includes('professor')) {
+      personaDirective = 'TEACHING STYLE: ACADEMIC PROFESSOR. Rigorous, structured, first-principles logic with academic depth.';
+    }
 
-Recent conversation context:
-${history
-  .slice(-4)
-  .map((h) => `${h.sender || h.name || 'User'}: ${h.text || h.content || ''}`)
-  .join('\n')}
+    let difficultyDirective = 'DIFFICULTY: Intermediate (Standard engineering standards & practical code).';
+    if (difficulty === 'beginner') {
+      difficultyDirective = 'DIFFICULTY LEVEL: BEGINNER. Focus on fundamental intuition, avoid intimidating jargon, explain all terms, and use basic step-by-step code.';
+    } else if (difficulty === 'advanced' || difficulty === 'deep_masterclass') {
+      difficultyDirective = 'DIFFICULTY LEVEL: ADVANCED. Cover low-level execution mechanics, memory/concurrency trade-offs, performance characteristics, and senior developer considerations.';
+    } else if (difficulty === 'turbo_fast') {
+      difficultyDirective = 'DIFFICULTY LEVEL: TURBO FAST. Be super rapid, punchy, 2-3 short paragraphs max with a concise code snippet.';
+    }
 
-Student's Question: "${studentQuestion}"
+    // DEEP CONCEPT SYSTEM PROMPT — Concept-focused, language-appropriate
+    const systemPrompt = `You are "Professor AURA", an elite AI computer science and software engineering educator on the AURA Learn platform.
 
-Instruction for your response:
-1. Speak directly, authoritatively, and warmly to the student in the style of ${persona}.
-2. Provide a thorough, crystal-clear explanation formatted with clean Markdown:
-   - Use **bold** for key technical terms.
-   - Use numbered lists or bullet points for step-by-step logic.
-   - Format inline keywords with \`code\` blocks.
-3. Provide a practical, runnable code snippet demonstrating the answer (or illustrative pseudocode if theoretical).
-4. Provide the exact expected terminal/console output.
-5. Provide a memory/complexity insight sentence detailing Big-O bounds, memory allocation, or runtime internals.
-6. Provide one relevant follow-up question the student can ask next.
+Persona: "${persona}". Course: "${courseTitle}". Topic: "${topic}".
+${personaDirective}
+${difficultyDirective}
 
-You MUST respond in valid JSON format matching this schema:
+STRICT INSTRUCTIONS:
+1. FOCUS STRICTLY ON THE USER'S ASKED CONCEPT ("${studentQuestion}"). Do NOT drift into unrelated topics or Python memory models unless Python was explicitly requested.
+2. Adopt the selected TEACHING STYLE (${personaDirective}) and DIFFICULTY LEVEL (${difficultyDirective}) in your response tone and depth.
+3. Use language-appropriate code or pseudocode matching the requested domain (e.g. JS/TS for web, C/C++ for OS/memory, SQL for databases, general pseudocode/Python ONLY if appropriate).
+
+MANDATORY RESPONSE STRUCTURE for the "answer" field:
+
+## 🧠 What is [Concept]?
+Write a crystal-clear, intuitive definition of "${studentQuestion}". Use a memorable real-world analogy.
+
+## 🔍 Core Mechanism — How It Works (Step-by-Step)
+Explain step-by-step how "${studentQuestion}" operates under the hood.
+
+## 🌐 Real-World Applications & Industry Uses
+Provide concrete real-world use cases where this exact concept is applied in production.
+
+## 💻 Code / Concrete Example
+Provide a clean, production-ready code snippet or structural example demonstrating "${studentQuestion}".
+
+## 🔬 Key Takeaways & Best Practices
+Highlight trade-offs, common pitfalls, and architectural best practices.
+
+Student question: "${studentQuestion}"
+Recent chat:
+${history.slice(-4).map((h) => `${h.sender || h.name || 'User'}: ${h.text || h.content || ''}`).join('\n')}
+
+Respond ONLY as valid JSON (no markdown fences) with this schema:
 {
-  "answer": "Comprehensive, encouraging step-by-step educational answer in Markdown.",
-  "codeSnippet": "Clean, syntactically valid code demonstrating the concept.",
-  "output": "Exact console execution output of the codeSnippet.",
-  "memoryInsight": "1 concise technical sentence on time/space complexity or memory mechanics.",
-  "suggestedFollowUp": "1 insightful follow-up question."
-}
-Return JSON only without markdown fences.`;
+  "answer": "FULL MARKDOWN RESPONSE answering '${studentQuestion}'",
+  "speech": "A concise 2-3 sentence spoken overview of the core concept for the AI avatar.",
+  "codeSnippet": "Code snippet demonstrating the exact concept",
+  "output": "Console/terminal output of the example",
+  "memoryInsight": "Key technical insight about efficiency, complexity, or architecture of this concept.",
+  "suggestedFollowUp": "1 insightful follow-up question to deepen understanding.",
+  "nextConcept": {
+    "title": "Logical next concept to explore",
+    "teaser": "Brief preview of why the next concept matters."
+  }
+}`;
 
-    const userPrompt = `Student asks: "${studentQuestion}". Answer in the context of "${topic}" and current slide "${currentSlide.title || topic}".`;
+    const userPrompt = `The student asks: "${studentQuestion}"
+
+Provide a thorough, direct explanation of "${studentQuestion}". Focus strictly on what was asked.`;
 
     const responseData = await generateStructuredJSON<ProfessorResponseData>(
       systemPrompt,
@@ -103,13 +139,15 @@ Return JSON only without markdown fences.`;
       () => generateIntelligentFallback(studentQuestion, topic, persona, currentSlide)
     );
 
-    const safeAnswer = responseData.answer || 'Here is the step-by-step explanation.';
+    const safeAnswer = responseData.answer || `Here is the explanation for ${studentQuestion}.`;
     const safeData: ProfessorResponseData = {
       answer: safeAnswer,
+      speech: responseData.speech || undefined,
       codeSnippet: responseData.codeSnippet || undefined,
       output: responseData.output || undefined,
       memoryInsight: responseData.memoryInsight || undefined,
       suggestedFollowUp: responseData.suggestedFollowUp || undefined,
+      nextConcept: responseData.nextConcept || undefined,
     };
 
     return NextResponse.json({
@@ -121,7 +159,7 @@ Return JSON only without markdown fences.`;
   } catch (error: any) {
     console.error('Ask-Professor error:', error);
     const fallback = generateIntelligentFallback(
-      'Question',
+      'Concept',
       'Computer Science',
       'Professor Aura',
       {}
@@ -143,44 +181,17 @@ function generateIntelligentFallback(
   persona: string,
   currentSlide: { title?: string; code?: string; explanation?: string }
 ): ProfessorResponseData {
-  const q = question.toLowerCase();
+  const cleanQ = question.trim() || 'Core Concept';
 
-  if (q.includes('keyerror') || q.includes('missing key') || q.includes('not exist')) {
-    return {
-      answer: `When accessing a key that doesn't exist via standard indexing (\`dict[key]\`), Python raises a **\`KeyError\`** because the hashed index slot is empty in the entries table.\n\n### Recommended Defensive Strategies:\n1. **Use \`.get(key, default)\`**: Safely returns \`None\` or your specified fallback without throwing exceptions.\n2. **Membership Check with \`in\`**: Verify \`if key in dict:\` before subscripting.\n3. **Use \`collections.defaultdict\`**: Automatically initializes missing keys using a factory callable.`,
-      codeSnippet: `# Defensive key lookup in Python\nstudent = {"name": "Alex", "course": "${topic}"}\n\n# 1. Safe access with fallback\nrole = student.get("role", "Active Student")\nprint(f"Role: {role}")\n\n# 2. Membership validation\nif "gpa" in student:\n    print(student["gpa"])\nelse:\n    print("GPA not initialized")`,
-      output: `Role: Active Student\nGPA not initialized`,
-      memoryInsight: `The .get() method performs an internal C-level NULL pointer check without raising a PyErr exception.`,
-      suggestedFollowUp: 'What is the performance trade-off between try-except and dict.get() in high-throughput loops?',
-    };
-  }
-
-  if (q.includes('complexity') || q.includes('big o') || q.includes('time') || q.includes('space') || q.includes('performance')) {
-    return {
-      answer: `In **${topic}**, computational complexity is determined by the underlying memory layout:\n\n* **Average Lookup / Insertion**: **O(1)** constant time via deterministic hash calculations.\n* **Worst-Case Lookup**: **O(n)** when excessive collisions trigger linear probing chains.\n* **Memory Growth Factor**: Dynamic containers allocate extra capacity (~1.125x - 1.33x) during resizes to amortize reallocations.`,
-      codeSnippet: `import time\n\n# Measuring fast constant-time lookup\ndata = {f"key_{i}": i * 10 for i in range(10000)}\n\nstart = time.perf_counter()\nval = data["key_9999"]\nend = time.perf_counter()\n\nprint(f"Found value: {val} in {(end - start) * 1e6:.2f} microseconds")`,
-      output: `Found value: 99990 in 0.21 microseconds`,
-      memoryInsight: `CPython hash tables use open addressing with perturbation probing to resolve collisions in O(1) average time.`,
-      suggestedFollowUp: 'How does the load factor threshold determine when a hash table resizes?',
-    };
-  }
-
-  if (q.includes('difference') || q.includes('vs') || q.includes('compare')) {
-    return {
-      answer: `When comparing approaches in **${topic}**, consider these core architectural trade-offs:\n\n1. **Memory Footprint**: Contiguous vs linked allocations affect cache-locality and pointer overhead.\n2. **Access Patterns**: Sequential iteration vs random O(1) indexed lookups dictate data structure choices.\n3. **Mutability & Concurrency**: Immutable structures provide thread-safety and hashability guarantees.`,
-      codeSnippet: `# Comparing data structure efficiency\nimport sys\n\nlist_data = [i for i in range(1000)]\nset_data = {i for i in range(1000)}\n\nprint(f"List size: {sys.getsizeof(list_data)} bytes")\nprint(f"Set size:  {sys.getsizeof(set_data)} bytes")`,
-      output: `List size: 8856 bytes\nSet size:  32984 bytes`,
-      memoryInsight: `Sets allocate hash entry tables with empty padding slots, trading memory for O(1) search speed.`,
-      suggestedFollowUp: 'When is a simple sorted list more efficient than a hash map?',
-    };
-  }
-
-  // General contextual answer
   return {
-    answer: `Regarding **"${question}"** in **${topic}**:\n\n1. **First-Principles Concept**: In ${currentSlide.title || topic}, execution behavior is dictated by how data references and runtime stacks interact.\n2. **Best Practice**: Always validate inputs at system boundaries, write idiomatic constructs, and ensure exception safety.\n3. **Practical Implementation**: Let's inspect the runnable example below to observe how this executes.`,
-    codeSnippet: currentSlide.code || `# Practical example for ${question}\ndef execute_concept():\n    print("Executing validated concept in ${topic}")\n    return True\n\nexecute_concept()`,
-    output: `Executing validated concept in ${topic}`,
-    memoryInsight: `Predictable memory alignment ensures high CPU cache hit rates and deterministic execution times.`,
-    suggestedFollowUp: `What are the most frequent edge cases encountered with ${topic} in production?`,
+    answer: `## 🧠 What is ${cleanQ}?\n\n**${cleanQ}** is a fundamental concept in software engineering and computer science. It defines how systems structure logic, process inputs, and manage operational flow.\n\n### 🔍 Core Mechanism (Step-by-Step)\n1. **Initialization**: The system sets up state, variables, or data context required for execution.\n2. **Processing**: Operations execute sequentially or concurrently based on core rules.\n3. **Evaluation**: Outputs are computed, validated, and returned to the calling context.\n\n### 🌐 Real-World Applications\n* **Production Systems**: Applied in distributed architectures, database engines, and web applications for reliable processing.\n* **Best Practice**: Validate inputs at boundary layers and design for modular, maintainable execution.`,
+    codeSnippet: currentSlide.code || `// Demonstration of ${cleanQ}\nfunction explainConcept() {\n  console.log("Executing core logic for ${cleanQ}");\n  return true;\n}\n\nexplainConcept();`,
+    output: `Executing core logic for ${cleanQ}`,
+    memoryInsight: `Understanding ${cleanQ} ensures optimal system architecture and predictable execution times.`,
+    suggestedFollowUp: `What are the most common edge cases when working with ${cleanQ}?`,
+    nextConcept: {
+      title: `Advanced ${cleanQ} Patterns`,
+      teaser: `Explore how senior engineers optimize ${cleanQ} for high-scale production systems.`,
+    },
   };
 }

@@ -1,6 +1,15 @@
-from pydantic_settings import BaseSettings
-from typing import Optional
 import os
+from pathlib import Path
+from typing import Optional
+from pydantic_settings import BaseSettings
+
+_ROOT_DIR = Path(__file__).resolve().parents[3]
+_ENV_PATHS = [
+    _ROOT_DIR / ".env.local",
+    _ROOT_DIR / ".env",
+    Path(".env.local").resolve(),
+    Path(".env").resolve(),
+]
 
 class Settings(BaseSettings):
     app_name: str = "AURA Learn API"
@@ -12,6 +21,8 @@ class Settings(BaseSettings):
 
     gemini_api_key: Optional[str] = None
     google_tts_api_key: Optional[str] = None
+    fish_audio_api_key: Optional[str] = None
+    openrouter_api_key: Optional[str] = None
     groq_api_key: Optional[str] = None
     nvidia_api_key: Optional[str] = None
     nvidia_base_url: str = "https://openrouter.ai/api/v1"
@@ -24,8 +35,7 @@ class Settings(BaseSettings):
     backend_cors_origins: list[str] = ["http://localhost:3000", "https://auralearn.com", "https://www.auralearn.com"]
 
     class Config:
-        # Try .env.local first (dev), then fall back to environment variables
-        env_file = "../.env.local"
+        env_file = [str(p) for p in _ENV_PATHS if p.exists()] or ".env.local"
         env_file_encoding = "utf-8"
         case_sensitive = False
         extra = "allow"

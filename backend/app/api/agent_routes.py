@@ -1,4 +1,5 @@
-from fastapi import APIRouter, Depends, HTTPException, Header, Request
+import io
+from fastapi import APIRouter, Depends, HTTPException, Header, Request, Response
 from fastapi.responses import StreamingResponse
 from ..agents.teacher_agent import TeacherAgent
 from ..agents.curriculum_agent import CurriculumAgent
@@ -13,7 +14,7 @@ from ..core.config import settings
 from ..schemas.agent_schemas import (
     AgentRequest, AgentResponse, LessonRequest, DoubtRequest,
     CodeRequest, QuizRequest, ProjectRequest, TranslateRequest,
-    GenerateRequest
+    VoiceRequest, GenerateRequest
 )
 
 router = APIRouter()
@@ -128,10 +129,61 @@ async def debug_code(req: CodeRequest, user=Depends(verify_firebase_token)):
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/voice/generate", response_model=AgentResponse)
-async def generate_voice(req: dict, user=Depends(verify_firebase_token)):
+@router.post("/public/voice/generate", response_model=AgentResponse)
+async def generate_voice(req: dict, user=Depends(optional_firebase_token)):
     try:
-        script = await voice.generate_lesson_script(req.get("topic", ""), req.get("duration", 5))
+        topic = req.get("topic") or "Programming & Computer Science"
+        duration = int(req.get("duration") or 5)
+        level = req.get("level") or "Beginner"
+        slide_title = req.get("slide_title")
+        if slide_title:
+            script = await voice.generate_slide_narration(
+                slide_title=slide_title,
+                topic=topic,
+                example_title=req.get("example_title", ""),
+                key_points=req.get("key_points", []),
+            )
+        else:
+            script = await voice.generate_lesson_script(topic, duration, level=level)
         return AgentResponse(success=True, data={"script": script})
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/voice/voices")
+@router.get("/public/voice/voices")
+async def get_voices():
+    """List all supported voice models and languages."""
+    return {"success": True, "data": voice.get_available_voices()}
+
+@router.post("/voice/synthesize", response_model=AgentResponse)
+@router.post("/public/voice/synthesize", response_model=AgentResponse)
+async def synthesize_voice_json(req: VoiceRequest, user=Depends(optional_firebase_token)):
+    """Synthesize text into speech and return base64 audio payload."""
+    try:
+        result = await voice.text_to_speech_base64(
+            text=req.text,
+            voice=req.voice,
+            speed=req.speed,
+        )
+        return AgentResponse(success=result.get("success", False), data=result)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/voice/tts")
+@router.post("/public/voice/tts")
+async def stream_voice_tts(req: VoiceRequest, user=Depends(optional_firebase_token)):
+    """Stream synthesized MP3 audio directly."""
+    try:
+        audio_bytes = await voice.text_to_speech(
+            text=req.text,
+            voice=req.voice,
+            speed=req.speed,
+        )
+        if not audio_bytes:
+            raise HTTPException(status_code=503, detail="TTS synthesis unavailable. Check Google TTS API key or service configuration.")
+        return Response(content=audio_bytes, media_type="audio/mpeg")
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -289,6 +341,33 @@ async def ask_professor_endpoint(request: Request, body: dict = None):
         current_topic=current_topic,
         current_slide=current_slide,
         question=question
+    )
+    return {"success": True, "data": result}
+
+@router.post("/ask-aura")
+@router.post("/public/ask-aura")
+@router.post("/live-class-search")
+@router.post("/public/live-class-search")
+async def live_class_search_endpoint(request: Request, body: dict = None):
+    """Live Class 'Ask AURA' In-Classroom Search & Concept Lookup Endpoint"""
+    if body is None:
+        try:
+            body = await request.json()
+        except Exception:
+            body = {}
+
+    course_title = body.get("courseTitle") or body.get("course_title") or "Masterclass"
+    level = body.get("level") or "Beginner"
+    query = body.get("query") or body.get("question") or body.get("search") or ""
+    syllabus = body.get("syllabus") or body.get("course_syllabus")
+    history = body.get("history") or []
+
+    result = await teacher.live_class_search(
+        course_title=course_title,
+        level=level,
+        query=query,
+        course_syllabus=syllabus,
+        chat_history=history,
     )
     return {"success": True, "data": result}
 
