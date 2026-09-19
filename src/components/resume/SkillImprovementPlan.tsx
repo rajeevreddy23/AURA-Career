@@ -132,7 +132,7 @@ export const SkillImprovementPlan: React.FC = () => {
           <div>
             <h2 className="text-2xl font-bold text-white">Skill Upgrade & Resume Revision Roadmap</h2>
             <p className="text-xs text-slate-400">
-              Targeted skill gaps to learn in AURA Learn and step-by-step resume updates to boost ATS scores.
+              Targeted skill gaps to learn in AuraCareer and step-by-step resume updates to boost ATS scores.
             </p>
           </div>
         </div>

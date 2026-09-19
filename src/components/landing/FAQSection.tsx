@@ -22,7 +22,7 @@ export const FAQSection: React.FC = () => {
             <span className="text-gradient">Questions</span>
           </h2>
           <p className="text-lg text-muted-foreground">
-            Everything you need to know about AURA Learn
+            Everything you need to know about AuraCareer
           </p>
         </motion.div>
 

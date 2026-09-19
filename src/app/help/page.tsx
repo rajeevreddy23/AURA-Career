@@ -24,7 +24,7 @@ import {
 } from 'lucide-react';
 
 const helpCategories = [
-  { icon: BookOpen, label: 'Getting Started', desc: 'Learn the basics of AURA Learn', color: 'bg-blue-500/10 text-blue-500' },
+  { icon: BookOpen, label: 'Getting Started', desc: 'Learn the basics of AuraCareer', color: 'bg-blue-500/10 text-blue-500' },
   { icon: User, label: 'Account & Profile', desc: 'Manage your account settings', color: 'bg-green-500/10 text-green-500' },
   { icon: Bot, label: 'AI Features', desc: 'AI teaching and assistance', color: 'bg-purple-500/10 text-purple-500' },
   { icon: Shield, label: 'Privacy & Security', desc: 'Keep your data safe', color: 'bg-red-500/10 text-red-500' },

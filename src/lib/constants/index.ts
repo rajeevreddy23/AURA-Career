@@ -281,7 +281,7 @@ export const MOCK_COURSES = [
 export const FAQ_ITEMS = [
   {
     question: 'How does AI teaching work?',
-    answer: 'AURA Learn uses advanced AI agents that work together to create personalized learning experiences. The AI analyzes your learning style, progress, and goals to adapt teaching in real-time.',
+    answer: 'AuraCareer uses advanced AI agents that work together to create personalized learning experiences. The AI analyzes your learning style, progress, and goals to adapt teaching in real-time.',
   },
   {
     question: 'Can I learn programming without experience?',
@@ -289,7 +289,7 @@ export const FAQ_ITEMS = [
   },
   {
     question: 'Is the platform available in multiple languages?',
-    answer: 'Yes, AURA Learn supports multiple languages. All lessons, quizzes, notes, and AI conversations automatically adapt to your selected language.',
+    answer: 'Yes, AuraCareer supports multiple languages. All lessons, quizzes, notes, and AI conversations automatically adapt to your selected language.',
   },
   {
     question: 'How are certificates issued?',
@@ -311,7 +311,7 @@ export const TESTIMONIALS = [
     name: 'Alex Thompson',
     role: 'Software Engineer',
     avatar: '/avatars/student1.jpg',
-    content: 'AURA Learn completely transformed how I learn. The AI teacher explains concepts better than any human instructor I have had.',
+    content: 'AuraCareer completely transformed how I learn. The AI teacher explains concepts better than any human instructor I have had.',
     rating: 5,
   },
   {

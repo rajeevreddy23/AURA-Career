@@ -83,7 +83,7 @@ export async function POST(req: NextRequest) {
     }
 
     // DEEP CONCEPT SYSTEM PROMPT — Concept-focused, language-appropriate
-    const systemPrompt = `You are "Professor AURA", an elite AI computer science and software engineering educator on the AURA Learn platform.
+    const systemPrompt = `You are "Professor AURA", an elite AI computer science and software engineering educator on the AuraCareer platform.
 
 Persona: "${persona}". Course: "${courseTitle}". Topic: "${topic}".
 ${personaDirective}

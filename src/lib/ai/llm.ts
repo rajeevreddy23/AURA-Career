@@ -1,5 +1,5 @@
 /**
- * Centralized Multi-Provider LLM Engine for AURA Learn
+ * Centralized Multi-Provider LLM Engine for AuraCareer
  * Tiered priority:
  * 1. Google Gemini (gemini-flash-latest, gemini-2.5-flash, gemini-3.5-flash)
  * 2. Groq (openai/gpt-oss-120b, qwen/qwen3.6-27b, openai/gpt-oss-20b)
@@ -209,8 +209,8 @@ async function callOpenRouter(
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${apiKey}`,
-          'HTTP-Referer': 'https://auralearn.com',
-          'X-Title': 'AURA Learn',
+          'HTTP-Referer': 'https://auracareer.com',
+          'X-Title': 'AuraCareer',
         },
         body: JSON.stringify({
           model,

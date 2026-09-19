@@ -439,7 +439,7 @@ export default function CertificatesPage() {
                 {/* Header Title */}
                 <div className="space-y-1.5">
                   <div className="flex items-center justify-center space-x-2 text-[11px] font-mono uppercase tracking-[0.35em] text-amber-400 font-bold">
-                    <span>✦ AURA LEARN ACADEMIC COUNCIL ✦</span>
+                    <span>✦ AURACAREER ACADEMIC COUNCIL ✦</span>
                   </div>
                   <h1 className="text-3xl sm:text-5xl font-serif font-extrabold text-white tracking-tight">
                     Certificate of Mastery

@@ -379,7 +379,7 @@ export default function LiveClassroomPage() {
 <html>
 <head>
   <meta charset="utf-8"/>
-  <title>AURA Learn Session Notes — ${session.courseTitle}</title>
+  <title>AuraCareer Session Notes — ${session.courseTitle}</title>
   <style>
     body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #070b14; color: #f3f4f6; margin: 0; padding: 40px 20px; }
     .container { max-width: 800px; margin: 0 auto; }
@@ -394,7 +394,7 @@ export default function LiveClassroomPage() {
 <body>
   <div class="container">
     <div class="header">
-      <div class="badge">🎓 AURA Learn University</div>
+      <div class="badge">🎓 AuraCareer University</div>
       <h1>${session.courseTitle}</h1>
       <p class="meta">Generated Session Notes • ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}</p>
       <button onclick="window.print()" class="print-btn">🖨️ Print / Save as PDF</button>
@@ -1052,7 +1052,7 @@ export default function LiveClassroomPage() {
                   </div>
                   <div>
                     <h3 className="text-base font-bold text-white">Course Completion Certificate</h3>
-                    <p className="text-xs text-amber-300 font-mono">Official AURA Learn Certification</p>
+                    <p className="text-xs text-amber-300 font-mono">Official AuraCareer Certification</p>
                   </div>
                 </div>
                 <button onClick={() => setShowCertModal(false)} className="p-2 text-slate-400 hover:text-white rounded-xl bg-slate-800">
@@ -1077,7 +1077,7 @@ export default function LiveClassroomPage() {
                 <div className="pt-3 border-t border-slate-800 flex justify-between items-center text-[10px] font-mono text-slate-400">
                   <span>Grade: A+ (Honors)</span>
                   <span>Date: {new Date().toLocaleDateString()}</span>
-                  <span>ID: AURA-CERT-{urlCourseId}-8924</span>
+                  <span>ID: AURACAREER-CERT-{urlCourseId}-8924</span>
                 </div>
               </div>
 
@@ -1089,7 +1089,7 @@ export default function LiveClassroomPage() {
 <html>
 <head>
   <meta charset="utf-8"/>
-  <title>AURA Learn Certificate — ${studentCertName}</title>
+  <title>AuraCareer Certificate — ${studentCertName}</title>
   <style>
     body { font-family: 'Segoe UI', Roboto, sans-serif; background: #070b14; color: #fff; text-align: center; padding: 60px 40px; }
     .cert { max-width: 800px; margin: 0 auto; border: 4px double #f59e0b; padding: 50px; background: #0f172a; border-radius: 20px; box-shadow: 0 20px 50px rgba(0,0,0,0.5); }
@@ -1101,7 +1101,7 @@ export default function LiveClassroomPage() {
 </head>
 <body>
   <div class="cert">
-    <p>AURA LEARN UNIVERSITY</p>
+    <p>AURACAREER UNIVERSITY</p>
     <h1>CERTIFICATE OF MASTERY</h1>
     <p>This certifies that</p>
     <h2>${studentCertName}</h2>
@@ -1110,7 +1110,7 @@ export default function LiveClassroomPage() {
     <div class="footer">
       <span>Grade: A+ (Honors)</span>
       <span>Date: ${new Date().toLocaleDateString()}</span>
-      <span>Verification ID: AURA-CERT-${urlCourseId}-8924</span>
+      <span>Verification ID: AURACAREER-CERT-${urlCourseId}-8924</span>
     </div>
   </div>
   <script>window.print();</script>

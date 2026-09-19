@@ -28,7 +28,7 @@ export async function POST(req: NextRequest) {
     const currentTopic = topic || 'Computer Science & Programming';
     const currentLevel = level || 'Beginner to Intermediate';
 
-    const systemPrompt = `You are a world-class technical doubt diagnostic AI mentor on AURA Learn.
+    const systemPrompt = `You are a world-class technical doubt diagnostic AI mentor on AuraCareer.
 Your role is to diagnose the student's root misconception, provide a step-by-step mechanical explanation, compare an anti-pattern with the robust solution, and give an exam/interview golden rule.
 
 Topic: "${currentTopic}"

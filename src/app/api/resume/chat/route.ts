@@ -6,7 +6,7 @@ export async function POST(req: NextRequest) {
     
     const API_KEY = process.env.GEMINI_API_KEY || process.env.NEXT_PUBLIC_GEMINI_API_KEY;
     
-    const systemPrompt = `You are an expert career coach and resume advisor on the AURA Learn platform. You have analyzed the user's resume and are now having a conversation about it. Be specific, actionable, and encouraging. Reference specific parts of their resume when giving advice. Use markdown formatting for clarity.\n\nUser's Resume:\n${resumeText}`;
+    const systemPrompt = `You are an expert career coach and resume advisor on the AuraCareer platform. You have analyzed the user's resume and are now having a conversation about it. Be specific, actionable, and encouraging. Reference specific parts of their resume when giving advice. Use markdown formatting for clarity.\n\nUser's Resume:\n${resumeText}`;
     
     const contents = [
       ...(history || []),

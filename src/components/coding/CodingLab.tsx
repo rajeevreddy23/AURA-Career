@@ -14,16 +14,16 @@ import {
 const MonacoEditor = dynamic(() => import('@monaco-editor/react'), { ssr: false });
 
 const SUPPORTED_LANGUAGES = [
-  { id: 'python', label: 'Python', defaultCode: 'print("Hello, AURA Learn!")' },
-  { id: 'javascript', label: 'JavaScript', defaultCode: 'console.log("Hello, AURA Learn!");' },
-  { id: 'typescript', label: 'TypeScript', defaultCode: 'const greeting: string = "Hello, AURA Learn!";\nconsole.log(greeting);' },
-  { id: 'html', label: 'HTML', defaultCode: '<h1>Hello, AURA Learn!</h1>' },
+  { id: 'python', label: 'Python', defaultCode: 'print("Hello, AuraCareer!")' },
+  { id: 'javascript', label: 'JavaScript', defaultCode: 'console.log("Hello, AuraCareer!");' },
+  { id: 'typescript', label: 'TypeScript', defaultCode: 'const greeting: string = "Hello, AuraCareer!";\nconsole.log(greeting);' },
+  { id: 'html', label: 'HTML', defaultCode: '<h1>Hello, AuraCareer!</h1>' },
   { id: 'css', label: 'CSS', defaultCode: 'body {\n  background: #f0f0f0;\n  font-family: sans-serif;\n}' },
-  { id: 'java', label: 'Java', defaultCode: 'public class Main {\n  public static void main(String[] args) {\n    System.out.println("Hello, AURA Learn!");\n  }\n}' },
-  { id: 'cpp', label: 'C++', defaultCode: '#include <iostream>\nint main() {\n  std::cout << "Hello, AURA Learn!" << std::endl;\n  return 0;\n}' },
-  { id: 'go', label: 'Go', defaultCode: 'package main\nimport "fmt"\nfunc main() {\n  fmt.Println("Hello, AURA Learn!")\n}' },
-  { id: 'rust', label: 'Rust', defaultCode: 'fn main() {\n  println!("Hello, AURA Learn!");\n}' },
-  { id: 'sql', label: 'SQL', defaultCode: 'SELECT "Hello, AURA Learn!" AS greeting;' },
+  { id: 'java', label: 'Java', defaultCode: 'public class Main {\n  public static void main(String[] args) {\n    System.out.println("Hello, AuraCareer!");\n  }\n}' },
+  { id: 'cpp', label: 'C++', defaultCode: '#include <iostream>\nint main() {\n  std::cout << "Hello, AuraCareer!" << std::endl;\n  return 0;\n}' },
+  { id: 'go', label: 'Go', defaultCode: 'package main\nimport "fmt"\nfunc main() {\n  fmt.Println("Hello, AuraCareer!")\n}' },
+  { id: 'rust', label: 'Rust', defaultCode: 'fn main() {\n  println!("Hello, AuraCareer!");\n}' },
+  { id: 'sql', label: 'SQL', defaultCode: 'SELECT "Hello, AuraCareer!" AS greeting;' },
 ];
 
 let pyodideInstance: any = null;

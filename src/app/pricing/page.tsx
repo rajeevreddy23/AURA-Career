@@ -21,13 +21,13 @@ export default function PricingPage() {
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
               <Badge variant="primary" size="md" className="mb-4">
                 <Sparkles className="h-3.5 w-3.5 mr-1" />
-                AURA Learn
+                AuraCareer
               </Badge>
               <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold mb-4">
                 All Features Are <span className="text-gradient">Free</span>
               </h1>
               <p className="text-lg text-muted-foreground max-w-2xl mx-auto mb-8">
-                AURA Learn provides all AI-powered features completely free. Start learning today.
+                AuraCareer provides all AI-powered features completely free. Start learning today.
               </p>
               <Button variant="primary" size="lg" onClick={() => router.push('/auth/register')}>
                 Get Started Free

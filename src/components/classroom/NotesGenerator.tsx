@@ -91,7 +91,7 @@ export const NotesGenerator: React.FC<NotesGeneratorProps> = ({
       // Build structured markdown notes
       const markdownLines = [
         `# Class Study Notes: ${topic}`,
-        `*Generated automatically by AURA Learn AI Classroom*`,
+        `*Generated automatically by AuraCareer AI Classroom*`,
         '',
         `## 📝 Executive Summary`,
         summaryText,
@@ -122,7 +122,7 @@ export const NotesGenerator: React.FC<NotesGeneratorProps> = ({
         definitions: definitions.length > 0 ? definitions : defaultDefinitions.slice(0, 2),
         flashcards: flashcards.length > 0 ? flashcards : [
           { front: `What was the topic of this class?`, back: topic },
-          { front: `What skill levels does AURA Learn support?`, back: 'Beginner, Intermediate, and Advanced' }
+          { front: `What skill levels does AuraCareer support?`, back: 'Beginner, Intermediate, and Advanced' }
         ],
         markdown: markdownLines.join('\n')
       });

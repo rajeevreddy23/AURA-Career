@@ -8,7 +8,7 @@ export async function POST(req: NextRequest) {
     const topic = (body.currentTopic || body.topic || 'Computer Science Algorithms').trim();
     const level = body.level || body.difficulty || 'beginner';
 
-    const systemPrompt = `You are an expert coding interview proctor and lab designer on AURA Learn.
+    const systemPrompt = `You are an expert coding interview proctor and lab designer on AuraCareer.
 Generate a concise, interactive, runnable practice coding lab challenge for the topic: "${topic}".
 Level: "${level}".
 

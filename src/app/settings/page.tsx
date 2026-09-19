@@ -127,7 +127,7 @@ export default function SettingsPage() {
       const dataStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(localStorage, null, 2));
       const downloadAnchorNode = document.createElement('a');
       downloadAnchorNode.setAttribute('href', dataStr);
-      downloadAnchorNode.setAttribute('download', `auralearn_settings_backup_${Date.now()}.json`);
+      downloadAnchorNode.setAttribute('download', `auracareer_settings_backup_${Date.now()}.json`);
       document.body.appendChild(downloadAnchorNode);
       downloadAnchorNode.click();
       downloadAnchorNode.remove();
