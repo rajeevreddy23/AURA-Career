@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useAppStore } from '@/contexts/StoreContext';
+import { useAuth } from '@/contexts/AuthContext';
+import { getUserStats, getUserStorageKey } from '@/lib/utils/userData';
 import { Trophy, Star, Target, Zap, Clock, Code, BookOpen, Crown, Lock } from 'lucide-react';
 
 const BADGE_DATA = [
@@ -26,26 +27,33 @@ const TIER_COLORS = {
 };
 
 export function GamificationEngine() {
-  const store = useAppStore?.() as any;
-  const xp = store?.xp || 1250;
-  const level = store?.level || 3;
+  const { user } = useAuth();
+  const userStats = getUserStats(user?.uid);
+  const xp = userStats.xpPoints;
+  const level = userStats.level;
   
   const [earnedBadges, setEarnedBadges] = useState<string[]>([]);
   const [showConfetti, setShowConfetti] = useState(false);
 
   useEffect(() => {
-    const stored = localStorage.getItem('aura_earned_badges');
+    const key = getUserStorageKey('earned_badges', user?.uid);
+    const stored = localStorage.getItem(key);
     if (stored) {
-      setEarnedBadges(JSON.parse(stored));
+      try {
+        setEarnedBadges(JSON.parse(stored));
+      } catch {}
+    } else {
+      setEarnedBadges([]);
     }
-  }, []);
+  }, [user]);
 
   const claimBadge = (id: string) => {
     if (earnedBadges.includes(id)) return;
     
     const newEarned = [...earnedBadges, id];
     setEarnedBadges(newEarned);
-    localStorage.setItem('aura_earned_badges', JSON.stringify(newEarned));
+    const key = getUserStorageKey('earned_badges', user?.uid);
+    localStorage.setItem(key, JSON.stringify(newEarned));
     
     setShowConfetti(true);
     setTimeout(() => setShowConfetti(false), 3000);

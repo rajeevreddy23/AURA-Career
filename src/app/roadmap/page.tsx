@@ -11,6 +11,8 @@ import {
   Database, Globe, Terminal, Briefcase
 } from 'lucide-react';
 import Link from 'next/link';
+import { useAuth } from '@/contexts/AuthContext';
+import { getUserStorageKey } from '@/lib/utils/userData';
 import toast from 'react-hot-toast';
 
 export interface RoadmapNode {
@@ -234,21 +236,25 @@ const CAREER_ROADMAPS: RoadmapDefinition[] = [
 ];
 
 export default function RoadmapPage() {
+  const { user } = useAuth();
   const [selectedRoadmap, setSelectedRoadmap] = useState<RoadmapDefinition>(CAREER_ROADMAPS[0]);
   const [completedNodes, setCompletedNodes] = useState<Set<string>>(new Set());
   const [activeCategory, setActiveCategory] = useState<string>('All');
 
   useEffect(() => {
-    // Load completed nodes from localStorage
+    // Load completed nodes strictly scoped to this user
     try {
-      const stored = localStorage.getItem('aura_completed_roadmap_nodes');
+      const key = getUserStorageKey('completed_roadmap_nodes', user?.uid);
+      const stored = localStorage.getItem(key);
       if (stored) {
         setCompletedNodes(new Set(JSON.parse(stored)));
       } else {
-        setCompletedNodes(new Set(['fs-1', 'ai-1']));
+        setCompletedNodes(new Set());
       }
-    } catch {}
-  }, []);
+    } catch {
+      setCompletedNodes(new Set());
+    }
+  }, [user]);
 
   const toggleNodeCompletion = (nodeId: string) => {
     const updated = new Set(completedNodes);
@@ -261,7 +267,8 @@ export default function RoadmapPage() {
     }
     setCompletedNodes(updated);
     try {
-      localStorage.setItem('aura_completed_roadmap_nodes', JSON.stringify(Array.from(updated)));
+      const key = getUserStorageKey('completed_roadmap_nodes', user?.uid);
+      localStorage.setItem(key, JSON.stringify(Array.from(updated)));
     } catch {}
   };
 
