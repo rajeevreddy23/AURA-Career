@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: auralearn-api
+    name: AURA-Career
     runtime: python
     plan: free
     buildCommand: pip install -r requirements.txt
@@ -11,6 +11,12 @@ services:
         sync: false
       - key: GEMINI_API_KEY
         sync: false
+      - key: OPENROUTER_API_KEY
+        sync: false
+      - key: NVIDIA_API_KEY
+        sync: false
+      - key: FISH_AUDIO_API_KEY
+        sync: false
       - key: GOOGLE_TTS_API_KEY
         sync: false
       - key: FIREBASE_CLIENT_EMAIL
@@ -18,10 +24,11 @@ services:
       - key: FIREBASE_PRIVATE_KEY
         sync: false
       - key: FIREBASE_PROJECT_ID
-        value: auralearn-d0548
+        value: aura-70a87
       - key: DEBUG
         value: "false"
       - key: DATABASE_URL
         sync: false
       - key: REDIS_URL
         sync: false
+

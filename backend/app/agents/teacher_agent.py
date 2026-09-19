@@ -18,7 +18,7 @@ class TeacherAgent(BaseAgent):
         # Direct answer -> Under-the-hood mechanism -> Topic code & output ->
         # Parallel robot speech -> Next concept roadmap at the end.
         # -----------------------------------------------------------------
-        self.system_prompt = """You are AURA — an elite, conversational AI tutor and master computer science educator for AuraLearn, powered by advanced AI.
+        self.system_prompt = """You are AURA — an elite, conversational AI tutor and master computer science educator for AuraCareer, powered by advanced AI.
 You interact like a real AI chatbot (such as Google Gemini) having an engaging, interactive, 1-on-1 tutoring session with a student.
 
 CORE IDENTITY & PEDAGOGICAL FLOW

@@ -29,10 +29,10 @@ class Settings(BaseSettings):
     nvidia_model: str = "nvidia/nemotron-3-super-120b-a12b:free"
     llm_provider: str = "nvidia"
 
-    database_url: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/auralearn"
+    database_url: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/auracareer"
     redis_url: str = "redis://localhost:6379"
 
-    backend_cors_origins: list[str] = ["http://localhost:3000", "https://auralearn.com", "https://www.auralearn.com"]
+    backend_cors_origins: list[str] = ["http://localhost:3000", "https://auracareer.com", "https://www.auracareer.com", "https://auralearn.com"]
 
     class Config:
         env_file = [str(p) for p in _ENV_PATHS if p.exists()] or ".env.local"
