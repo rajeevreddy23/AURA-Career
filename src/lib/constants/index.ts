@@ -1,6 +1,6 @@
-export const APP_NAME = 'AURA Learn';
-export const APP_TAGLINE = 'Your Personal AI University';
-export const APP_DESCRIPTION = 'Learn anything with an AI professor that teaches like a real human instructor.';
+export const APP_NAME = 'AuraCareer';
+export const APP_TAGLINE = 'Your Personal AI University & Career Platform';
+export const APP_DESCRIPTION = 'Learn anything and accelerate your career with AI professors, adaptive roadmaps, and intelligent resume optimization.';
 
 export const NAV_LINKS = [
   { label: 'Home', href: '/' },

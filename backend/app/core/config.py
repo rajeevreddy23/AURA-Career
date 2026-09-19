@@ -12,7 +12,7 @@ _ENV_PATHS = [
 ]
 
 class Settings(BaseSettings):
-    app_name: str = "AURA Learn API"
+    app_name: str = "AuraCareer API"
     debug: bool = False
 
     firebase_project_id: str = "aura-70a87"

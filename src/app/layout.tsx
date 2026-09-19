@@ -4,8 +4,8 @@ import { Providers } from './providers';
 
 export const metadata: Metadata = {
   title: {
-    default: 'AURA Learn - Your Personal AI University',
-    template: '%s | AURA Learn',
+    default: 'AuraCareer - Your Personal AI University',
+    template: '%s | AuraCareer',
   },
   description:
     'Learn any subject with an intelligent AI professor that teaches step by step like a real human instructor. Interactive whiteboard, live coding, voice narration, and personalized learning.',
@@ -18,18 +18,18 @@ export const metadata: Metadata = {
     'interactive classroom',
     'personalized learning',
   ],
-  authors: [{ name: 'AURA Learn' }],
-  creator: 'AURA Learn',
+  authors: [{ name: 'AuraCareer' }],
+  creator: 'AuraCareer',
   openGraph: {
     type: 'website',
     locale: 'en_US',
-    siteName: 'AURA Learn',
-    title: 'AURA Learn - Your Personal AI University',
+    siteName: 'AuraCareer',
+    title: 'AuraCareer - Your Personal AI University',
     description: 'Learn any subject with an intelligent AI professor.',
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'AURA Learn - Your Personal AI University',
+    title: 'AuraCareer - Your Personal AI University',
     description: 'Learn any subject with an intelligent AI professor.',
   },
   robots: {

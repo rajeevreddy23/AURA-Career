@@ -201,7 +201,7 @@ export default function LiveClassroomPage() {
   };
 
   // ── Right Panels
-  const [rightPanel, setRightPanel] = useState<'none' | 'notes'>('none');
+  const [rightPanel, setRightPanel] = useState<'none' | 'notes' | 'group'>('none');
 
   // ── PDF Notes
   const [pdfNotes, setPdfNotes] = useState<PDFNote[]>([]);
