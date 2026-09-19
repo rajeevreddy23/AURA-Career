@@ -14,6 +14,7 @@ import { getCourseSyllabus } from '@/lib/constants/syllabi';
 import { formatDuration, formatNumber } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
 import { useAppStore } from '@/contexts/StoreContext';
+import { saveUserEnrollment, saveUserCourseProgress } from '@/lib/utils/userData';
 import toast from 'react-hot-toast';
 import {
   Play,
@@ -62,19 +63,23 @@ export default function CourseDetailPage() {
   };
 
   const handleEnrollAndStart = (level = selectedLevel) => {
-    // Persist enrollment choice in localStorage and store
-    const enrollmentData = {
-      courseId: course.id,
-      courseTitle: course.title,
-      level,
-      enrolledAt: new Date().toISOString(),
-      currentModuleIndex: 0,
-      currentSlideIndex: 0,
-      completedSlides: [],
-      completedModules: [],
-    };
+    // Persist enrollment choice in user-scoped storage
+    saveUserEnrollment(
+      course.id,
+      {
+        courseId: course.id,
+        courseTitle: course.title,
+        level,
+        enrolledAt: new Date().toISOString(),
+        currentModuleIndex: 0,
+        currentSlideIndex: 0,
+        progress: 0,
+      },
+      user?.uid
+    );
+    saveUserCourseProgress(course.id, 0, user?.uid);
 
-    localStorage.setItem(`aura_enrollment_${course.id}`, JSON.stringify(enrollmentData));
+    // Also set active course pointer
     localStorage.setItem('aura_last_course_id', course.id);
     localStorage.setItem('aura_last_level', level);
     setCourseProgress(course.id, 0);

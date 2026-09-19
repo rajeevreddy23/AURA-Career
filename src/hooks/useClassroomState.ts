@@ -1,8 +1,12 @@
-'use client';
-
 import { useState, useCallback, useRef, useEffect } from 'react';
 import type { ProfessorState } from '@/components/classroom/AIProfessorAvatar';
 import { getCourseSyllabus, COURSE_SYLLABI } from '@/lib/constants/syllabi';
+import { auth } from '@/lib/firebase/config';
+import {
+  saveUserEnrollment,
+  saveUserCourseProgress,
+  issueCredentialForStudent,
+} from '@/lib/utils/userData';
 
 export interface LessonSlide {
   slideId: string;
@@ -241,31 +245,32 @@ export function useClassroomState(initialCourseId = '1') {
       lastUpdated: new Date().toISOString(),
     };
 
-    localStorage.setItem(`aura_enrollment_${currentCourseId}`, JSON.stringify(enrollmentData));
-    localStorage.setItem(`aura_course_progress_${currentCourseId}`, String(Math.min(100, progressPercent)));
+    const uid = auth.currentUser?.uid;
 
-    // If 100% completed, record into completed courses record for Certificates
+    saveUserEnrollment(
+      currentCourseId,
+      {
+        courseId: currentCourseId,
+        courseTitle: session.courseTitle,
+        level: session.difficulty,
+        currentModuleIndex: nextModIdx,
+        currentSlideIndex: nextSlideIdx,
+        progress: Math.min(100, progressPercent),
+      },
+      uid
+    );
+    saveUserCourseProgress(currentCourseId, progressPercent, uid);
+
+    // If 100% completed, issue verified credential strictly to this student
     if (nextModIdx >= nextModules.length - 1 && nextSlideIdx >= (nextModules[nextModIdx]?.slides.length || 1) - 1) {
-      const storedCompleted = localStorage.getItem('aura_completed_courses');
-      let completedList: any[] = [];
-      try {
-        if (storedCompleted) completedList = JSON.parse(storedCompleted);
-      } catch {}
-
-      if (!completedList.some((c) => c.courseId === currentCourseId)) {
-        completedList.push({
-          id: `AURA-CERT-${currentCourseId}-${Date.now()}`,
-          courseId: currentCourseId,
-          courseName: session.courseTitle,
-          level: session.difficulty,
-          date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
-          grade: 'A+',
-          score: 98,
-          verificationId: `VERIFIED-${currentCourseId}-${Math.random().toString(36).substring(2, 9).toUpperCase()}`,
-          skills: [session.courseTitle.split(' ')[0], 'Architecture', 'Applied Engineering'],
-        });
-        localStorage.setItem('aura_completed_courses', JSON.stringify(completedList));
-      }
+      issueCredentialForStudent(
+        currentCourseId,
+        session.courseTitle,
+        'A+ (Honors)',
+        98,
+        [session.courseTitle.split(' ')[0], 'Architecture', 'Applied Engineering'],
+        uid
+      );
     }
   }, [session.courseId, session.courseTitle, session.difficulty]);
 

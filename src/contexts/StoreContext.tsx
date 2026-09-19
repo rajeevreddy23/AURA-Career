@@ -76,6 +76,10 @@ interface AppStore {
   setDailyStreak: (streak: number) => void;
   lastStudyDate: string;
   setLastStudyDate: (date: string) => void;
+
+  // Multi-user Isolation
+  resetUserStore: () => void;
+  hydrateUserStore: (uid: string) => void;
 }
 
 export const useAppStore = create<AppStore>((set) => ({
@@ -158,4 +162,47 @@ export const useAppStore = create<AppStore>((set) => ({
   setDailyStreak: (streak) => set({ dailyStreak: streak }),
   lastStudyDate: '',
   setLastStudyDate: (date) => set({ lastStudyDate: date }),
+
+  resetUserStore: () =>
+    set({
+      enrolledCourses: [],
+      currentCourse: null,
+      currentModule: null,
+      currentChapter: null,
+      courseProgress: {},
+      completedLessons: [],
+      quizResults: [],
+      projects: [],
+      certificates: [],
+      achievements: [],
+      badges: [],
+      xpPoints: 0,
+      level: 1,
+      studyTime: 0,
+      dailyStreak: 0,
+      lastStudyDate: '',
+    }),
+
+  hydrateUserStore: (uid: string) => {
+    if (typeof window === 'undefined' || !uid) return;
+    try {
+      const statsKey = `aura_user_${uid}_stats`;
+      const certsKey = `aura_user_${uid}_certificates`;
+      const rawStats = localStorage.getItem(statsKey);
+      const rawCerts = localStorage.getItem(certsKey);
+      const certs = rawCerts ? JSON.parse(rawCerts) : [];
+      let stats = rawStats ? JSON.parse(rawStats) : null;
+      if (stats) {
+        set({
+          xpPoints: stats.xpPoints || 0,
+          level: stats.level || 1,
+          studyTime: (stats.studyHours || 0) * 60,
+          dailyStreak: stats.dailyStreak || 0,
+          certificates: certs,
+        });
+      } else {
+        set({ certificates: certs });
+      }
+    } catch {}
+  },
 }));

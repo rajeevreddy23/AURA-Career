@@ -4,6 +4,7 @@ import React, { createContext, useContext, useEffect, useState, useCallback, use
 import { onAuthStateChanged, User, sendEmailVerification } from 'firebase/auth';
 import { auth } from '@/lib/firebase/config';
 import { getUserProfile, logout as authLogout } from '@/lib/firebase/auth';
+import { useAppStore } from '@/contexts/StoreContext';
 import type { UserProfile } from '@/types';
 
 interface AuthContextType {
@@ -34,6 +35,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const lastVerificationSent = useRef<number>(0);
+  const { hydrateUserStore, resetUserStore } = useAppStore();
 
   const fetchProfile = useCallback(async (uid: string) => {
     try {
@@ -50,9 +52,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       async (currentUser) => {
         setUser(currentUser);
         if (currentUser) {
+          hydrateUserStore(currentUser.uid);
           await fetchProfile(currentUser.uid);
         } else {
           setProfile(null);
+          resetUserStore();
         }
         setLoading(false);
       },
@@ -63,17 +67,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     );
 
     return () => unsubscribe();
-  }, [fetchProfile]);
+  }, [fetchProfile, hydrateUserStore, resetUserStore]);
 
   const logout = useCallback(async () => {
     try {
       await authLogout();
       setUser(null);
       setProfile(null);
+      resetUserStore();
     } catch {
       setError('Failed to logout');
     }
-  }, []);
+  }, [resetUserStore]);
 
   const refreshProfile = useCallback(async () => {
     if (user) {

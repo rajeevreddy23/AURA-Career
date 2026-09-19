@@ -12,42 +12,64 @@ import { Progress } from '@/components/ui/Progress';
 import { Avatar } from '@/components/ui/Avatar';
 import { Button } from '@/components/ui/Button';
 import { useAuth } from '@/contexts/AuthContext';
-import { useAppStore } from '@/contexts/StoreContext';
+import { MOCK_COURSES } from '@/lib/constants';
+import {
+  getUserStats,
+  getUserEnrollments,
+  getUserCertificates,
+  UserDynamicStats,
+  UserEnrollment,
+  UserCertificate,
+  saveUserEnrollment,
+} from '@/lib/utils/userData';
 import {
   BookOpen, Clock, Flame, Trophy, Zap, Play, ArrowRight, Bell,
-  GraduationCap, Code2, Award, Star, Compass, FileText, Map, Settings, Users, CheckCircle, Sparkles
+  GraduationCap, Code2, Award, Star, Compass, FileText, Map, Settings, Users, CheckCircle, Sparkles, Plus
 } from 'lucide-react';
+import toast from 'react-hot-toast';
 
 export default function DashboardPage() {
-  const { profile } = useAuth();
-  const { xpPoints, level, dailyStreak, studyTime } = useAppStore();
+  const { user, profile } = useAuth();
   const router = useRouter();
 
-  const [courseProgress, setCourseProgress] = useState({
-    python: 0,
-    deepLearning: 0
+  const [stats, setStats] = useState<UserDynamicStats>({
+    enrolledCount: 0,
+    inProgressCount: 0,
+    completedCount: 0,
+    studyHours: 0,
+    xpPoints: 0,
+    level: 1,
+    dailyStreak: 0,
   });
 
+  const [userCourses, setUserCourses] = useState<{ course: any; enrollment: UserEnrollment }[]>([]);
+  const [userCerts, setUserCerts] = useState<UserCertificate[]>([]);
+
+  // Synchronize dashboard whenever user changes or updates
   useEffect(() => {
-    // Load real progress from localStorage
-    const p1 = localStorage.getItem('course_python_progress') || '65';
-    const p2 = localStorage.getItem('course_dl_progress') || '30';
-    setCourseProgress({
-      python: parseInt(p1),
-      deepLearning: parseInt(p2)
+    const currentStats = getUserStats(user?.uid);
+    setStats(currentStats);
+
+    const enrollments = getUserEnrollments(user?.uid);
+    const certs = getUserCertificates(user?.uid);
+    setUserCerts(certs);
+
+    const enrolledList: { course: any; enrollment: UserEnrollment }[] = [];
+    Object.values(enrollments).forEach((enr) => {
+      const match = MOCK_COURSES.find((c) => c.id === enr.courseId);
+      if (match) {
+        enrolledList.push({ course: match, enrollment: enr });
+      }
     });
-  }, []);
+
+    setUserCourses(enrolledList);
+  }, [user, profile]);
 
   const quickStats = [
-    { icon: BookOpen, label: 'Enrolled', value: '4', color: 'bg-blue-500/10 text-blue-500', link: '/courses' },
-    { icon: Play, label: 'In Progress', value: '2', color: 'bg-yellow-500/10 text-yellow-500', link: '/courses' },
-    { icon: Trophy, label: 'Completed', value: '1', color: 'bg-green-500/10 text-green-500', link: '/courses' },
-    { icon: Clock, label: 'Study Hours', value: `${Math.floor(studyTime / 60)}h`, color: 'bg-purple-500/10 text-purple-500', link: '/courses' },
-  ];
-
-  const recentCourses = [
-    { id: 'python', title: 'Python Programming', progress: courseProgress.python, nextLesson: 'Functions & Modules', instructor: 'Dr. Sarah Chen' },
-    { id: 'deep-learning', title: 'Deep Learning', progress: courseProgress.deepLearning, nextLesson: 'Convolutional Neural Networks', instructor: 'Prof. Alex Kumar' },
+    { icon: BookOpen, label: 'Enrolled', value: String(stats.enrolledCount), color: 'bg-blue-500/10 text-blue-500', link: '/courses' },
+    { icon: Play, label: 'In Progress', value: String(stats.inProgressCount), color: 'bg-yellow-500/10 text-yellow-500', link: '/courses' },
+    { icon: Trophy, label: 'Completed', value: String(stats.completedCount), color: 'bg-green-500/10 text-green-500', link: '/certificates' },
+    { icon: Clock, label: 'Study Hours', value: `${stats.studyHours}h`, color: 'bg-purple-500/10 text-purple-500', link: '/courses' },
   ];
 
   const quickActions = [
@@ -61,16 +83,64 @@ export default function DashboardPage() {
     { icon: Bell, label: 'Notifications', path: '/notifications', color: 'text-pink-500 bg-pink-500/10' },
   ];
 
-  const recommendations = [
-    { title: 'Advanced React Patterns', match: '98% match', reason: 'Based on your frontend progress' },
-    { title: 'Machine Learning Basics', match: '94% match', reason: 'Follows Python Programming' },
-  ];
+  // Quick enroll helper for empty state
+  const handleQuickEnroll = (course: any) => {
+    saveUserEnrollment(
+      course.id,
+      {
+        courseId: course.id,
+        courseTitle: course.title,
+        level: 'beginner',
+        enrolledAt: new Date().toISOString(),
+        currentModuleIndex: 0,
+        currentSlideIndex: 0,
+        progress: 10,
+      },
+      user?.uid
+    );
+    toast.success(`Enrolled in ${course.title}!`);
+    router.push(`/classroom?courseId=${course.id}`);
+  };
 
-  const activities = [
-    { title: 'Completed lesson "Loops in Python"', time: '2 hours ago', icon: CheckCircle, color: 'text-green-500' },
-    { title: 'Earned "Fast Learner" badge', time: '1 day ago', icon: Award, color: 'text-yellow-500' },
-    { title: 'Started "Deep Learning"', time: '2 days ago', icon: Play, color: 'text-blue-500' },
-  ];
+  // Build real dynamic activities based on this student's actual account milestones
+  const dynamicActivities: { title: string; time: string; icon: any; color: string }[] = [];
+
+  userCerts.slice(0, 2).forEach((c) => {
+    dynamicActivities.push({
+      title: `Earned Verified Credential: "${c.courseName}"`,
+      time: c.date,
+      icon: Award,
+      color: 'text-yellow-500',
+    });
+  });
+
+  userCourses.slice(0, 2).forEach(({ course, enrollment }) => {
+    if (enrollment.progress > 0) {
+      dynamicActivities.push({
+        title: `Progressed in "${course.title}" (${enrollment.progress}%)`,
+        time: enrollment.lastActive ? new Date(enrollment.lastActive).toLocaleDateString() : 'Recently',
+        icon: Play,
+        color: 'text-blue-500',
+      });
+    } else {
+      dynamicActivities.push({
+        title: `Enrolled in "${course.title}"`,
+        time: new Date(enrollment.enrolledAt).toLocaleDateString(),
+        icon: CheckCircle,
+        color: 'text-green-500',
+      });
+    }
+  });
+
+  if (dynamicActivities.length === 0) {
+    dynamicActivities.push(
+      { title: 'Joined AuraCareer Learning Platform', time: 'Recently', icon: Sparkles, color: 'text-primary' },
+      { title: 'Profile Initialized & Ready for Learning', time: 'Today', icon: CheckCircle, color: 'text-green-500' }
+    );
+  }
+
+  const studentDisplayName =
+    user?.displayName || profile?.displayName || user?.email?.split('@')[0] || 'Learner';
 
   return (
     <main className="min-h-screen">
@@ -84,26 +154,26 @@ export default function DashboardPage() {
             className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 mb-10"
           >
             <div className="flex items-center gap-4">
-              <Avatar src={profile?.photoURL} fallback={profile?.displayName} size="xl" />
+              <Avatar src={profile?.photoURL} fallback={studentDisplayName} size="xl" />
               <div>
                 <h1 className="text-2xl lg:text-3xl font-bold">
-                  Welcome back, {profile?.displayName || 'Learner'}
+                  Welcome back, {studentDisplayName}
                 </h1>
-                <p className="text-muted-foreground">Ready to continue your learning journey?</p>
+                <p className="text-muted-foreground">Ready to continue your individual learning journey?</p>
               </div>
             </div>
             <div className="flex items-center gap-4">
               <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-primary/10">
                 <Zap className="h-5 w-5 text-primary" />
                 <div>
-                  <p className="text-sm font-semibold">{xpPoints.toLocaleString()} XP</p>
-                  <p className="text-xs text-muted-foreground">Level {level}</p>
+                  <p className="text-sm font-semibold">{stats.xpPoints.toLocaleString()} XP</p>
+                  <p className="text-xs text-muted-foreground">Level {stats.level}</p>
                 </div>
               </div>
               <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-orange-500/10">
                 <Flame className="h-5 w-5 text-orange-500" />
                 <div>
-                  <p className="text-sm font-semibold">{dailyStreak} Days</p>
+                  <p className="text-sm font-semibold">{stats.dailyStreak} Days</p>
                   <p className="text-xs text-muted-foreground">Streak</p>
                 </div>
               </div>
@@ -169,44 +239,69 @@ export default function DashboardPage() {
                   <CardTitle>Continue Learning</CardTitle>
                   <Link href="/courses">
                     <Button variant="ghost" size="sm" rightIcon={<ArrowRight className="h-3 w-3" />}>
-                      View All
+                      Browse All
                     </Button>
                   </Link>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  {recentCourses.map((course, index) => (
-                    <motion.div
-                      key={course.title}
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: index * 0.1 }}
-                    >
-                      <div className="group flex items-start gap-4 p-4 rounded-xl border border-border hover:border-primary/30 transition-colors">
-                        <div className="h-14 w-14 rounded-xl bg-gradient-to-br from-primary/20 to-purple-500/20 flex items-center justify-center shrink-0">
-                          <BookOpen className="h-6 w-6 text-primary" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <h4 className="font-medium group-hover:text-primary transition-colors">{course.title}</h4>
-                          <p className="text-sm text-muted-foreground">{course.instructor}</p>
-                          <div className="mt-2 flex items-center gap-2">
-                            <Progress value={course.progress} className="h-2 flex-1" />
-                            <span className="text-xs font-medium">{course.progress}%</span>
-                          </div>
-                          <p className="text-xs text-muted-foreground mt-1">
-                            Next: {course.nextLesson}
-                          </p>
-                        </div>
-                        <Button 
-                          size="sm" 
-                          onClick={() => router.push(`/classroom?course=${course.id}&topic=${encodeURIComponent(course.title)}`)}
-                          className="shrink-0"
-                        >
-                          <Play className="h-4 w-4 mr-2" />
-                          Play
-                        </Button>
+                  {userCourses.length === 0 ? (
+                    <div className="p-6 rounded-2xl border border-dashed border-border text-center space-y-4">
+                      <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto text-primary">
+                        <BookOpen className="h-6 w-6" />
                       </div>
-                    </motion.div>
-                  ))}
+                      <div>
+                        <h4 className="font-bold text-base">No active courses yet</h4>
+                        <p className="text-xs text-muted-foreground mt-1 max-w-sm mx-auto">
+                          Enroll in your first course to begin your AI-guided journey. Your progress and certificates will appear here.
+                        </p>
+                      </div>
+                      <div className="flex flex-wrap justify-center gap-2 pt-1">
+                        {MOCK_COURSES.slice(0, 3).map((c) => (
+                          <button
+                            key={c.id}
+                            onClick={() => handleQuickEnroll(c)}
+                            className="px-3 py-1.5 bg-primary/10 hover:bg-primary/20 text-primary border border-primary/30 rounded-xl text-xs font-semibold transition flex items-center gap-1.5"
+                          >
+                            <Plus className="w-3.5 h-3.5" /> {c.title}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ) : (
+                    userCourses.map(({ course, enrollment }, index) => (
+                      <motion.div
+                        key={course.id}
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: index * 0.1 }}
+                      >
+                        <div className="group flex items-start gap-4 p-4 rounded-xl border border-border hover:border-primary/30 transition-colors">
+                          <div className="h-14 w-14 rounded-xl bg-gradient-to-br from-primary/20 to-purple-500/20 flex items-center justify-center shrink-0">
+                            <BookOpen className="h-6 w-6 text-primary" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <h4 className="font-medium group-hover:text-primary transition-colors">{course.title}</h4>
+                            <p className="text-sm text-muted-foreground">{course.instructor?.name || 'Aura AI Professor'}</p>
+                            <div className="mt-2 flex items-center gap-2">
+                              <Progress value={enrollment.progress} className="h-2 flex-1" />
+                              <span className="text-xs font-medium">{enrollment.progress}%</span>
+                            </div>
+                            <p className="text-xs text-muted-foreground mt-1">
+                              Level: {enrollment.level.toUpperCase()}
+                            </p>
+                          </div>
+                          <Button 
+                            size="sm" 
+                            onClick={() => router.push(`/classroom?courseId=${course.id}&level=${enrollment.level}`)}
+                            className="shrink-0"
+                          >
+                            <Play className="h-4 w-4 mr-2" />
+                            Continue
+                          </Button>
+                        </div>
+                      </motion.div>
+                    ))
+                  )}
                 </CardContent>
               </Card>
 
@@ -215,19 +310,24 @@ export default function DashboardPage() {
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <Sparkles className="h-5 w-5 text-primary" />
-                    AI Recommends
+                    AI Recommends for You
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  {recommendations.map((rec, i) => (
+                  {MOCK_COURSES.slice(3, 5).map((rec, i) => (
                     <div key={i} className="flex items-start justify-between p-4 rounded-xl bg-accent/50">
                       <div>
                         <h4 className="font-medium">{rec.title}</h4>
-                        <p className="text-sm text-muted-foreground">{rec.reason}</p>
+                        <p className="text-sm text-muted-foreground">{rec.category} • {rec.level}</p>
                       </div>
-                      <Badge variant="secondary" className="bg-primary/10 text-primary hover:bg-primary/20">
-                        {rec.match}
-                      </Badge>
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        onClick={() => handleQuickEnroll(rec)}
+                        className="bg-primary/10 text-primary hover:bg-primary/20"
+                      >
+                        Enroll
+                      </Button>
                     </div>
                   ))}
                 </CardContent>
@@ -236,13 +336,13 @@ export default function DashboardPage() {
 
             {/* Sidebar */}
             <div className="space-y-6">
-              {/* Recent Activity */}
+              {/* Real Activity Stream */}
               <Card>
                 <CardHeader>
-                  <CardTitle>Recent Activity</CardTitle>
+                  <CardTitle>Your Activity</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  {activities.map((act, i) => (
+                  {dynamicActivities.map((act, i) => (
                     <div key={i} className="flex items-start gap-3">
                       <div className={`mt-0.5 ${act.color}`}>
                         <act.icon className="h-5 w-5" />
@@ -264,9 +364,9 @@ export default function DashboardPage() {
                 <CardContent className="space-y-4">
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-muted-foreground">Study Time</span>
-                    <span className="font-medium">{studyTime} min / 60 min</span>
+                    <span className="font-medium">{Math.min(60, stats.studyHours * 15)} min / 60 min</span>
                   </div>
-                  <Progress value={(studyTime / 60) * 100} />
+                  <Progress value={Math.min(100, ((stats.studyHours * 15) / 60) * 100)} />
                 </CardContent>
               </Card>
             </div>
