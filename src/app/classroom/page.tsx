@@ -17,6 +17,7 @@ import { ExitClassModal } from '@/components/classroom/ExitClassModal';
 import { useClassroomState } from '@/hooks/useClassroomState';
 import { useAuth } from '@/contexts/AuthContext';
 import { playAuraVoice, stopAllVoicePlayback, sanitizeSpeechText } from '@/lib/ai/voice';
+import MermaidChart from '@/components/classroom/MermaidChart';
 import toast from 'react-hot-toast';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -69,18 +70,36 @@ function renderInlineSpans(text: string) {
   });
 }
 
-function renderFormattedText(text: string) {
-  // Handle code blocks
+function renderFormattedText(text: string, onCopySnippet?: (code: string) => void) {
+  // Handle code blocks (including mermaid)
   const sections = text.split(/(```[\s\S]*?```)/g);
   return sections.map((section, sidx) => {
     if (section.startsWith('```')) {
-      const lang = section.match(/```(\w+)/)?.[1] || 'code';
-      const code = section.replace(/```\w*\n?/, '').replace(/```$/, '').trim();
+      const match = section.match(/```(\w+)?\n?([\s\S]*?)```/);
+      const lang = (match?.[1] || 'code').toLowerCase();
+      const code = (match?.[2] || '').trim();
+
+      // If Mermaid flowchart, render through MermaidChart
+      if (lang === 'mermaid') {
+        return <MermaidChart key={sidx} chart={code} />;
+      }
+
       return (
-        <div key={sidx} className="my-3 rounded-xl bg-slate-950 border border-slate-800 overflow-hidden">
-          <div className="px-3 py-1.5 bg-slate-900 border-b border-slate-800 flex items-center space-x-2">
-            <Terminal className="w-3 h-3 text-purple-400" />
-            <span className="text-[10px] font-mono text-slate-400">{lang}</span>
+        <div key={sidx} className="my-3.5 rounded-2xl bg-slate-950 border border-slate-800 shadow-xl overflow-hidden group">
+          <div className="px-4 py-2 bg-slate-900 border-b border-slate-800 flex items-center justify-between">
+            <div className="flex items-center space-x-2">
+              <Terminal className="w-3.5 h-3.5 text-purple-400" />
+              <span className="text-[11px] font-mono text-purple-300 font-bold uppercase tracking-wider">{lang}</span>
+            </div>
+            {onCopySnippet && (
+              <button
+                onClick={() => onCopySnippet(code)}
+                className="flex items-center space-x-1 text-[11px] font-mono text-slate-400 hover:text-purple-300 px-2 py-1 rounded bg-slate-800/80 hover:bg-slate-800 transition"
+              >
+                <Copy className="w-3 h-3" />
+                <span>Copy Code</span>
+              </button>
+            )}
           </div>
           <pre className="p-4 text-xs font-mono text-purple-200 overflow-x-auto leading-relaxed whitespace-pre-wrap">
             <code>{code}</code>
@@ -88,36 +107,78 @@ function renderFormattedText(text: string) {
         </div>
       );
     }
-    // Normal text lines
+
+    // Normal text lines, callouts, and lists
     const lines = section.split('\n');
     return (
-      <div key={sidx}>
+      <div key={sidx} className="space-y-1">
         {lines.map((line, idx) => {
           if (!line.trim()) return <div key={idx} className="h-2" />;
-          if (line.startsWith('## 🧠') || line.startsWith('## 🔍') || line.startsWith('## 🌐') || line.startsWith('## 💻') || line.startsWith('## 🔬') || line.startsWith('## ⚙️') || line.startsWith('## 🔗')) {
-            return <h3 key={idx} className="font-bold text-purple-300 text-sm mt-6 mb-2 flex items-center space-x-2 border-b border-purple-900/30 pb-1">{line.replace(/^##\s/, '')}</h3>;
-          }
-          if (line.startsWith('## ') || line.startsWith('# '))
-            return <h2 key={idx} className="font-bold text-white text-base mt-5 mb-2">{line.replace(/^#+\s/, '')}</h2>;
-          if (line.startsWith('### '))
-            return <h4 key={idx} className="font-bold text-purple-200 text-sm mt-3 mb-1 font-mono">{line.slice(4)}</h4>;
-          if (line.match(/^[\*\-•]\s/))
+
+          // Callout boxes: > ...
+          if (line.startsWith('>')) {
+            const content = line.replace(/^>\s*/, '');
+            const isTip = content.includes('💡') || content.toLowerCase().includes('tip');
+            const isWarn = content.includes('⚠️') || content.toLowerCase().includes('trap') || content.toLowerCase().includes('warning');
             return (
-              <div key={idx} className="flex items-start space-x-2 my-1.5">
-                <span className="text-purple-400 mt-1 shrink-0">•</span>
+              <div
+                key={idx}
+                className={`my-3 p-3.5 rounded-xl border flex items-start space-x-3 text-xs leading-relaxed ${
+                  isWarn
+                    ? 'bg-amber-950/30 border-amber-500/40 text-amber-200'
+                    : isTip
+                    ? 'bg-purple-950/40 border-purple-500/40 text-purple-200'
+                    : 'bg-slate-900/60 border-slate-700 text-slate-200'
+                }`}
+              >
+                <div className="shrink-0 text-base">{isWarn ? '⚠️' : isTip ? '💡' : '📌'}</div>
+                <div className="flex-1">{renderInlineSpans(content)}</div>
+              </div>
+            );
+          }
+
+          // Headers
+          if (line.startsWith('### ')) {
+            return (
+              <h4 key={idx} className="font-bold text-purple-300 text-sm mt-4 mb-1.5 flex items-center gap-2">
+                <Sparkles className="w-3.5 h-3.5 text-purple-400 shrink-0" />
+                <span>{line.slice(4)}</span>
+              </h4>
+            );
+          }
+          if (line.startsWith('## ')) {
+            return (
+              <h3 key={idx} className="font-extrabold text-white text-base mt-5 mb-2 pb-1 border-b border-purple-500/20 flex items-center gap-2">
+                <span>{line.slice(3)}</span>
+              </h3>
+            );
+          }
+          if (line.startsWith('# ')) {
+            return <h2 key={idx} className="font-extrabold text-white text-lg mt-6 mb-3">{line.slice(2)}</h2>;
+          }
+
+          // Bullet and numbered lists
+          if (line.match(/^[\*\-•]\s/)) {
+            return (
+              <div key={idx} className="flex items-start space-x-2 my-1">
+                <span className="text-purple-400 mt-1 shrink-0 font-bold">•</span>
                 <span className="text-slate-200 text-sm leading-relaxed">{renderInlineSpans(line.replace(/^[\*\-•]\s/, ''))}</span>
               </div>
             );
+          }
           if (line.match(/^\d+\.\s/)) {
             const m = line.match(/^(\d+)\.\s(.*)/);
             return (
-              <div key={idx} className="flex items-start space-x-2 my-1.5">
-                <span className="text-purple-300 font-mono text-xs font-bold shrink-0 mt-0.5 bg-purple-950/80 px-1.5 py-0.5 rounded">{m?.[1]}</span>
+              <div key={idx} className="flex items-start space-x-2.5 my-1.5">
+                <span className="text-purple-300 font-mono text-xs font-bold shrink-0 mt-0.5 bg-purple-950/90 border border-purple-800/60 px-2 py-0.5 rounded-full">
+                  {m?.[1]}
+                </span>
                 <span className="text-slate-200 text-sm leading-relaxed">{renderInlineSpans(m?.[2] || '')}</span>
               </div>
             );
           }
-          return <p key={idx} className="my-1 text-slate-200 text-sm leading-relaxed">{renderInlineSpans(line)}</p>;
+
+          return <p key={idx} className="my-1.5 text-slate-200 text-sm leading-relaxed">{renderInlineSpans(line)}</p>;
         })}
       </div>
     );
@@ -210,27 +271,18 @@ export default function LiveClassroomPage() {
   const speechRecognitionRef = useRef<any>(null);
   const continuousRecogRef = useRef<any>(null);
 
-  // ── Initialize first feed item
+  const hasLoadedLiveInitialLesson = useRef(false);
+
+  // ── Initialize with Live AI Lesson (No static pre-baked slides)
   useEffect(() => {
-    if (feedItems.length === 0 && currentSlide?.title) {
-      const initialItem: ConceptFeedItem = {
-        id: `init-${Date.now()}`,
-        type: 'concept',
-        title: currentSlide.title,
-        topic: currentModule.moduleTitle || 'Core Concepts',
-        explanation: currentSlide.explanation || currentSlide.speech || 'Welcome! Ask any question to get a complete, detailed explanation with code examples.',
-        code: currentSlide.code || undefined,
-        output: currentSlide.code ? '# Output appears here after execution' : undefined,
-        speech: currentSlide.speech,
-        memoryInsight: currentSlide.keyPoints?.[0] || undefined,
-        nextConcept: { title: 'Core Process & Under the Hood', teaser: 'Learn exactly how this works step-by-step at the protocol and memory level.' },
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      };
-      setFeedItems([initialItem]);
-      setExpandedItems(new Set([initialItem.id]));
-      if (isVoiceEnabled && initialItem.speech) speakText(initialItem.speech);
+    if (!hasLoadedLiveInitialLesson.current && currentSlide?.title && session.courseTitle) {
+      hasLoadedLiveInitialLesson.current = true;
+      const initialTopic = currentSlide.title;
+      const initialModule = currentModule.moduleTitle || session.courseTitle;
+      // Trigger live AI generation immediately
+      handleSendQuestion(`Explain the complete core architecture of ${initialTopic} with a visual flowchart diagram, practical code, and under-the-hood execution mechanics.`);
     }
-  }, [currentSlide, currentModule]);
+  }, [currentSlide, currentModule, session.courseTitle]);
 
   // ── Auto-scroll
   useEffect(() => {
@@ -261,10 +313,14 @@ export default function LiveClassroomPage() {
     setAIState('thinking' as ProfessorState);
 
     const qId = `q-${Date.now()}`;
+    const userLabel = textToSend.startsWith('Explain the complete core architecture of') 
+      ? `Topic Overview: ${currentSlide?.title || 'Core Architecture'}` 
+      : textToSend;
+
     setFeedItems((prev) => [...prev, {
       id: qId,
       type: 'qna',
-      title: `Your Question`,
+      title: userLabel.length > 55 ? userLabel.slice(0, 52) + '...' : userLabel,
       topic: currentModule.moduleTitle || 'Inquiry',
       explanation: textToSend,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
@@ -282,6 +338,13 @@ export default function LiveClassroomPage() {
           courseTitle: session.courseTitle,
           currentTopic: currentModule.moduleTitle,
           difficulty: isFastMode ? 'turbo_fast' : activeDifficulty,
+          // Multi-turn history like ChatGPT
+          history: feedItems.slice(-8).map((f) => ({
+            role: f.type === 'qna' ? 'user' : 'assistant',
+            sender: f.type === 'qna' ? 'Student' : 'Professor Aura',
+            text: f.explanation,
+            content: f.explanation,
+          })),
           currentSlide: {
             title: feedItems[feedItems.length - 1]?.title || currentSlide?.title || textToSend,
             explanation: feedItems[feedItems.length - 1]?.explanation || '',
@@ -294,11 +357,15 @@ export default function LiveClassroomPage() {
       const d = resJson.data || resJson;
 
       const aId = `a-${Date.now()}`;
+      const answerTitle = textToSend.startsWith('Explain the complete core architecture of')
+        ? (currentSlide?.title || 'Masterclass Overview')
+        : (textToSend.length > 50 ? textToSend.slice(0, 47) + '...' : textToSend);
+
       const newItem: ConceptFeedItem = {
         id: aId,
         type: 'concept',
-        title: d.nextConcept?.title || textToSend.slice(0, 50),
-        topic: currentModule.moduleTitle || '',
+        title: answerTitle,
+        topic: currentModule.moduleTitle || session.courseTitle || '',
         explanation: d.answer || 'Here is the step-by-step breakdown.',
         code: d.codeSnippet || undefined,
         output: d.output || undefined,
@@ -317,7 +384,7 @@ export default function LiveClassroomPage() {
       setPdfNotes((prev) => [
         {
           id: `note-${Date.now()}`,
-          title: textToSend.slice(0, 60),
+          title: answerTitle,
           content: d.answer,
           code: d.codeSnippet,
           timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
@@ -619,7 +686,7 @@ export default function LiveClassroomPage() {
                     >
                       {/* Full explanation */}
                       <div className="space-y-1 select-text">
-                        {renderFormattedText(item.explanation)}
+                        {renderFormattedText(item.explanation, (code) => copyCode(code, item.id))}
                       </div>
 
                       {/* Stand-alone code block (if not inlined in explanation) */}

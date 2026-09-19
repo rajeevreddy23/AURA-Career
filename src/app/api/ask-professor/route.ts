@@ -82,56 +82,45 @@ export async function POST(req: NextRequest) {
       difficultyDirective = 'DIFFICULTY LEVEL: TURBO FAST. Be super rapid, punchy, 2-3 short paragraphs max with a concise code snippet.';
     }
 
-    // DEEP CONCEPT SYSTEM PROMPT — Concept-focused, language-appropriate
-    const systemPrompt = `You are "Professor AURA", an elite AI computer science and software engineering educator on the AuraCareer platform.
+    // ADVANCED CHATGPT / GEMINI CONVERSATIONAL AI PROFESSOR DIRECTIVES
+    const systemPrompt = `You are "Professor AURA", a world-class conversational AI educator and principal engineer on AuraCareer, functioning with the intellectual depth, warmth, and teaching excellence of ChatGPT-4o and Google Gemini 1.5 Pro.
 
-Persona: "${persona}". Course: "${courseTitle}". Topic: "${topic}".
+Persona: "${persona}". Course: "${courseTitle}". Active Topic: "${topic}".
 ${personaDirective}
 ${difficultyDirective}
 
-STRICT INSTRUCTIONS:
-1. FOCUS STRICTLY ON THE USER'S ASKED CONCEPT ("${studentQuestion}"). Do NOT drift into unrelated topics or Python memory models unless Python was explicitly requested.
-2. Adopt the selected TEACHING STYLE (${personaDirective}) and DIFFICULTY LEVEL (${difficultyDirective}) in your response tone and depth.
-3. Use language-appropriate code or pseudocode matching the requested domain (e.g. JS/TS for web, C/C++ for OS/memory, SQL for databases, general pseudocode/Python ONLY if appropriate).
+YOUR CORE PEDAGOGY & CHATGPT-GRADE BEHAVIOR:
+1. NATURAL CONVERSATIONAL TONE: Talk directly to the student like a real, brilliant 1-on-1 mentor having an active conversation. Greet their question naturally and empathetically.
+2. LIVE VISUAL FLOWCHART (MANDATORY): Always include a clean, syntactically valid Mermaid.js diagram (using \`\`\`mermaid ... \`\`\`) in your markdown answer. Use \`graph TD\`, \`sequenceDiagram\`, or \`stateDiagram-v2\` to visually map out the concept's data flow, state machine, or step-by-step architecture. Ensure valid Mermaid syntax without special character issues.
+3. FIRST-PRINCIPLES & UNDER-THE-HOOD MECHANISM: Do not stay on the surface. Walk through the internal machinery—how memory, call stacks, event loops, database indices, or CPU registers process this concept.
+4. PRODUCTION CODE & DRY-RUN TRACE: Provide clean, idiomatic, syntax-highlighted code matching the topic domain. Follow the code with an execution trace showing what happens at each step.
+5. REAL-WORLD FAANG / INDUSTRY USAGE: Explain how top engineering teams (e.g. Google, Netflix, Uber, Stripe) utilize this in production systems at scale.
+6. WATCH OUT FOR THIS TRAP (ANTI-PATTERNS): Contrast a common junior developer misconception with the robust senior engineering pattern.
+7. INTERACTIVE SOCRATIC CHALLENGE: Finish your response by asking the student a thought-provoking scenario or challenge question ("💡 Over to you: What happens if...? Let me know your thoughts!") to drive active learning.
 
-MANDATORY RESPONSE STRUCTURE for the "answer" field:
-
-## 🧠 What is [Concept]?
-Write a crystal-clear, intuitive definition of "${studentQuestion}". Use a memorable real-world analogy.
-
-## 🔍 Core Mechanism — How It Works (Step-by-Step)
-Explain step-by-step how "${studentQuestion}" operates under the hood.
-
-## 🌐 Real-World Applications & Industry Uses
-Provide concrete real-world use cases where this exact concept is applied in production.
-
-## 💻 Code / Concrete Example
-Provide a clean, production-ready code snippet or structural example demonstrating "${studentQuestion}".
-
-## 🔬 Key Takeaways & Best Practices
-Highlight trade-offs, common pitfalls, and architectural best practices.
-
-Student question: "${studentQuestion}"
-Recent chat:
+Recent Chat Context:
 ${history.slice(-4).map((h) => `${h.sender || h.name || 'User'}: ${h.text || h.content || ''}`).join('\n')}
 
-Respond ONLY as valid JSON (no markdown fences) with this schema:
+MANDATORY JSON RESPONSE SCHEMA (Return ONLY valid JSON):
 {
-  "answer": "FULL MARKDOWN RESPONSE answering '${studentQuestion}'",
-  "speech": "A concise 2-3 sentence spoken overview of the core concept for the AI avatar.",
-  "codeSnippet": "Code snippet demonstrating the exact concept",
-  "output": "Console/terminal output of the example",
-  "memoryInsight": "Key technical insight about efficiency, complexity, or architecture of this concept.",
-  "suggestedFollowUp": "1 insightful follow-up question to deepen understanding.",
+  "answer": "Full comprehensive markdown explanation with conversational opening, \`\`\`mermaid diagram, deep mechanics, code with comments, industry context, anti-patterns, and interactive Socratic challenge.",
+  "speech": "An energetic, natural conversational spoken summary (2-3 sentences max) for the floating AI avatar to speak aloud.",
+  "codeSnippet": "The primary clean, runnable code snippet demonstrating the concept.",
+  "output": "Exact simulated console / terminal output.",
+  "memoryInsight": "One deep technical punchline regarding time/space complexity or internal architecture.",
+  "suggestedFollowUp": "An intriguing follow-up question for the student to explore next.",
   "nextConcept": {
-    "title": "Logical next concept to explore",
-    "teaser": "Brief preview of why the next concept matters."
+    "title": "Logical Next Concept",
+    "teaser": "Quick compelling preview of why this next concept builds upon what was just learned."
   }
 }`;
 
-    const userPrompt = `The student asks: "${studentQuestion}"
+    const userPrompt = `Student question: "${studentQuestion}"
 
-Provide a thorough, direct explanation of "${studentQuestion}". Focus strictly on what was asked.`;
+Course: "${courseTitle}"
+Topic: "${topic}"
+
+Provide a world-class, engaging, comprehensive ChatGPT/Gemini-grade explanation of "${studentQuestion}" with a visual Mermaid flowchart diagram, under-the-hood execution mechanics, runnable code, and an interactive Socratic challenge.`;
 
     const responseData = await generateStructuredJSON<ProfessorResponseData>(
       systemPrompt,
@@ -182,16 +171,55 @@ function generateIntelligentFallback(
   currentSlide: { title?: string; code?: string; explanation?: string }
 ): ProfessorResponseData {
   const cleanQ = question.trim() || 'Core Concept';
+  const sanitizedTitle = cleanQ.replace(/[^a-zA-Z0-9 ]/g, '').slice(0, 30) || 'ExecutionFlow';
 
   return {
-    answer: `## 🧠 What is ${cleanQ}?\n\n**${cleanQ}** is a fundamental concept in software engineering and computer science. It defines how systems structure logic, process inputs, and manage operational flow.\n\n### 🔍 Core Mechanism (Step-by-Step)\n1. **Initialization**: The system sets up state, variables, or data context required for execution.\n2. **Processing**: Operations execute sequentially or concurrently based on core rules.\n3. **Evaluation**: Outputs are computed, validated, and returned to the calling context.\n\n### 🌐 Real-World Applications\n* **Production Systems**: Applied in distributed architectures, database engines, and web applications for reliable processing.\n* **Best Practice**: Validate inputs at boundary layers and design for modular, maintainable execution.`,
-    codeSnippet: currentSlide.code || `// Demonstration of ${cleanQ}\nfunction explainConcept() {\n  console.log("Executing core logic for ${cleanQ}");\n  return true;\n}\n\nexplainConcept();`,
-    output: `Executing core logic for ${cleanQ}`,
-    memoryInsight: `Understanding ${cleanQ} ensures optimal system architecture and predictable execution times.`,
-    suggestedFollowUp: `What are the most common edge cases when working with ${cleanQ}?`,
+    answer: `Let's break down **${cleanQ}** from first principles! This is a pivotal building block in modern software engineering and systems architecture.
+
+### 📊 Visual Execution Flow
+\`\`\`mermaid
+graph TD
+  A[Input Trigger: ${sanitizedTitle}] --> B[Processing & Memory Allocation]
+  B --> C{Validation & Logic Flow}
+  C -->|Valid Path| D[Optimal Execution & Output]
+  C -->|Edge Case| E[Recovery Handler & Boundary Check]
+  D --> F[Caller Context Updated]
+\`\`\`
+
+### 🔍 Under-the-Hood Mechanics
+1. **State & Environment Setup**: The runtime initializes the call frame, allocates required memory on the stack or heap, and validates incoming parameters.
+2. **Deterministic Processing**: The logic executes according to algorithmic invariants, maintaining consistent state transitions.
+3. **Unwinding & Resource Cleanup**: Upon completion, return values are pushed to the caller and allocated references are safely resolved.
+
+### 💻 Live Implementation Example
+\`\`\`typescript
+// Production-grade implementation for ${cleanQ}
+export function handleConceptExecution(inputData: Record<string, unknown>) {
+  if (!inputData || Object.keys(inputData).length === 0) {
+    throw new Error('Invalid input parameter passed to execution context');
+  }
+  
+  // Core processing pipeline
+  console.log("Processing ${cleanQ} logic with optimal time complexity...");
+  return { status: "success", timestamp: Date.now() };
+}
+\`\`\`
+
+### 🏢 Real-World Industry Application (FAANG Scale)
+In large-scale production architectures (such as distributed microservices at Google or Netflix), **${cleanQ}** is utilized to maintain data consistency, enforce boundary contracts, and prevent cascading systemic failures.
+
+> 💡 **Watch Out for This Trap**: A common junior mistake is omitting defensive boundary checks or ignoring resource exhaustion edge cases. Always benchmark under peak concurrency loads.
+
+---
+💡 **Check Your Understanding**: If the incoming input in the example above was null or encountered a network timeout, how would your error boundary respond? Let me know your thoughts or ask your next question below!`,
+    speech: `Welcome! Let's explore ${cleanQ}. It defines how logic and memory execute reliably under the hood. Take a look at the live architecture flowchart below!`,
+    codeSnippet: currentSlide.code || `// Implementation of ${cleanQ}\nfunction run() {\n  console.log("Executing ${cleanQ}...");\n  return true;\n}\nrun();`,
+    output: `Executing ${cleanQ}... [Status: 200 OK]`,
+    memoryInsight: `Mastering ${cleanQ} gives you deep architectural leverage when building high-throughput systems.`,
+    suggestedFollowUp: `How does ${cleanQ} perform under heavy concurrency loads?`,
     nextConcept: {
       title: `Advanced ${cleanQ} Patterns`,
-      teaser: `Explore how senior engineers optimize ${cleanQ} for high-scale production systems.`,
+      teaser: `Explore how senior staff engineers optimize ${cleanQ} for global distributed scale.`,
     },
   };
 }
