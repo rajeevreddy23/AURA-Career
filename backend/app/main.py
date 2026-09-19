@@ -14,6 +14,12 @@ from .api import router as api_router
 async def lifespan(app: FastAPI):
     init_firebase()
     try:
+        from .core.database import init_db
+        await init_db()
+        print("[INFO] PostgreSQL database connected and tables initialized.")
+    except Exception as e:
+        print(f"[WARN] Database initialization: {e}")
+    try:
         await get_redis()
     except Exception as e:
         print(f"[WARN] Redis unavailable: {e}")
