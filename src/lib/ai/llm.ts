@@ -74,8 +74,9 @@ async function callGemini(
 
   const candidateModels = [
     'gemini-2.5-flash',
-    'gemini-1.5-flash-latest',
-    'gemini-2.0-flash',
+    'gemini-2.5-flash-lite',
+    'gemini-flash-lite-latest',
+    'gemini-2.5-pro',
     'gemini-flash-latest',
   ];
 
@@ -96,7 +97,7 @@ async function callGemini(
               responseMimeType: options.jsonMode ? 'application/json' : undefined,
             },
           }),
-          signal: AbortSignal.timeout(5000),
+          signal: AbortSignal.timeout(20000),
         }
       );
 
@@ -130,10 +131,10 @@ async function callGroq(
   if (!apiKey) return null;
 
   const candidateModels = [
-    { id: 'llama-3.3-70b-specdec', maxTok: 4096 },
-    { id: 'qwen-2.5-coder-32b', maxTok: 4096 },
-    { id: 'deepseek-r1-distill-llama-70b', maxTok: 4096 },
-    { id: 'llama-3.2-3b-preview', maxTok: 4096 },
+    { id: 'qwen/qwen3.8-27b', maxTok: 4096 },
+    { id: 'groq/compound-mini', maxTok: 4096 },
+    { id: 'groq/compound', maxTok: 4096 },
+    { id: 'openai/gpt-oss-120b', maxTok: 4096 },
   ];
 
   const safeSystem = systemPrompt.slice(0, 4000);
@@ -159,7 +160,7 @@ async function callGroq(
           max_tokens: Math.min(options.maxTokens ?? 4096, maxTok),
           response_format: options.jsonMode && model.includes('llama') ? { type: 'json_object' } : undefined,
         }),
-        signal: AbortSignal.timeout(4000),
+        signal: AbortSignal.timeout(12000),
       });
 
       if (res.ok) {
@@ -198,8 +199,8 @@ async function callOpenRouter(
   ];
 
   const messages = [
-    ...(systemPrompt ? [{ role: 'system', content: systemPrompt }] : []),
-    { role: 'user', content: userPrompt },
+    ...(systemPrompt ? [{ role: 'system' as const, content: systemPrompt.slice(0, 4000) }] : []),
+    { role: 'user' as const, content: userPrompt.slice(0, 4000) },
   ];
 
   for (const model of candidateModels) {
@@ -242,22 +243,22 @@ async function callOpenRouter(
 
 
 /**
- * Generates text using the best available LLM provider (Fastest tier first for instant replies)
+ * Generates text using the best available LLM provider
  */
 export async function generateLLMText(
   systemPrompt: string,
   userPrompt: string,
   options: LLMOptions = {}
 ): Promise<string | null> {
-  // 1. Tier 1 (ULTRA-FAST < 1s): Groq Llama 3.1 & 3.3 Engine
+  // 1. Tier 1 (Ultra-fast <2s): Groq Qwen 3.8 / Compound with instant Mermaid & Markdown
   const groqRes = await callGroq(systemPrompt, userPrompt, options);
   if (groqRes) return groqRes;
 
-  // 2. Tier 2 (LIVE REAL AI ~ 1s): Google Gemini API
+  // 2. Tier 2 (Deep Reasoning): Google Gemini 2.5 Flash
   const geminiRes = await callGemini(systemPrompt, userPrompt, options);
   if (geminiRes) return geminiRes;
 
-  // 3. Tier 3 (BACKUP): OpenRouter API
+  // 3. Tier 3 (Backup): OpenRouter API
   const openRouterRes = await callOpenRouter(systemPrompt, userPrompt, options);
   if (openRouterRes) return openRouterRes;
 
