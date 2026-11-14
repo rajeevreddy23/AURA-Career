@@ -4,6 +4,7 @@
 ### *Next-Generation AI-Powered Interactive Career & Learning Platform*
 
 [![Next.js](https://img.shields.io/badge/Next.js-14.2-black?style=for-the-badge&logo=next.js&logoColor=white)](https://nextjs.org/)
+[![Vercel](https://img.shields.io/badge/Vercel-Live%20Demo-black?style=for-the-badge&logo=vercel&logoColor=white)](https://aura-career.vercel.app)
 [![React](https://img.shields.io/badge/React-18.3-61DAFB?style=for-the-badge&logo=react&logoColor=black)](https://reactjs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.5-blue?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-3.4-38B2AC?style=for-the-badge&logo=tailwind-css&logoColor=white)](https://tailwindcss.com/)
@@ -16,7 +17,12 @@
 
 <br/>
 
-[🚀 Launch Demo](#-quick-start) • [⚡ AI Features](#-core-ai-features) • [🤖 AI Teachers](#-dynamic-ai-teacher-personas) • [🛠️ Tech Stack](#%EF%B8%8F-tech-stack) • [📄 License](#-license)
+### 🌐 Live Production Links
+**[👉 Launch Live Web App (Vercel)](https://aura-career.vercel.app)** &nbsp;•&nbsp; **[Official Custom Domain (auracareer.com)](https://www.auracareer.com)** &nbsp;•&nbsp; **[AuraLearn Mirror](https://aura-learn-lyart.vercel.app)**
+
+<br/>
+
+[🚀 Live Demo](https://aura-career.vercel.app) • [⚡ AI Features](#-core-ai-features) • [🤖 AI Teachers](#-dynamic-ai-teacher-personas) • [🛠️ Tech Stack](#%EF%B8%8F-tech-stack) • [📄 License](#-license)
 
 ---
 
@@ -135,6 +141,17 @@ npm run dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000) in your browser!
+
+---
+
+## 🌐 Live Deployments
+
+The platform is deployed globally on **Vercel** with the backend running on **Render**:
+- **Primary Domain:** [https://www.auracareer.com](https://www.auracareer.com)
+- **Vercel App URL:** [https://aura-career.vercel.app](https://aura-career.vercel.app)
+- **AuraLearn Mirror:** [https://aura-learn-lyart.vercel.app](https://aura-learn-lyart.vercel.app)
+- **FastAPI Backend API:** [https://aura-career.onrender.com](https://aura-career.onrender.com)
+- **API Interactive Swagger Docs:** [https://aura-career.onrender.com/docs](https://aura-career.onrender.com/docs)
 
 ---
 
