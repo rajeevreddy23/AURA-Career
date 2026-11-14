@@ -15,6 +15,11 @@ export interface LLMOptions {
   temperature?: number;
   maxTokens?: number;
   jsonMode?: boolean;
+  deadlineAt?: number;
+}
+
+function providerTimeout(options: LLMOptions, maximum: number) {
+  return Math.max(1, Math.min(maximum, (options.deadlineAt || Date.now() + maximum) - Date.now()));
 }
 
 /**
@@ -73,16 +78,15 @@ async function callGemini(
   if (!apiKey) return null;
 
   const candidateModels = [
-    'gemini-2.5-flash',
-    'gemini-2.5-flash-lite',
-    'gemini-flash-lite-latest',
-    'gemini-2.5-pro',
+    ...(process.env.GEMINI_MODEL ? [process.env.GEMINI_MODEL] : []),
     'gemini-flash-latest',
+    'gemini-2.5-flash',
   ];
 
   const fullPrompt = systemPrompt ? `${systemPrompt}\n\n${userPrompt}` : userPrompt;
 
   for (const model of candidateModels) {
+    if (options.deadlineAt && Date.now() >= options.deadlineAt) return null;
     try {
       const res = await fetch(
         `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
@@ -92,12 +96,12 @@ async function callGemini(
           body: JSON.stringify({
             contents: [{ role: 'user', parts: [{ text: fullPrompt }] }],
             generationConfig: {
-              temperature: options.temperature ?? 0.6,
+              temperature: options.temperature ?? 0.4,
               maxOutputTokens: options.maxTokens ?? 4096,
               responseMimeType: options.jsonMode ? 'application/json' : undefined,
             },
           }),
-          signal: AbortSignal.timeout(20000),
+          signal: AbortSignal.timeout(providerTimeout(options, 10000)),
         }
       );
 
@@ -131,14 +135,14 @@ async function callGroq(
   if (!apiKey) return null;
 
   const candidateModels = [
+    { id: 'openai/gpt-oss-120b', maxTok: 4096 },
     { id: 'qwen/qwen3.8-27b', maxTok: 4096 },
     { id: 'groq/compound-mini', maxTok: 4096 },
-    { id: 'groq/compound', maxTok: 4096 },
-    { id: 'openai/gpt-oss-120b', maxTok: 4096 },
+    { id: 'openai/gpt-oss-20b', maxTok: 4096 },
   ];
 
-  const safeSystem = systemPrompt.slice(0, 4000);
-  const safeUser = userPrompt.slice(0, 4000);
+  const safeSystem = systemPrompt.slice(0, 18000);
+  const safeUser = userPrompt.slice(0, 8000);
 
   const messages = [
     ...(safeSystem ? [{ role: 'system', content: safeSystem }] : []),
@@ -146,6 +150,7 @@ async function callGroq(
   ];
 
   for (const { id: model, maxTok } of candidateModels) {
+    if (options.deadlineAt && Date.now() >= options.deadlineAt) return null;
     try {
       const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
         method: 'POST',
@@ -156,11 +161,11 @@ async function callGroq(
         body: JSON.stringify({
           model,
           messages,
-          temperature: options.temperature ?? 0.6,
+          temperature: options.temperature ?? 0.5,
           max_tokens: Math.min(options.maxTokens ?? 4096, maxTok),
-          response_format: options.jsonMode && model.includes('llama') ? { type: 'json_object' } : undefined,
+          response_format: options.jsonMode ? { type: 'json_object' } : undefined,
         }),
-        signal: AbortSignal.timeout(12000),
+        signal: AbortSignal.timeout(providerTimeout(options, 8000)),
       });
 
       if (res.ok) {
@@ -199,11 +204,12 @@ async function callOpenRouter(
   ];
 
   const messages = [
-    ...(systemPrompt ? [{ role: 'system' as const, content: systemPrompt.slice(0, 4000) }] : []),
+    ...(systemPrompt ? [{ role: 'system' as const, content: systemPrompt.slice(0, 18000) }] : []),
     { role: 'user' as const, content: userPrompt.slice(0, 4000) },
   ];
 
   for (const model of candidateModels) {
+    if (options.deadlineAt && Date.now() >= options.deadlineAt) return null;
     try {
       const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
         method: 'POST',
@@ -216,11 +222,11 @@ async function callOpenRouter(
         body: JSON.stringify({
           model,
           messages,
-          temperature: options.temperature ?? 0.7,
+          temperature: options.temperature ?? 0.6,
           max_tokens: options.maxTokens ?? 4096,
           response_format: options.jsonMode ? { type: 'json_object' } : undefined,
         }),
-        signal: AbortSignal.timeout(6000),
+        signal: AbortSignal.timeout(providerTimeout(options, 8000)),
       });
 
       if (res.ok) {
@@ -241,24 +247,24 @@ async function callOpenRouter(
   return null;
 }
 
-
 /**
  * Generates text using the best available LLM provider
+ * Priority: 1. Gemini (Native high-quality) -> 2. Groq (Ultra-fast) -> 3. OpenRouter
  */
 export async function generateLLMText(
   systemPrompt: string,
   userPrompt: string,
   options: LLMOptions = {}
 ): Promise<string | null> {
-  // 1. Tier 1 (Ultra-fast <2s): Groq Qwen 3.8 / Compound with instant Mermaid & Markdown
-  const groqRes = await callGroq(systemPrompt, userPrompt, options);
-  if (groqRes) return groqRes;
-
-  // 2. Tier 2 (Deep Reasoning): Google Gemini 2.5 Flash
+  // 1. Tier 1: Google Gemini (gemini-2.5-flash)
   const geminiRes = await callGemini(systemPrompt, userPrompt, options);
   if (geminiRes) return geminiRes;
 
-  // 3. Tier 3 (Backup): OpenRouter API
+  // 2. Tier 2: Groq (Ultra-fast)
+  const groqRes = await callGroq(systemPrompt, userPrompt, options);
+  if (groqRes) return groqRes;
+
+  // 3. Tier 3: OpenRouter API
   const openRouterRes = await callOpenRouter(systemPrompt, userPrompt, options);
   if (openRouterRes) return openRouterRes;
 
@@ -266,7 +272,61 @@ export async function generateLLMText(
 }
 
 /**
- * Generates and parses structured JSON from LLM
+ * Attempts to safely parse or recover JSON from raw LLM text
+ */
+function tryParseOrRecoverJSON<T>(rawText: string): T | null {
+  if (!rawText) return null;
+
+  // Attempt 1: Standard cleaned parse
+  try {
+    const cleaned = cleanJSONString(rawText);
+    return JSON.parse(cleaned) as T;
+  } catch {
+    // Continue to recovery
+  }
+
+  // Attempt 2: Extract innermost JSON object or array
+  try {
+    const jsonMatch = rawText.match(/\{[\s\S]*\}|\[[\s\S]*\]/);
+    if (jsonMatch) {
+      // Fix unescaped control chars
+      const sanitized = jsonMatch[0]
+        .replace(/[\u0000-\u001F]+/g, (match) => {
+          if (match.includes('\n')) return '\\n';
+          if (match.includes('\r')) return '\\r';
+          if (match.includes('\t')) return '\\t';
+          return '';
+        })
+        .replace(/,\s*([}\]])/g, '$1');
+      return JSON.parse(sanitized) as T;
+    }
+  } catch {
+    // Continue to recovery
+  }
+
+  // Attempt 3: Regex extraction for key fields if the output is an answer payload
+  try {
+    const answerMatch = rawText.match(/"answer"\s*:\s*"([\s\S]*?)(?:",\s*"[a-zA-Z]|\s*"$|\s*})/);
+    const codeMatch = rawText.match(/```(?:\w+)?\n([\s\S]*?)```/);
+    const mermaidMatch = rawText.match(/```mermaid\n([\s\S]*?)```/);
+
+    if (answerMatch || rawText.includes('###') || rawText.includes('```')) {
+      const fallbackObj: any = {
+        answer: answerMatch ? answerMatch[1].replace(/\\n/g, '\n').replace(/\\"/g, '"') : rawText,
+        codeSnippet: codeMatch ? codeMatch[1].trim() : undefined,
+        speech: 'Here is the direct concept breakdown with visual flow and code.',
+      };
+      return fallbackObj as T;
+    }
+  } catch {
+    // Failed all recovery
+  }
+
+  return null;
+}
+
+/**
+ * Generates and parses structured JSON from LLM with multi-provider fallback loop
  */
 export async function generateStructuredJSON<T>(
   systemPrompt: string,
@@ -274,29 +334,42 @@ export async function generateStructuredJSON<T>(
   fallbackGenerator?: () => T,
   options: LLMOptions = {}
 ): Promise<T> {
-  const jsonOptions: LLMOptions = { ...options, jsonMode: true };
-  const rawText = await generateLLMText(systemPrompt, userPrompt, jsonOptions);
+  const jsonOptions: LLMOptions = { ...options, jsonMode: true, deadlineAt: options.deadlineAt || Date.now() + 40000 };
 
-  if (rawText) {
-    try {
-      const cleaned = cleanJSONString(rawText);
-      const parsed = JSON.parse(cleaned) as T;
-      return parsed;
-    } catch (parseErr) {
-      console.warn('Failed to parse LLM JSON directly, attempting recovery...', parseErr);
-      try {
-        // Try extracting innermost json block
-        const jsonMatch = rawText.match(/\{[\s\S]*\}|\[[\s\S]*\]/);
-        if (jsonMatch) {
-          const recovered = JSON.parse(jsonMatch[0]) as T;
-          return recovered;
-        }
-      } catch (recoveryErr) {
-        console.error('JSON recovery failed:', recoveryErr);
-      }
+  // Provider 1: Gemini (Tier 1 - Native JSON Schema validation)
+  try {
+    const geminiText = await callGemini(systemPrompt, userPrompt, jsonOptions);
+    if (geminiText) {
+      const parsed = tryParseOrRecoverJSON<T>(geminiText);
+      if (parsed) return parsed;
     }
+  } catch (err) {
+    console.warn('[LLM] Gemini structured generation failed:', err);
   }
 
+  // Provider 2: Groq with JSON Mode (Tier 2 - Fast fallback)
+  try {
+    const groqText = await callGroq(systemPrompt, userPrompt, jsonOptions);
+    if (groqText) {
+      const parsed = tryParseOrRecoverJSON<T>(groqText);
+      if (parsed) return parsed;
+    }
+  } catch (err) {
+    console.warn('[LLM] Groq structured generation failed:', err);
+  }
+
+  // Provider 3: OpenRouter (Tier 3)
+  try {
+    const openRouterText = await callOpenRouter(systemPrompt, userPrompt, jsonOptions);
+    if (openRouterText) {
+      const parsed = tryParseOrRecoverJSON<T>(openRouterText);
+      if (parsed) return parsed;
+    }
+  } catch (err) {
+    console.warn('[LLM] OpenRouter structured generation failed:', err);
+  }
+
+  // Final fallback
   if (fallbackGenerator) {
     return fallbackGenerator();
   }

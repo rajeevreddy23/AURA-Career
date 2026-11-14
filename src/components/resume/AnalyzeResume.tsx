@@ -196,30 +196,47 @@ export const AnalyzeResume: React.FC<AnalyzeResumeProps> = ({ onNavigateToJobs }
   // Verdict Styling Helpers
   const getVerdictBadge = (verdict: string) => {
     if (verdict === 'Excellent') {
-      return <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30 px-3 py-1 text-sm font-semibold">Excellent</Badge>;
+      return (
+        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 shadow-sm shadow-emerald-950/40">
+          <CheckCircle2 className="h-3.5 w-3.5" /> Excellent Match
+        </span>
+      );
     } else if (verdict === 'Good') {
-      return <Badge className="bg-blue-500/20 text-blue-400 border-blue-500/30 px-3 py-1 text-sm font-semibold">Good</Badge>;
+      return (
+        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 shadow-sm shadow-cyan-950/40">
+          <CheckCircle2 className="h-3.5 w-3.5" /> Strong Potential
+        </span>
+      );
     } else {
-      return <Badge className="bg-amber-500/20 text-amber-400 border-amber-500/30 px-3 py-1 text-sm font-semibold">Needs Work</Badge>;
+      return (
+        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30 shadow-sm shadow-amber-950/40">
+          <AlertCircle className="h-3.5 w-3.5" /> Needs Optimization
+        </span>
+      );
     }
   };
 
-  // Render Score Circular Gauge
+  // Render Score Circular Gauge with Glow
   const renderCircularGauge = (score: number) => {
-    const radius = 52;
+    const radius = 54;
     const circumference = 2 * Math.PI * radius;
     const strokeDashoffset = circumference - (score / 100) * circumference;
-    const strokeColor = score >= 80 ? '#10b981' : score >= 60 ? '#3b82f6' : '#f59e0b';
+    const strokeColor = score >= 80 ? '#10b981' : score >= 60 ? '#38bdf8' : '#f59e0b';
+    const glowColor = score >= 80 ? 'rgba(16, 185, 129, 0.25)' : score >= 60 ? 'rgba(56, 189, 248, 0.25)' : 'rgba(245, 158, 11, 0.25)';
 
     return (
-      <div className="relative flex items-center justify-center w-36 h-36">
-        <svg className="transform -rotate-90 w-36 h-36">
-          <circle cx="72" cy="72" r={radius} stroke="currentColor" strokeWidth="10" fill="transparent" className="text-slate-800" />
+      <div className="relative flex items-center justify-center w-40 h-40">
+        <div
+          className="absolute inset-2 rounded-full blur-xl pointer-events-none"
+          style={{ backgroundColor: glowColor }}
+        />
+        <svg className="transform -rotate-90 w-40 h-40 relative z-10">
+          <circle cx="80" cy="80" r={radius} stroke="currentColor" strokeWidth="10" fill="transparent" className="text-slate-800/80" />
           <motion.circle
             initial={{ strokeDashoffset: circumference }}
             animate={{ strokeDashoffset }}
             transition={{ duration: 1.5, ease: 'easeOut' }}
-            cx="72" cy="72" r={radius}
+            cx="80" cy="80" r={radius}
             stroke={strokeColor}
             strokeWidth="10"
             fill="transparent"
@@ -227,9 +244,9 @@ export const AnalyzeResume: React.FC<AnalyzeResumeProps> = ({ onNavigateToJobs }
             strokeLinecap="round"
           />
         </svg>
-        <div className="absolute flex flex-col items-center justify-center text-center">
+        <div className="absolute flex flex-col items-center justify-center text-center z-20">
           <span className="text-4xl font-extrabold text-white tracking-tight">{score}</span>
-          <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Out of 100</span>
+          <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">ATS Score</span>
         </div>
       </div>
     );
@@ -239,7 +256,7 @@ export const AnalyzeResume: React.FC<AnalyzeResumeProps> = ({ onNavigateToJobs }
     <div className="space-y-8">
       {/* ERROR ALERT */}
       {errorMsg && (
-        <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="p-4 rounded-xl bg-red-950/60 border border-red-800 text-red-200 flex items-start gap-3">
+        <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="p-4 rounded-xl bg-red-950/60 border border-red-800 text-red-200 flex items-start gap-3 shadow-lg">
           <AlertCircle className="h-5 w-5 text-red-400 shrink-0 mt-0.5" />
           <div className="flex-1 text-sm">{errorMsg}</div>
           <button onClick={() => setErrorMsg(null)} className="text-red-400 hover:text-red-200">
@@ -252,38 +269,41 @@ export const AnalyzeResume: React.FC<AnalyzeResumeProps> = ({ onNavigateToJobs }
       {!analysis && (
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6 max-w-4xl mx-auto">
           {/* Main Upload Card */}
-          <Card className="bg-slate-900/90 border-slate-800 shadow-xl overflow-hidden backdrop-blur">
-            <CardHeader className="border-b border-slate-800/60 pb-5">
-              <div className="flex items-center gap-3">
-                <div className="p-2.5 rounded-xl bg-primary/10 text-primary border border-primary/20">
+          <div className="relative group rounded-3xl bg-slate-900/90 border border-slate-800 shadow-2xl overflow-hidden backdrop-blur-xl p-6 sm:p-8">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-slate-800/80 mb-6">
+              <div className="flex items-center gap-3.5">
+                <div className="p-3 rounded-2xl bg-purple-500/10 text-purple-400 border border-purple-500/20 shadow-inner">
                   <Sparkles className="h-6 w-6" />
                 </div>
                 <div>
-                  <CardTitle className="text-2xl font-bold">AI Resume Analyzer</CardTitle>
-                  <CardDescription className="text-slate-400">
-                    Scan your resume against real ATS criteria, uncover missing keywords, and get tailored recommendations.
-                  </CardDescription>
+                  <h2 className="text-xl sm:text-2xl font-bold text-white">AI ATS Resume Evaluator</h2>
+                  <p className="text-xs sm:text-sm text-slate-400 mt-0.5">
+                    Extracts formatting, computes keyword density, and scores against modern recruiter algorithms.
+                  </p>
                 </div>
               </div>
-            </CardHeader>
+              <span className="self-start sm:self-center px-3 py-1 rounded-full text-xs font-mono font-medium bg-slate-800/80 border border-slate-700 text-slate-300">
+                PDF Format Supported
+              </span>
+            </div>
 
-            <CardContent className="pt-6 space-y-6">
+            <div className="space-y-6">
               {/* PDF Dropzone */}
               <div>
-                <label className="block text-sm font-semibold mb-2 text-slate-200">
-                  1. Upload Resume (PDF) <span className="text-red-400">*</span>
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-2">
+                  Step 1 • Upload Resume (PDF) <span className="text-purple-400">*</span>
                 </label>
                 <div
                   onDragOver={(e) => { e.preventDefault(); setIsDragOver(true); }}
                   onDragLeave={() => setIsDragOver(false)}
                   onDrop={handleDrop}
                   onClick={() => fileInputRef.current?.click()}
-                  className={`border-2 border-dashed rounded-2xl p-8 text-center cursor-pointer transition-all duration-200 ${
+                  className={`relative border-2 border-dashed rounded-2xl p-8 sm:p-10 text-center cursor-pointer transition-all duration-300 ${
                     isDragOver
-                      ? 'border-primary bg-primary/10'
+                      ? 'border-purple-500 bg-purple-950/20 shadow-xl shadow-purple-950/40'
                       : selectedFile
-                      ? 'border-emerald-500/50 bg-emerald-950/10'
-                      : 'border-slate-700 bg-slate-800/40 hover:border-slate-500 hover:bg-slate-800/70'
+                      ? 'border-emerald-500/60 bg-emerald-950/15 shadow-lg shadow-emerald-950/30'
+                      : 'border-slate-700/80 bg-slate-950/50 hover:border-purple-500/50 hover:bg-slate-900/80'
                   }`}
                 >
                   <input
@@ -295,23 +315,28 @@ export const AnalyzeResume: React.FC<AnalyzeResumeProps> = ({ onNavigateToJobs }
                   />
 
                   {selectedFile ? (
-                    <div className="flex flex-col items-center gap-2">
-                      <div className="p-3 bg-emerald-500/20 text-emerald-400 rounded-full">
+                    <div className="flex flex-col items-center gap-3">
+                      <div className="p-3.5 bg-emerald-500/20 text-emerald-300 rounded-2xl border border-emerald-500/30 shadow-md">
                         <FileText className="h-8 w-8" />
                       </div>
-                      <p className="font-semibold text-emerald-400 text-lg">{selectedFile.name}</p>
-                      <p className="text-xs text-slate-400">{(selectedFile.size / 1024).toFixed(1)} KB — Click or drag to replace</p>
+                      <div>
+                        <p className="font-bold text-white text-base sm:text-lg">{selectedFile.name}</p>
+                        <p className="text-xs text-emerald-400 font-mono mt-0.5">
+                          {(selectedFile.size / 1024).toFixed(1)} KB • Ready for AI Parsing
+                        </p>
+                      </div>
+                      <span className="text-xs text-slate-400 hover:text-slate-200 underline mt-1">Click to replace file</span>
                     </div>
                   ) : (
                     <div className="flex flex-col items-center gap-3">
-                      <div className="p-4 bg-slate-800 rounded-2xl border border-slate-700 text-primary">
-                        <UploadCloud className="h-10 w-10" />
+                      <div className="p-4 bg-slate-800/80 rounded-2xl border border-slate-700/80 text-purple-400 shadow-inner group-hover:scale-105 transition-transform">
+                        <UploadCloud className="h-9 w-9" />
                       </div>
                       <div>
-                        <p className="font-semibold text-slate-200 text-lg">
-                          Drag and drop your PDF resume here, or <span className="text-primary underline">browse</span>
+                        <p className="font-semibold text-slate-200 text-base sm:text-lg">
+                          Drag and drop your PDF resume here, or <span className="text-purple-400 underline font-bold">browse</span>
                         </p>
-                        <p className="text-xs text-slate-400 mt-1">Supports standard text-based PDF format</p>
+                        <p className="text-xs text-slate-400 mt-1">Standard single or multi-page text-based PDF documents</p>
                       </div>
                     </div>
                   )}
@@ -319,33 +344,52 @@ export const AnalyzeResume: React.FC<AnalyzeResumeProps> = ({ onNavigateToJobs }
               </div>
 
               {/* Optional Job Context */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
+              <div className="space-y-4 pt-2">
                 <div>
-                  <label className="block text-sm font-semibold mb-2 text-slate-200">
-                    Target Job Role <span className="text-slate-400 font-normal">(Optional)</span>
-                  </label>
-                  <select
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="block text-xs font-bold uppercase tracking-wider text-slate-300">
+                      Step 2 • Target Role <span className="text-slate-500 font-normal lowercase">(optional)</span>
+                    </label>
+                    <span className="text-[11px] text-purple-400 font-medium">Quick Presets</span>
+                  </div>
+
+                  {/* Preset Quick Chips */}
+                  <div className="flex flex-wrap gap-1.5 mb-2.5">
+                    {PRESET_ROLES.slice(0, 6).map((role) => (
+                      <button
+                        key={role}
+                        type="button"
+                        onClick={() => setTargetRole(role)}
+                        className={`px-2.5 py-1 text-xs rounded-lg border transition-colors ${
+                          targetRole === role
+                            ? 'bg-purple-600/30 text-purple-200 border-purple-500/50 font-semibold shadow-sm'
+                            : 'bg-slate-800/60 text-slate-400 border-slate-700/60 hover:text-slate-200 hover:bg-slate-800'
+                        }`}
+                      >
+                        {role}
+                      </button>
+                    ))}
+                  </div>
+
+                  <input
+                    type="text"
                     value={targetRole}
                     onChange={(e) => setTargetRole(e.target.value)}
-                    className="w-full bg-slate-800/80 border border-slate-700 rounded-xl px-4 py-2.5 text-slate-200 focus:outline-none focus:border-primary text-sm"
-                  >
-                    <option value="">Select or type a role...</option>
-                    {PRESET_ROLES.map((role) => (
-                      <option key={role} value={role}>{role}</option>
-                    ))}
-                  </select>
+                    placeholder="Or type a custom role (e.g. Senior Frontend Architect)..."
+                    className="w-full bg-slate-950/70 border border-slate-700/80 rounded-xl px-4 py-2.5 text-slate-100 placeholder-slate-500 focus:outline-none focus:border-purple-500 text-sm shadow-inner"
+                  />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-semibold mb-2 text-slate-200">
-                    Paste Target Job Description <span className="text-slate-400 font-normal">(Optional)</span>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-2">
+                    Target Job Description <span className="text-slate-500 font-normal lowercase">(optional for exact keyword diff)</span>
                   </label>
                   <textarea
                     value={targetJobDescription}
                     onChange={(e) => setTargetJobDescription(e.target.value)}
-                    placeholder="Paste job posting text to perform targeted keyword matching..."
+                    placeholder="Paste job posting text here to perform exact ATS keyword gap matching..."
                     rows={3}
-                    className="w-full bg-slate-800/80 border border-slate-700 rounded-xl px-4 py-2.5 text-slate-200 placeholder-slate-500 focus:outline-none focus:border-primary text-sm resize-none"
+                    className="w-full bg-slate-950/70 border border-slate-700/80 rounded-xl px-4 py-2.5 text-slate-100 placeholder-slate-500 focus:outline-none focus:border-purple-500 text-sm resize-none shadow-inner"
                   />
                 </div>
               </div>
@@ -356,7 +400,7 @@ export const AnalyzeResume: React.FC<AnalyzeResumeProps> = ({ onNavigateToJobs }
                   onClick={runAnalysis}
                   disabled={isAnalyzing || !selectedFile}
                   size="lg"
-                  className="w-full sm:w-auto px-8 py-6 rounded-xl font-bold text-base shadow-lg shadow-primary/25"
+                  className="w-full sm:w-auto px-8 py-6 rounded-xl font-bold text-sm sm:text-base bg-gradient-to-r from-purple-600 via-indigo-600 to-cyan-600 hover:opacity-95 shadow-xl shadow-purple-600/25 transition-all"
                 >
                   {isAnalyzing ? (
                     <div className="flex items-center gap-3">
@@ -365,35 +409,36 @@ export const AnalyzeResume: React.FC<AnalyzeResumeProps> = ({ onNavigateToJobs }
                     </div>
                   ) : (
                     <div className="flex items-center gap-2">
-                      <Zap className="h-5 w-5" />
-                      <span>Analyze Resume with AI</span>
+                      <Zap className="h-5 w-5 text-amber-300" />
+                      <span>Run AI ATS Evaluation</span>
                     </div>
                   )}
                 </Button>
               </div>
-            </CardContent>
-          </Card>
+            </div>
+          </div>
         </motion.div>
       )}
 
       {/* ANALYZING LOADING MODAL / OVERLAY */}
       {isAnalyzing && (
-        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
-          <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-slate-900 border border-slate-800 p-8 rounded-2xl max-w-md w-full text-center space-y-6 shadow-2xl">
+        <div className="fixed inset-0 bg-slate-950/85 backdrop-blur-md z-50 flex items-center justify-center p-4">
+          <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-slate-900 border border-slate-800 p-8 rounded-3xl max-w-md w-full text-center space-y-6 shadow-2xl relative overflow-hidden">
+            <div className="absolute -top-12 -left-12 w-32 h-32 bg-purple-500/20 blur-2xl rounded-full" />
             <div className="relative flex items-center justify-center w-20 h-20 mx-auto">
-              <div className="absolute inset-0 rounded-full border-4 border-primary/20 animate-ping" />
-              <div className="p-4 bg-primary/10 text-primary rounded-full border border-primary/30">
+              <div className="absolute inset-0 rounded-full border-4 border-purple-500/30 animate-ping" />
+              <div className="p-4 bg-purple-500/15 text-purple-400 rounded-2xl border border-purple-500/30 shadow-lg">
                 <Sparkles className="h-10 w-10 animate-pulse" />
               </div>
             </div>
             <div>
-              <h3 className="text-xl font-bold text-white mb-2">AI Scanning in Progress</h3>
-              <p className="text-sm text-primary font-medium animate-pulse">{loadingStep}</p>
+              <h3 className="text-xl font-bold text-white mb-1.5">AI ATS Analysis In Progress</h3>
+              <p className="text-sm text-purple-400 font-medium animate-pulse">{loadingStep}</p>
             </div>
-            <div className="w-full bg-slate-800 h-2 rounded-full overflow-hidden">
-              <div className="bg-primary h-full rounded-full animate-pulse w-3/4" />
+            <div className="w-full bg-slate-800 h-2 rounded-full overflow-hidden shadow-inner">
+              <div className="bg-gradient-to-r from-purple-500 via-indigo-500 to-cyan-500 h-full rounded-full animate-pulse w-3/4" />
             </div>
-            <p className="text-xs text-slate-400">This usually takes under 10 seconds.</p>
+            <p className="text-xs text-slate-400">Deep AI multi-tier evaluation takes only 4 to 8 seconds.</p>
           </motion.div>
         </div>
       )}
@@ -402,21 +447,21 @@ export const AnalyzeResume: React.FC<AnalyzeResumeProps> = ({ onNavigateToJobs }
       {analysis && !isAnalyzing && (
         <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} className="space-y-8">
           {/* Header Bar */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-900/80 border border-slate-800 rounded-2xl p-6 shadow-lg">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-900/90 border border-slate-800 rounded-3xl p-6 shadow-xl backdrop-blur-xl">
             <div>
-              <div className="flex items-center gap-3 mb-1">
-                <h2 className="text-2xl font-bold text-white">Analysis Results</h2>
+              <div className="flex items-center gap-3 mb-1.5">
+                <h2 className="text-2xl font-extrabold text-white">ATS Evaluation Report</h2>
                 {getVerdictBadge(analysis.ats_verdict)}
               </div>
-              <p className="text-sm text-slate-400">
-                {selectedFile ? `File: ${selectedFile.name}` : 'Resume evaluation complete'}
+              <p className="text-xs sm:text-sm text-slate-400">
+                {selectedFile ? `Scanned document: ${selectedFile.name}` : 'Cached resume analysis loaded'}
               </p>
             </div>
             <div className="flex items-center gap-3">
               {onNavigateToJobs && (
-                <Button onClick={onNavigateToJobs} className="gap-2 font-bold shadow-lg shadow-primary/20">
+                <Button onClick={onNavigateToJobs} className="gap-2 font-bold bg-gradient-to-r from-purple-600 to-indigo-600 hover:opacity-95 shadow-lg shadow-purple-600/25">
                   <Briefcase className="h-4 w-4" />
-                  <span>Search Live Jobs</span>
+                  <span>Search Matching Jobs</span>
                 </Button>
               )}
               <Button onClick={clearCache} variant="outline" className="border-slate-700 hover:bg-slate-800 text-slate-200 gap-2">
@@ -429,219 +474,264 @@ export const AnalyzeResume: React.FC<AnalyzeResumeProps> = ({ onNavigateToJobs }
           {/* Section 1: ATS Score Card & Score Breakdown */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
             {/* ATS Score Card */}
-            <Card className="lg:col-span-5 bg-slate-900 border-slate-800 shadow-xl flex flex-col justify-between">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-lg font-semibold text-slate-300 flex items-center justify-between">
-                  <span>Overall ATS Score</span>
-                  <Award className="h-5 w-5 text-primary" />
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="pt-2 flex flex-col items-center text-center space-y-4">
+            <div className="lg:col-span-5 rounded-3xl bg-slate-900/90 border border-slate-800 shadow-xl p-6 flex flex-col justify-between items-center text-center backdrop-blur-xl">
+              <div className="w-full flex items-center justify-between pb-3 border-b border-slate-800/80">
+                <span className="text-sm font-bold text-slate-300">Composite ATS Score</span>
+                <Award className="h-5 w-5 text-purple-400" />
+              </div>
+
+              <div className="py-4">
                 {renderCircularGauge(analysis.ats_score)}
-                <div>
-                  <p className="text-xl font-bold text-white mb-1">Verdict: {analysis.ats_verdict}</p>
-                  <p className="text-xs text-slate-400 max-w-xs leading-relaxed">
-                    {analysis.takeaway || 'Your resume has strong foundations and can be further optimized for top recruiter matches.'}
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
+              </div>
+
+              <div className="w-full space-y-2 pt-2 border-t border-slate-800/80">
+                <p className="text-lg font-bold text-white">Assessment: {analysis.ats_verdict}</p>
+                <p className="text-xs text-slate-400 leading-relaxed max-w-sm mx-auto">
+                  {analysis.takeaway || 'Your resume demonstrates clean structure and is ready for automated recruiter matching.'}
+                </p>
+              </div>
+            </div>
 
             {/* Score Breakdown (Horizontal Progress Bars) */}
-            <Card className="lg:col-span-7 bg-slate-900 border-slate-800 shadow-xl">
-              <CardHeader className="pb-4">
-                <CardTitle className="text-lg font-semibold text-slate-300 flex items-center justify-between">
-                  <span>Detailed Score Breakdown</span>
-                  <TrendingUp className="h-5 w-5 text-primary" />
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
+            <div className="lg:col-span-7 rounded-3xl bg-slate-900/90 border border-slate-800 shadow-xl p-6 backdrop-blur-xl">
+              <div className="flex items-center justify-between pb-4 border-b border-slate-800/80 mb-5">
+                <h3 className="text-base font-bold text-white flex items-center gap-2">
+                  <TrendingUp className="h-4 w-4 text-purple-400" />
+                  <span>Category Breakdown Metrics</span>
+                </h3>
+                <span className="text-xs font-mono text-slate-400">Target: 80+ for Top Tier</span>
+              </div>
+
+              <div className="space-y-4">
                 {[
-                  { label: 'Format & Structure', value: analysis.score_breakdown.format_structure, icon: Layers },
-                  { label: 'Content Relevance', value: analysis.score_breakdown.content_relevance, icon: FileText },
-                  { label: 'Keyword Matching', value: analysis.score_breakdown.keyword_matching, icon: Search },
-                  { label: 'Skills Coverage', value: analysis.score_breakdown.skills, icon: CheckCircle2 },
-                  { label: 'Experience Impact', value: analysis.score_breakdown.experience, icon: Briefcase }
+                  { label: 'Format & Layout Structure', value: analysis.score_breakdown.format_structure, icon: Layers },
+                  { label: 'Content Depth & Relevance', value: analysis.score_breakdown.content_relevance, icon: FileText },
+                  { label: 'Keyword Density & Match', value: analysis.score_breakdown.keyword_matching, icon: Search },
+                  { label: 'Technical Skills Alignment', value: analysis.score_breakdown.skills, icon: CheckCircle2 },
+                  { label: 'Measurable Experience Impact', value: analysis.score_breakdown.experience, icon: Briefcase }
                 ].map((item) => (
                   <div key={item.label} className="space-y-1.5">
                     <div className="flex items-center justify-between text-xs font-semibold">
-                      <span className="flex items-center gap-1.5 text-slate-300">
-                        <item.icon className="h-3.5 w-3.5 text-primary" />
+                      <span className="flex items-center gap-2 text-slate-300">
+                        <item.icon className="h-3.5 w-3.5 text-purple-400" />
                         {item.label}
                       </span>
-                      <span className="text-slate-200">{item.value} / 100</span>
+                      <span className="font-mono text-slate-200">{item.value}%</span>
                     </div>
-                    <div className="w-full bg-slate-800 h-2.5 rounded-full overflow-hidden">
+                    <div className="w-full bg-slate-950 h-2.5 rounded-full overflow-hidden border border-slate-800/80">
                       <motion.div
                         initial={{ width: 0 }}
                         animate={{ width: `${item.value}%` }}
-                        transition={{ duration: 1, ease: 'easeOut' }}
+                        transition={{ duration: 1.2, ease: 'easeOut' }}
                         className={`h-full rounded-full ${
-                          item.value >= 80 ? 'bg-emerald-500' : item.value >= 60 ? 'bg-blue-500' : 'bg-amber-500'
+                          item.value >= 80 ? 'bg-gradient-to-r from-emerald-500 to-teal-400' : item.value >= 60 ? 'bg-gradient-to-r from-cyan-500 to-blue-500' : 'bg-gradient-to-r from-amber-500 to-orange-500'
                         }`}
                       />
                     </div>
                   </div>
                 ))}
-              </CardContent>
-            </Card>
+              </div>
+            </div>
           </div>
 
           {/* Section 2: 4 Summary Stat Cards */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <Card className="bg-slate-900 border-slate-800 p-4 flex items-center gap-4">
-              <div className="p-3 bg-emerald-500/10 text-emerald-400 rounded-xl">
-                <CheckCircle2 className="h-6 w-6" />
+            <div className="rounded-2xl bg-slate-900/90 border border-slate-800 p-4 flex items-center gap-3.5 shadow-lg">
+              <div className="p-3 bg-emerald-500/15 text-emerald-400 rounded-xl border border-emerald-500/20">
+                <CheckCircle2 className="h-5 w-5" />
               </div>
               <div>
-                <p className="text-2xl font-bold text-white">{analysis.matched_keywords.length}</p>
-                <p className="text-xs text-slate-400 font-medium">Matched Keywords</p>
+                <p className="text-2xl font-extrabold text-white">{analysis.matched_keywords.length}</p>
+                <p className="text-xs text-slate-400 font-medium">Matched Skills</p>
               </div>
-            </Card>
+            </div>
 
-            <Card className="bg-slate-900 border-slate-800 p-4 flex items-center gap-4">
-              <div className="p-3 bg-red-500/10 text-red-400 rounded-xl">
-                <XCircle className="h-6 w-6" />
+            <div className="rounded-2xl bg-slate-900/90 border border-slate-800 p-4 flex items-center gap-3.5 shadow-lg">
+              <div className="p-3 bg-red-500/15 text-red-400 rounded-xl border border-red-500/20">
+                <XCircle className="h-5 w-5" />
               </div>
               <div>
-                <p className="text-2xl font-bold text-white">{analysis.missing_keywords.length}</p>
+                <p className="text-2xl font-extrabold text-white">{analysis.missing_keywords.length}</p>
                 <p className="text-xs text-slate-400 font-medium">Missing Keywords</p>
               </div>
-            </Card>
+            </div>
 
-            <Card className="bg-slate-900 border-slate-800 p-4 flex items-center gap-4">
-              <div className="p-3 bg-amber-500/10 text-amber-400 rounded-xl">
-                <Sparkles className="h-6 w-6" />
+            <div className="rounded-2xl bg-slate-900/90 border border-slate-800 p-4 flex items-center gap-3.5 shadow-lg">
+              <div className="p-3 bg-amber-500/15 text-amber-400 rounded-xl border border-amber-500/20">
+                <Sparkles className="h-5 w-5" />
               </div>
               <div>
-                <p className="text-2xl font-bold text-white">{analysis.improvement_tips.length}</p>
-                <p className="text-xs text-slate-400 font-medium">Actionable Tips</p>
+                <p className="text-2xl font-extrabold text-white">{analysis.improvement_tips.length}</p>
+                <p className="text-xs text-slate-400 font-medium">Action Items</p>
               </div>
-            </Card>
+            </div>
 
-            <Card className="bg-slate-900 border-slate-800 p-4 flex items-center gap-4">
-              <div className="p-3 bg-blue-500/10 text-blue-400 rounded-xl">
-                <Briefcase className="h-6 w-6" />
+            <div className="rounded-2xl bg-slate-900/90 border border-slate-800 p-4 flex items-center gap-3.5 shadow-lg">
+              <div className="p-3 bg-cyan-500/15 text-cyan-400 rounded-xl border border-cyan-500/20">
+                <Briefcase className="h-5 w-5" />
               </div>
               <div>
-                <p className="text-2xl font-bold text-white">{analysis.job_matches.length}</p>
-                <p className="text-xs text-slate-400 font-medium">Job Matches</p>
+                <p className="text-2xl font-extrabold text-white">{analysis.job_matches.length}</p>
+                <p className="text-xs text-slate-400 font-medium">Live Matches</p>
               </div>
-            </Card>
+            </div>
           </div>
 
-          {/* Section 3: Keyword Match Panel */}
-          <Card className="bg-slate-900 border-slate-800 shadow-xl">
-            <CardHeader className="pb-3 border-b border-slate-800/80">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div>
-                  <CardTitle className="text-lg font-semibold text-slate-200">Keyword Match Analysis</CardTitle>
-                  <CardDescription className="text-xs text-slate-400">
-                    ATS scanners parse resumes for exact skill keywords. Review matched vs missing terms.
-                  </CardDescription>
-                </div>
-                {/* Legend */}
-                <div className="flex items-center gap-4 text-xs">
-                  <span className="flex items-center gap-1.5 text-emerald-400">
-                    <span className="h-2.5 w-2.5 rounded-full bg-emerald-500" /> Matched
-                  </span>
-                  <span className="flex items-center gap-1.5 text-amber-400">
-                    <span className="h-2.5 w-2.5 rounded-full bg-amber-500" /> Partial
-                  </span>
-                  <span className="flex items-center gap-1.5 text-red-400">
-                    <span className="h-2.5 w-2.5 rounded-full bg-red-500" /> Missing
-                  </span>
-                </div>
+          {/* Section 3: Keyword Match Panel with Filter Tabs */}
+          <div className="rounded-3xl bg-slate-900/90 border border-slate-800 shadow-xl p-6 backdrop-blur-xl space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-3 border-b border-slate-800/80">
+              <div>
+                <h3 className="text-base font-bold text-white">Keyword Match Analysis</h3>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  ATS parsers filter candidate profiles by exact keyword matches. Review terms below.
+                </p>
               </div>
-            </CardHeader>
 
-            <CardContent className="pt-4 space-y-4">
-              {/* Keyword Chips */}
-              <div className="flex flex-wrap gap-2">
-                {analysis.matched_keywords.map((kw) => (
-                  <Badge key={kw} className="bg-emerald-500/15 text-emerald-300 border-emerald-500/30 px-3 py-1 text-xs">
-                    ✓ {kw}
-                  </Badge>
+              {/* Interactive Keyword Filter Tabs */}
+              <div className="flex items-center gap-1.5 p-1 rounded-xl bg-slate-950 border border-slate-800">
+                <button
+                  onClick={() => setKeywordFilter('all')}
+                  className={`px-2.5 py-1 text-xs rounded-lg font-medium transition-colors ${
+                    keywordFilter === 'all' ? 'bg-slate-800 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  All
+                </button>
+                <button
+                  onClick={() => setKeywordFilter('matched')}
+                  className={`px-2.5 py-1 text-xs rounded-lg font-medium transition-colors flex items-center gap-1 ${
+                    keywordFilter === 'matched' ? 'bg-emerald-500/20 text-emerald-300 shadow-sm' : 'text-slate-400 hover:text-emerald-300'
+                  }`}
+                >
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+                  Matched ({analysis.matched_keywords.length})
+                </button>
+                <button
+                  onClick={() => setKeywordFilter('partial')}
+                  className={`px-2.5 py-1 text-xs rounded-lg font-medium transition-colors flex items-center gap-1 ${
+                    keywordFilter === 'partial' ? 'bg-amber-500/20 text-amber-300 shadow-sm' : 'text-slate-400 hover:text-amber-300'
+                  }`}
+                >
+                  <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />
+                  Partial ({analysis.partially_matched_keywords?.length || 0})
+                </button>
+                <button
+                  onClick={() => setKeywordFilter('missing')}
+                  className={`px-2.5 py-1 text-xs rounded-lg font-medium transition-colors flex items-center gap-1 ${
+                    keywordFilter === 'missing' ? 'bg-red-500/20 text-red-300 shadow-sm' : 'text-slate-400 hover:text-red-300'
+                  }`}
+                >
+                  <span className="h-1.5 w-1.5 rounded-full bg-red-400" />
+                  Missing ({analysis.missing_keywords.length})
+                </button>
+              </div>
+            </div>
+
+            {/* Keyword Badges */}
+            <div className="flex flex-wrap gap-2 pt-2">
+              {(keywordFilter === 'all' || keywordFilter === 'matched') &&
+                analysis.matched_keywords.map((kw) => (
+                  <span key={kw} className="inline-flex items-center gap-1 px-3 py-1 rounded-xl text-xs font-semibold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
+                    <Check className="h-3 w-3" /> {kw}
+                  </span>
                 ))}
 
-                {analysis.partially_matched_keywords?.map((kw) => (
-                  <Badge key={kw} className="bg-amber-500/15 text-amber-300 border-amber-500/30 px-3 py-1 text-xs">
+              {(keywordFilter === 'all' || keywordFilter === 'partial') &&
+                analysis.partially_matched_keywords?.map((kw) => (
+                  <span key={kw} className="inline-flex items-center gap-1 px-3 py-1 rounded-xl text-xs font-semibold bg-amber-500/15 text-amber-300 border border-amber-500/30">
                     ~ {kw}
-                  </Badge>
+                  </span>
                 ))}
 
-                {analysis.missing_keywords.map((kw) => (
-                  <Badge key={kw} className="bg-red-500/15 text-red-300 border-red-500/30 px-3 py-1 text-xs">
+              {(keywordFilter === 'all' || keywordFilter === 'missing') &&
+                analysis.missing_keywords.map((kw) => (
+                  <span key={kw} className="inline-flex items-center gap-1 px-3 py-1 rounded-xl text-xs font-semibold bg-red-500/15 text-red-300 border border-red-500/30">
                     + {kw}
-                  </Badge>
+                  </span>
                 ))}
-              </div>
-            </CardContent>
-          </Card>
+            </div>
+          </div>
 
           {/* Section 4: Improvement Suggestions Panel */}
-          <Card className="bg-slate-900 border-slate-800 shadow-xl">
-            <CardHeader className="pb-3 border-b border-slate-800/80">
-              <CardTitle className="text-lg font-semibold text-slate-200 flex items-center justify-between">
-                <span>Tailored Improvement Suggestions</span>
-                <Sparkles className="h-5 w-5 text-amber-400" />
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="pt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="rounded-3xl bg-slate-900/90 border border-slate-800 shadow-xl p-6 backdrop-blur-xl space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-800/80">
+              <h3 className="text-base font-bold text-white flex items-center gap-2">
+                <Sparkles className="h-4 w-4 text-amber-400" />
+                <span>Actionable Improvement Recommendations</span>
+              </h3>
+              <span className="text-xs text-slate-400 font-mono">{analysis.improvement_tips.length} Tips Generated</span>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-1">
               {analysis.improvement_tips.map((tip, idx) => (
-                <div key={idx} className="p-4 rounded-xl bg-slate-800/50 border border-slate-700/60 flex items-start gap-3.5">
-                  <div className="p-2 bg-amber-500/10 text-amber-400 rounded-lg shrink-0 mt-0.5">
+                <div key={idx} className="p-4 rounded-2xl bg-slate-950/60 border border-slate-800/90 flex items-start gap-3.5 hover:border-slate-700 transition-colors">
+                  <div className="p-2.5 bg-amber-500/10 text-amber-400 rounded-xl shrink-0 mt-0.5 border border-amber-500/20">
                     <Sparkles className="h-4 w-4" />
                   </div>
                   <div className="space-y-1">
                     <div className="flex items-center justify-between gap-2">
-                      <h4 className="font-semibold text-sm text-slate-100">{tip.title}</h4>
+                      <h4 className="font-bold text-sm text-slate-100">{tip.title}</h4>
                       {tip.section && (
-                        <Badge variant="outline" className="text-[10px] border-slate-600 text-slate-400 uppercase">
+                        <span className="text-[10px] px-2 py-0.5 rounded-md uppercase font-mono font-semibold bg-slate-800 text-slate-400 border border-slate-700">
                           {tip.section}
-                        </Badge>
+                        </span>
                       )}
                     </div>
                     <p className="text-xs text-slate-300 leading-relaxed">{tip.detail}</p>
                   </div>
                 </div>
               ))}
-            </CardContent>
-          </Card>
+            </div>
+          </div>
 
           {/* Section 5: Top Job Recommendations */}
-          <Card className="bg-slate-900 border-slate-800 shadow-xl">
-            <CardHeader className="pb-3 border-b border-slate-800/80">
-              <CardTitle className="text-lg font-semibold text-slate-200 flex items-center justify-between">
-                <span>Top Job Matches</span>
-                <Briefcase className="h-5 w-5 text-primary" />
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="pt-4">
-              <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-thin scrollbar-thumb-slate-700">
-                {analysis.job_matches.map((job, idx) => (
-                  <div key={idx} className="min-w-[260px] max-w-[280px] p-4 rounded-xl bg-slate-800/70 border border-slate-700/80 space-y-3 shrink-0 flex flex-col justify-between">
-                    <div>
-                      <div className="flex items-center justify-between mb-2">
-                        <div className="w-9 h-9 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center font-bold text-primary text-sm">
-                          {job.company.substring(0, 2).toUpperCase()}
-                        </div>
-                        <Badge className="bg-emerald-500/20 text-emerald-300 border-emerald-500/30 text-xs font-semibold">
-                          {job.match_pct}% Match
-                        </Badge>
+          <div className="rounded-3xl bg-slate-900/90 border border-slate-800 shadow-xl p-6 backdrop-blur-xl space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-800/80">
+              <h3 className="text-base font-bold text-white flex items-center gap-2">
+                <Briefcase className="h-4 w-4 text-cyan-400" />
+                <span>Top Matching Live Job Roles</span>
+              </h3>
+              {onNavigateToJobs && (
+                <button
+                  onClick={onNavigateToJobs}
+                  className="text-xs text-purple-400 hover:text-purple-300 font-semibold flex items-center gap-1"
+                >
+                  <span>View All In Job Matcher</span>
+                  <ChevronRight className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </div>
+
+            <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-thin scrollbar-thumb-slate-700">
+              {analysis.job_matches.map((job, idx) => (
+                <div key={idx} className="min-w-[270px] max-w-[290px] p-4 rounded-2xl bg-slate-950/70 border border-slate-800/90 space-y-3 shrink-0 flex flex-col justify-between hover:border-cyan-500/40 transition-colors">
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="w-9 h-9 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center font-bold text-purple-400 text-sm">
+                        {job.company.substring(0, 2).toUpperCase()}
                       </div>
-                      <h4 className="font-bold text-slate-100 text-sm line-clamp-1">{job.title}</h4>
-                      <p className="text-xs text-slate-400">{job.company} • {job.location}</p>
+                      <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                        {job.match_pct}% Match
+                      </span>
                     </div>
-                    <Button variant="outline" size="sm" className="w-full text-xs border-slate-700 hover:bg-slate-700 text-slate-200 justify-between">
-                      <span>View Role</span>
+                    <h4 className="font-bold text-slate-100 text-sm line-clamp-1">{job.title}</h4>
+                    <p className="text-xs text-slate-400 mt-0.5">{job.company} • {job.location}</p>
+                  </div>
+                  {onNavigateToJobs && (
+                    <Button
+                      onClick={onNavigateToJobs}
+                      variant="outline"
+                      size="sm"
+                      className="w-full text-xs border-slate-700/80 hover:bg-slate-800 text-slate-200 justify-between rounded-xl"
+                    >
+                      <span>Explore Matches</span>
                       <ChevronRight className="h-3.5 w-3.5" />
                     </Button>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
         </motion.div>
       )}
     </div>

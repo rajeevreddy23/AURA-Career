@@ -301,7 +301,7 @@ export function issueCredentialForStudent(
   courseId: string,
   courseTitle: string,
   grade = 'A+ (Honors)',
-  score = 98,
+  score: number | null = 98,
   skills: string[] = ['System Architecture', 'Algorithms', 'Engineering'],
   explicitUid?: string | null,
   studentName?: string
@@ -317,7 +317,7 @@ export function issueCredentialForStudent(
     level: 'Mastery',
     date: new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
     grade,
-    score,
+    score: score ?? undefined,
     verificationId: verificationHash,
     skills,
     studentName: resolvedName,

@@ -8,6 +8,10 @@ import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { cn } from '@/lib/utils';
 import { MOCK_COURSES, TEACHER_STYLES } from '@/lib/constants';
+import { AIProfessorAvatar } from '@/components/classroom/AIProfessorAvatar';
+import { playAuraVoice, stopAllVoicePlayback } from '@/lib/ai/voice';
+import { getTeacher } from '@/lib/ai/teachers';
+import { TeacherPortrait } from '@/components/classroom/ReferenceTeacher';
 import {
   GraduationCap, Sparkles, Brain, Heart, Zap, BookOpen,
   ChevronRight, ArrowLeft, Bot, Quote, Volume2
@@ -16,14 +20,18 @@ import {
 export default function SelectTeacherPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const courseId = searchParams.get('course');
+  const courseId = searchParams.get('courseId') || searchParams.get('course');
   const topic = searchParams.get('topic');
   const [selectedStyle, setSelectedStyle] = useState<string | null>(null);
+  const [previewSpeaking, setPreviewSpeaking] = useState(false);
+  React.useEffect(() => () => stopAllVoicePlayback(), []);
 
   const course = courseId ? MOCK_COURSES.find(c => c.id === courseId) : null;
 
   const handleStart = () => {
     if (!selectedStyle) return;
+    stopAllVoicePlayback();
+    localStorage.setItem('aura_teacher', selectedStyle);
     const params = new URLSearchParams();
     if (courseId) params.set('course', courseId);
     if (topic) params.set('topic', topic);
@@ -82,16 +90,20 @@ export default function SelectTeacherPage() {
           </motion.div>
 
           {/* Teacher Cards */}
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-10">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 mb-10">
             {TEACHER_STYLES.map((style, index) => (
               <motion.div
                 key={style.id}
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: index * 0.1 }}
-                onClick={() => setSelectedStyle(style.id)}
+                onClick={() => { stopAllVoicePlayback(); setPreviewSpeaking(false); setSelectedStyle(style.id); }}
+                role="button"
+                tabIndex={0}
+                aria-pressed={selectedStyle === style.id}
+                onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); stopAllVoicePlayback(); setPreviewSpeaking(false); setSelectedStyle(style.id); } }}
                 className={cn(
-                  'relative p-6 rounded-2xl border-2 cursor-pointer transition-all duration-200',
+                  'relative p-3 rounded-2xl border-2 cursor-pointer transition-all duration-200',
                   selectedStyle === style.id
                     ? 'border-primary bg-primary/5 shadow-lg shadow-primary/10'
                     : 'border-border bg-card hover:border-primary/50 hover:shadow-md'
@@ -105,12 +117,7 @@ export default function SelectTeacherPage() {
                   </div>
                 )}
                 <div className="space-y-4">
-                  <div
-                    className="h-14 w-14 rounded-xl flex items-center justify-center"
-                    style={{ backgroundColor: style.color + '20', color: style.color }}
-                  >
-                    {getIcon(style.icon)}
-                  </div>
+                  <TeacherPortrait teacherStyle={style.id} className="w-full rounded-xl" />
                   <div>
                     <h3 className="text-lg font-bold">{style.name}</h3>
                     <p className="text-sm text-muted-foreground">{style.title}</p>
@@ -138,7 +145,8 @@ export default function SelectTeacherPage() {
               animate={{ opacity: 1, y: 0 }}
               className="bg-accent/30 rounded-2xl p-6 mb-8 border border-border"
             >
-              <div className="flex items-start gap-4">
+              <div className="flex flex-col sm:flex-row items-center gap-6">
+                <div className="w-48 shrink-0"><AIProfessorAvatar size="md" teacherStyle={selectedStyle} state={previewSpeaking ? 'speaking' : 'idle'} showSpeechBubble={false} /></div>
                 <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
                   <Quote className="h-6 w-6 text-primary" />
                 </div>
@@ -152,6 +160,7 @@ export default function SelectTeacherPage() {
                     {TEACHER_STYLES.find(s => s.id === selectedStyle)?.useExamples && <span>✦ Lots of examples</span>}
                     {TEACHER_STYLES.find(s => s.id === selectedStyle)?.encourageQuestions && <span>✦ Encourages questions</span>}
                   </div>
+                  <button onClick={() => playAuraVoice({ teacherId: selectedStyle, text: `Hi, I'm ${getTeacher(selectedStyle).name}. ${getTeacher(selectedStyle).approach} Let's learn together.`, onStart: () => setPreviewSpeaking(true), onEnd: () => setPreviewSpeaking(false) })} className="flex items-center gap-2 rounded-xl bg-primary/10 px-4 py-2 text-sm text-primary"><Volume2 size={16} /> Hear {getTeacher(selectedStyle).name}&apos;s voice</button>
                 </div>
               </div>
             </motion.div>

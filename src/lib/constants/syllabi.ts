@@ -44,15 +44,15 @@ export const COURSE_SYLLABI: Record<string, CourseSyllabus> = {
             slideId: 'py-1-2',
             title: 'Tuples, Immutability & CPython Free-Lists',
             conceptTag: 'IMMUTABILITY & SAFETY',
-            speech: 'Tuples provide strict immutability. Because their length and elements cannot mutate, CPython optimizes them with reusable free-lists.',
+            speech: 'Think of a tuple as a fixed set of slots. You cannot replace or remove a slot, but a list stored inside a slot can still change. Let us unpack a server address and see how those fixed slots help us group values.',
             exampleTitle: 'TUPLE UNPACKING',
             code: `# Tuple immutability and multiple assignment\nserver_config = ("127.0.0.1", 8080, "production")\nhost, port, env = server_config\nprint(f"Server binding: {host}:{port} ({env})")`,
             output: 'Server binding: 127.0.0.1:8080 (production)',
-            explanation: 'Tuples can serve as dictionary keys because all immutable components generate constant, deterministic hash codes.',
+            explanation: 'Unpacking assigns each tuple item to a name. A tuple can be a dictionary key only when every item is hashable. A tuple containing a list is not hashable, and that list can still be mutated. Memory reuse is a CPython implementation detail, not a Python language guarantee.',
             keyPoints: [
-              'Immutable guarantees prevent accidental side-effects across threads',
-              'Small tuples (len <= 20) are cached in free-lists avoiding OS malloc calls',
-              'Tuple hashability allows use as composite keys in dictionaries and sets'
+              'Tuple slots cannot be reassigned; mutable objects inside them can still change',
+              'Unpack related values into clear names, such as host, port, and environment',
+              'A tuple is hashable only if every element is hashable'
             ],
             diagramType: 'tree',
           },

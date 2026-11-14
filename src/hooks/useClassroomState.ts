@@ -2,9 +2,11 @@ import { useState, useCallback, useRef, useEffect } from 'react';
 import type { ProfessorState } from '@/components/classroom/AIProfessorAvatar';
 import { getCourseSyllabus, COURSE_SYLLABI } from '@/lib/constants/syllabi';
 import { auth } from '@/lib/firebase/config';
+import { classroomStorageKey } from '@/lib/classroom/safety';
 import {
   saveUserEnrollment,
   saveUserCourseProgress,
+  getUserEnrollments,
   issueCredentialForStudent,
 } from '@/lib/utils/userData';
 
@@ -50,6 +52,7 @@ export interface LiveSessionNote {
   moduleTitle: string;
   slideTitle: string;
   bullets: string[];
+  code?: string;
 }
 
 export interface CodingChallenge {
@@ -112,7 +115,7 @@ export interface ClassroomSessionState {
   lastActivityTimestamp: number;
 }
 
-export function useClassroomState(initialCourseId = '1') {
+export function useClassroomState(initialCourseId = '1', studentId = auth.currentUser?.uid || 'guest') {
   const [courseId, setCourseId] = useState(initialCourseId);
 
   // Initialize session state with real syllabus
@@ -155,16 +158,21 @@ export function useClassroomState(initialCourseId = '1') {
     if (typeof window === 'undefined') return;
 
     const params = new URLSearchParams(window.location.search);
-    const urlCourseId = params.get('courseId') || params.get('course') || courseId;
+    const urlCourseId = params.get('courseId') || params.get('course') || initialCourseId;
     const urlLevel = (params.get('level') || params.get('diff')) as 'beginner' | 'intermediate' | 'advanced' | null;
 
     let targetLevel: 'beginner' | 'intermediate' | 'advanced' = urlLevel || 'beginner';
     let resumeModIdx = 0;
     let resumeSlideIdx = 0;
     let existingNotes: LiveSessionNote[] = [];
+    let completed = false;
 
     // Read stored enrollment for this course
-    const storedEnrollment = localStorage.getItem(`aura_enrollment_${urlCourseId}`);
+    // Legacy unscoped data has no proven owner; only guests may restore it.
+    // Leave the original untouched for recovery rather than assigning it to a login.
+    const ownedEnrollment = studentId !== 'guest' && studentId !== 'pending' ? getUserEnrollments(studentId)[urlCourseId] : null;
+    const storedEnrollment = studentId === 'pending' ? null : localStorage.getItem(classroomStorageKey(studentId, urlCourseId))
+      || (studentId === 'guest' ? localStorage.getItem(`aura_enrollment_${urlCourseId}`) : ownedEnrollment ? JSON.stringify(ownedEnrollment) : null);
     if (storedEnrollment) {
       try {
         const parsed = JSON.parse(storedEnrollment);
@@ -172,6 +180,7 @@ export function useClassroomState(initialCourseId = '1') {
         if (typeof parsed.currentModuleIndex === 'number') resumeModIdx = parsed.currentModuleIndex;
         if (typeof parsed.currentSlideIndex === 'number') resumeSlideIdx = parsed.currentSlideIndex;
         if (Array.isArray(parsed.notes)) existingNotes = parsed.notes;
+        completed = parsed.progress === 100;
       } catch {
         // use defaults
       }
@@ -185,10 +194,13 @@ export function useClassroomState(initialCourseId = '1') {
     const voiceGender: 'male' | 'female' = storedVoice === 'male' || storedVoice === 'female' ? storedVoice : 'female';
 
     const courseSyllabus = getCourseSyllabus(urlCourseId, targetLevel);
+    resumeModIdx = Math.max(0, Math.min(resumeModIdx, courseSyllabus.modules.length - 1));
+    resumeSlideIdx = Math.max(0, Math.min(resumeSlideIdx, courseSyllabus.modules[resumeModIdx].slides.length - 1));
     setCourseId(urlCourseId);
 
     // Update modules with resume status
     const updatedModules = courseSyllabus.modules.map((mod, mIdx) => {
+      if (completed) return { ...mod, status: 'completed' as const };
       if (mIdx < resumeModIdx) return { ...mod, status: 'completed' as const };
       if (mIdx === resumeModIdx) return { ...mod, status: 'in_progress' as const };
       return { ...mod, status: 'upcoming' as const };
@@ -207,8 +219,8 @@ export function useClassroomState(initialCourseId = '1') {
       modules: updatedModules,
       currentModuleIndex: resumeModIdx,
       currentSlideIndex: resumeSlideIdx,
-      notes: existingNotes.length > 0 ? existingNotes : prev.notes,
-      aiState: 'teaching',
+      notes: existingNotes,
+      aiState: completed ? 'lesson_completed' : 'teaching',
       conversation: [
         {
           id: `welcome-${Date.now()}`,
@@ -224,14 +236,15 @@ export function useClassroomState(initialCourseId = '1') {
         },
       ],
     }));
-  }, [courseId]);
+  }, [initialCourseId, studentId]);
 
   // Persist progress changes to localStorage
   const persistProgress = useCallback((nextModIdx: number, nextSlideIdx: number, nextModules: LessonModule[], nextNotes: LiveSessionNote[]) => {
-    if (typeof window === 'undefined') return;
+    if (typeof window === 'undefined' || studentId === 'pending') return;
 
     const currentCourseId = session.courseId;
-    const progressPercent = Math.round(((nextModIdx + (nextSlideIdx + 1) / (nextModules[nextModIdx]?.slides.length || 1)) / nextModules.length) * 100);
+    const courseCompleted = nextModules.every(m => m.status === 'completed');
+    const progressPercent = courseCompleted ? 100 : Math.min(99, Math.round(((nextModIdx + (nextSlideIdx + 1) / (nextModules[nextModIdx]?.slides.length || 1)) / nextModules.length) * 100));
 
     const enrollmentData = {
       courseId: currentCourseId,
@@ -244,8 +257,10 @@ export function useClassroomState(initialCourseId = '1') {
       notes: nextNotes,
       lastUpdated: new Date().toISOString(),
     };
+    localStorage.setItem(classroomStorageKey(studentId, currentCourseId), JSON.stringify(enrollmentData));
+    if (studentId === 'guest') localStorage.setItem(`aura_enrollment_${currentCourseId}`, JSON.stringify(enrollmentData));
 
-    const uid = auth.currentUser?.uid;
+    const uid = studentId;
 
     saveUserEnrollment(
       currentCourseId,
@@ -262,17 +277,17 @@ export function useClassroomState(initialCourseId = '1') {
     saveUserCourseProgress(currentCourseId, progressPercent, uid);
 
     // If 100% completed, issue verified credential strictly to this student
-    if (nextModIdx >= nextModules.length - 1 && nextSlideIdx >= (nextModules[nextModIdx]?.slides.length || 1) - 1) {
+    if (courseCompleted) {
       issueCredentialForStudent(
         currentCourseId,
         session.courseTitle,
-        'A+ (Honors)',
-        98,
+        'Completed',
+        null,
         [session.courseTitle.split(' ')[0], 'Architecture', 'Applied Engineering'],
         uid
       );
     }
-  }, [session.courseId, session.courseTitle, session.difficulty]);
+  }, [session.courseId, session.courseTitle, session.difficulty, studentId]);
 
   const setAIState = useCallback((nextState: ProfessorState) => {
     setSession((prev) => ({ ...prev, aiState: nextState, lastActivityTimestamp: Date.now() }));
@@ -453,13 +468,14 @@ export function useClassroomState(initialCourseId = '1') {
     }));
   }, []);
 
-  const addAutoLiveNote = useCallback((moduleTitle: string, slideTitle: string, bullets: string[]) => {
+  const addAutoLiveNote = useCallback((moduleTitle: string, slideTitle: string, bullets: string[], code?: string) => {
     const newNote: LiveSessionNote = {
       id: `note-${Date.now()}`,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       moduleTitle,
       slideTitle,
       bullets,
+      code,
     };
     setSession((prev) => {
       // Avoid duplicate notes for the same slide title

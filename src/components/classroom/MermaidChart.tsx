@@ -24,6 +24,7 @@ export default function MermaidChart({ chart, className = '' }: MermaidChartProp
 
       try {
         setIsRendering(true);
+        setSvgContent(null);
         setError(null);
 
         // Dynamically import mermaid to avoid SSR issues
@@ -45,7 +46,8 @@ export default function MermaidChart({ chart, className = '' }: MermaidChartProp
             fontFamily: 'Inter, ui-sans-serif, system-ui, sans-serif',
             fontSize: '13px',
           },
-          securityLevel: 'loose',
+          securityLevel: 'strict',
+          suppressErrorRendering: true,
           flowchart: {
             htmlLabels: true,
             curve: 'basis',
@@ -59,6 +61,8 @@ export default function MermaidChart({ chart, className = '' }: MermaidChartProp
           .replace(/```$/, '')
           .trim();
 
+        await mermaid.parse(cleanedChart);
+        if (!isMounted) return;
         const { svg } = await mermaid.render(id, cleanedChart);
         if (isMounted) {
           setSvgContent(svg);
@@ -85,9 +89,9 @@ export default function MermaidChart({ chart, className = '' }: MermaidChartProp
     return (
       <div className="my-4 p-4 rounded-2xl bg-slate-950 border border-purple-900/40 text-xs font-mono text-purple-300">
         <div className="text-[11px] font-bold text-purple-400 mb-2 uppercase tracking-wider flex items-center gap-2">
-          <span>📊 Visual Architecture Diagram</span>
+          <span>Diagram unavailable</span>
         </div>
-        <pre className="overflow-x-auto whitespace-pre-wrap">{chart}</pre>
+        <p className="font-sans text-slate-300">This diagram could not be displayed. The explanation above is still available; ask your teacher to redraw it with simpler labels.</p>
       </div>
     );
   }
@@ -100,7 +104,7 @@ export default function MermaidChart({ chart, className = '' }: MermaidChartProp
         <div className="flex items-center space-x-2">
           <span className="h-2 w-2 rounded-full bg-purple-400 animate-pulse" />
           <span className="font-semibold text-purple-300 font-mono tracking-wide">
-            Interactive Architecture Flowchart
+            Lesson diagram
           </span>
         </div>
         <span className="text-[10px] text-slate-400 font-mono">Live SVG Diagram</span>
@@ -129,7 +133,7 @@ export default function MermaidChart({ chart, className = '' }: MermaidChartProp
                 d="M4 12a8 8 0 018-8v8H4z"
               />
             </svg>
-            <span>Rendering visual architecture flowchart...</span>
+            <span>Drawing your explanation…</span>
           </div>
         ) : svgContent ? (
           <div

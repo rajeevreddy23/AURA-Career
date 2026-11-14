@@ -35,3 +35,8 @@ venv/
 *.sw?
 *.tsbuildinfo
 
+# Scratch & temporary image extracts
+scratch/
+ref_images/
+*page*.png
+

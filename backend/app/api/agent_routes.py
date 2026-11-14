@@ -340,7 +340,8 @@ async def ask_professor_endpoint(request: Request, body: dict = None):
         course_title=course_title,
         current_topic=current_topic,
         current_slide=current_slide,
-        question=question
+        question=question,
+        chat_history=body.get("history") if isinstance(body.get("history"), list) else [],
     )
     return {"success": True, "data": result}
 

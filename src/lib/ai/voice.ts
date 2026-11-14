@@ -1,235 +1,118 @@
 'use client';
+import { getTeacher, TEACHERS } from './teachers';
 
-export interface VoiceOption {
-  id: string;
-  name: string;
-  gender: 'male' | 'female';
-  language: string;
-}
-
+export interface VoiceOption { id: string; name: string; gender: 'male' | 'female'; language: string }
+export interface SpeechFrame { active: boolean; mouth: number; rounded: number; word: string }
 export interface PlayVoiceOptions {
-  text: string;
-  voice?: string;
-  speed?: number;
-  pitch?: number;
-  gender?: 'male' | 'female';
-  onStart?: () => void;
-  onEnd?: () => void;
-  onError?: (err: unknown) => void;
+  text: string; voice?: string; teacherId?: string; speed?: number; pitch?: number;
+  gender?: 'male' | 'female'; onStart?: () => void; onEnd?: () => void;
+  onError?: (err: unknown) => void; onBoundary?: (word: string, charIndex: number) => void;
 }
-
-export interface StopPlaybackHandle {
-  stop: () => void;
-}
-
-let activeAudio: HTMLAudioElement | null = null;
-
-/**
- * Clean text for audio narration: strip markdown symbols, URLs, etc.
- */
+export interface StopPlaybackHandle { stop: () => void }
+let activeStop: (() => void) | null = null;
+let frame: SpeechFrame = { active: false, mouth: 0, rounded: 0, word: '' };
+export const getSpeechFrame = () => frame;
 export function sanitizeSpeechText(text: string): string {
-  if (!text) return '';
-  return text
-    .replace(/```[\s\S]*?```/g, '')
-    .replace(/\[([^\]]+)\]\([^\)]+\)/g, '$1')
-    .replace(/[#*_~`]/g, '')
-    .replace(/^\s*[-*•]\s+/gm, '')
-    .replace(/^\s*\d+\.\s+/gm, '')
-    .replace(/\n+/g, '. ')
-    .replace(/\s+/g, ' ')
-    .trim();
+  return text.replace(/```[\s\S]*?```/g, '').replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+    .replace(/[#*_~`]/g, '').replace(/^\s*[-•]\s+/gm, '').replace(/\n+/g, '. ').replace(/\s+/g, ' ').trim();
 }
-
-/**
- * Fetch list of available neural and standard voices from the backend.
- */
 export async function getSupportedVoices(): Promise<VoiceOption[]> {
-  try {
-    const res = await fetch('/api/v1/agents/public/voice/voices');
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const data = await res.json();
-    return data?.data || [];
-  } catch {
-    return [
-      { id: 'en-US-Neural2-F', name: 'Bekki (Female - Sweet Neural)', gender: 'female', language: 'en-US' },
-      { id: 'en-US-Neural2-D', name: 'Ben (Male - Deep Bass Neural)', gender: 'male', language: 'en-US' },
-      { id: 'en-US-Standard-C', name: 'Bekki (Female - Sweet Standard)', gender: 'female', language: 'en-US' },
-      { id: 'en-US-Standard-D', name: 'Ben (Male - Deep Bass Standard)', gender: 'male', language: 'en-US' },
-    ];
-  }
+  return TEACHERS.map(t => ({ id: t.voice, name: t.name, gender: t.gender, language: t.voice.split('-').slice(0, 2).join('-') }));
 }
-
-/**
- * Play text using Backend Neural TTS first, falling back to Browser Web Speech API.
- */
-export function playAuraVoice({
-  text,
-  voice,
-  speed = 1.0,
-  pitch,
-  gender = 'female',
-  onStart,
-  onEnd,
-  onError,
-}: PlayVoiceOptions): StopPlaybackHandle {
-  // Cancel any running speech or audio element
-  stopAllVoicePlayback();
-
-  const cleanText = sanitizeSpeechText(text);
-  if (!cleanText) {
-    onEnd?.();
-    return { stop: () => {} };
-  }
-
-  let cancelled = false;
-
-  const fallbackToWebSpeech = () => {
-    if (cancelled || typeof window === 'undefined' || !window.speechSynthesis) {
-      onEnd?.();
-      return;
-    }
-    try {
-      window.speechSynthesis.cancel();
-      const utterance = new SpeechSynthesisUtterance(cleanText);
-
-      // Query available browser neural & natural voices
-      const voices = window.speechSynthesis.getVoices();
-      if (voices && voices.length > 0) {
-        if (gender === 'female') {
-          // Bekki: Sweet, gentle female voice
-          const femaleVoice = voices.find(
-            (v) =>
-              /female|woman|jenny|samantha|aria|eva|zira|karen|victoria/i.test(v.name) &&
-              /en/i.test(v.lang)
-          ) || voices.find((v) => /female|samantha|jenny|aria|eva/i.test(v.name));
-
-          if (femaleVoice) {
-            utterance.voice = femaleVoice;
-          }
-          // Sweet voice modulation: pitch 1.22 (sweet), soft rate
-          utterance.pitch = pitch !== undefined ? pitch : 1.22;
-          utterance.rate = Math.max(0.85, Math.min(1.2, speed * 0.95));
-        } else {
-          // Ben: Deep, resonant bass male voice
-          const maleVoice = voices.find(
-            (v) =>
-              /male|man|guy|george|david|daniel|alex|mark|ryan/i.test(v.name) &&
-              /en/i.test(v.lang)
-          ) || voices.find((v) => /male|guy|david|daniel/i.test(v.name));
-
-          if (maleVoice) {
-            utterance.voice = maleVoice;
-          }
-          // Deep bass voice modulation: pitch 0.72 (deep bass), steady rate
-          utterance.pitch = pitch !== undefined ? pitch : 0.72;
-          utterance.rate = Math.max(0.8, Math.min(1.2, speed * 0.92));
-        }
-      } else {
-        utterance.pitch = pitch !== undefined ? pitch : (gender === 'female' ? 1.22 : 0.72);
-        utterance.rate = gender === 'female' ? 0.95 : 0.92;
-      }
-
-      utterance.onstart = () => {
-        if (!cancelled) onStart?.();
-      };
-      utterance.onend = () => {
-        if (!cancelled) onEnd?.();
-      };
-      utterance.onerror = (e) => {
-        if (!cancelled) {
-          onError?.(e);
-          onEnd?.();
-        }
-      };
-
-      window.speechSynthesis.speak(utterance);
-    } catch (e) {
-      onError?.(e);
-      onEnd?.();
-    }
-  };
-
-  const defaultVoice = gender === 'female' ? 'en-US-Neural2-F' : 'en-US-Neural2-D';
-  const targetVoice = voice || defaultVoice;
-
-  // Attempt backend neural TTS synthesis first
-  fetch('/api/v1/agents/public/voice/synthesize', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      text: cleanText,
-      voice: targetVoice,
-      speed,
-    }),
-  })
-    .then(async (res) => {
-      if (cancelled) return;
-      if (!res.ok) {
-        fallbackToWebSpeech();
-        return;
-      }
-      const data = await res.json();
-      const base64Audio = data?.data?.audio_base64;
-      if (base64Audio) {
-        const audioSrc = `data:audio/mp3;base64,${base64Audio}`;
-        const audio = new Audio(audioSrc);
-        audio.playbackRate = speed;
-        activeAudio = audio;
-
-        audio.onplay = () => {
-          if (!cancelled) onStart?.();
-        };
-        audio.onended = () => {
-          activeAudio = null;
-          if (!cancelled) onEnd?.();
-        };
-        audio.onerror = (e) => {
-          activeAudio = null;
-          if (!cancelled) {
-            fallbackToWebSpeech();
-          }
-        };
-
-        audio.play().catch(() => {
-          fallbackToWebSpeech();
-        });
-      } else {
-        fallbackToWebSpeech();
-      }
-    })
-    .catch(() => {
-      if (!cancelled) {
-        fallbackToWebSpeech();
-      }
-    });
-
-  return {
-    stop: () => {
-      cancelled = true;
-      stopAllVoicePlayback();
-      onEnd?.();
-    },
-  };
-}
-
-/**
- * Stop any active audio or speech synthesis in the window.
- */
 export function stopAllVoicePlayback() {
-  if (activeAudio) {
+  const stop = activeStop; activeStop = null; stop?.();
+  frame = { active: false, mouth: 0, rounded: 0, word: '' };
+  if (typeof window !== 'undefined') window.speechSynthesis?.cancel();
+}
+export function playAuraVoice(options: PlayVoiceOptions): StopPlaybackHandle {
+  stopAllVoicePlayback();
+  const text = sanitizeSpeechText(options.text);
+  const teacher = getTeacher(options.teacherId || TEACHERS.find(t => t.voice === options.voice)?.id || (options.gender === 'male' ? 'coach' : 'professor'));
+  if (!text || typeof window === 'undefined') { options.onEnd?.(); return { stop() {} }; }
+  const controller = new AbortController();
+  let cancelled = false, ended = false, audio: HTMLAudioElement | null = null;
+  let audioContext: AudioContext | null = null, raf = 0, wordIndex = 0, lastBoundaryAt = 0;
+  const words = Array.from(text.matchAll(/\S+/g)).map(m => ({ word: m[0], index: m.index || 0 }));
+  const speed = Math.max(0.5, Math.min(1.75, (options.speed || 1) * teacher.rate));
+  const finish = () => {
+    if (ended) return; ended = true;
+    cancelAnimationFrame(raf); frame = { active: false, mouth: 0, rounded: 0, word: '' };
+    audioContext?.close().catch(() => {});
+    if (activeStop === stop) activeStop = null;
+    options.onEnd?.();
+  };
+  const stop = () => { cancelled = true; controller.abort(); audio?.pause(); window.speechSynthesis?.cancel(); finish(); };
+  activeStop = stop;
+  const boundary = (index: number) => {
+    const item = words.find(w => w.index >= index) || words[words.length - 1];
+    if (!item) return;
+    wordIndex = words.indexOf(item); lastBoundaryAt = performance.now(); frame.word = item.word;
+    options.onBoundary?.(item.word, item.index);
+  };
+  const begin = (analyser?: AnalyserNode) => {
+    if (cancelled) return;
+    boundary(0); frame.active = true; options.onStart?.();
+    const samples = analyser ? new Uint8Array(analyser.fftSize) : null;
+    const tick = () => {
+      if (cancelled || ended) return;
+      const now = performance.now();
+      if (now - lastBoundaryAt > 550 / speed && wordIndex < words.length - 1) boundary(words[wordIndex + 1].index);
+      let energy = 0;
+      if (analyser && samples) {
+        analyser.getByteTimeDomainData(samples);
+        energy = Math.sqrt(samples.reduce((sum, v) => sum + ((v - 128) / 128) ** 2, 0) / samples.length);
+      }
+      const pulse = (now - lastBoundaryAt) / 1000;
+      const closed = /^[mbp]/i.test(frame.word) && pulse < 0.07;
+      const mouth = closed ? 0.02 : analyser ? Math.min(1, energy * 7) : 0.12 + Math.max(0, Math.sin(pulse * 22 * speed)) * 0.6;
+      frame.mouth += (mouth - frame.mouth) * 0.4;
+      frame.rounded = /[ou]/i.test(frame.word) ? 0.6 : 0.05;
+      raf = requestAnimationFrame(tick);
+    }; tick();
+  };
+  const browserSpeech = async () => {
+    if (cancelled) return;
+    if (!window.speechSynthesis) { options.onError?.(new Error('Speech is unavailable in this browser')); finish(); return; }
+    const synth = window.speechSynthesis;
+    if (!synth.getVoices().length) await new Promise<void>(resolve => {
+      const timeout = window.setTimeout(done, 700);
+      function done() { clearTimeout(timeout); synth.removeEventListener('voiceschanged', done); resolve(); }
+      synth.addEventListener('voiceschanged', done, { once: true });
+    });
+    if (cancelled) return;
+    const utterance = new SpeechSynthesisUtterance(text);
+    const voices = synth.getVoices();
+    const preferred = teacher.browserVoices.map(name => voices.find(v => v.name.toLowerCase().includes(name.toLowerCase()))).find(Boolean);
+    const genderPattern = teacher.gender === 'female' ? /zira|hazel|samantha|jenny|aria|susan|sonia|karen|female/i : /david|george|guy|ryan|daniel|alex|male/i;
+    utterance.voice = preferred || voices.find(v => /^en/i.test(v.lang) && genderPattern.test(v.name)) || voices.find(v => /^en/i.test(v.lang)) || null;
+    utterance.lang = utterance.voice?.lang || 'en-US'; utterance.rate = speed; utterance.pitch = options.pitch ?? teacher.pitch;
+    utterance.onstart = () => begin();
+    utterance.onboundary = e => { if (!cancelled && e.name === 'word') boundary(e.charIndex); };
+    utterance.onend = finish;
+    utterance.onerror = e => { if (!cancelled) options.onError?.(e); finish(); };
+    synth.speak(utterance);
+  };
+  (async () => {
     try {
-      activeAudio.pause();
-      activeAudio.currentTime = 0;
-    } catch {
-      // Ignore
-    }
-    activeAudio = null;
-  }
-  if (typeof window !== 'undefined' && window.speechSynthesis) {
-    try {
-      window.speechSynthesis.cancel();
-    } catch {
-      // Ignore
-    }
-  }
+      const res = await fetch('/api/teacher-voice', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text, teacherId: teacher.id, speed }),
+        signal: AbortSignal.any([controller.signal, AbortSignal.timeout(6000)]),
+      });
+      if (!res.ok) throw new Error('Neural voice unavailable');
+      const data = await res.json(); if (!data.audio) throw new Error('No audio returned');
+      if (cancelled) return;
+      audio = new Audio(`data:audio/mp3;base64,${data.audio}`);
+      let analyser: AnalyserNode | undefined;
+      try {
+        audioContext = new AudioContext();
+        const source = audioContext.createMediaElementSource(audio);
+        analyser = audioContext.createAnalyser(); analyser.fftSize = 256;
+        source.connect(analyser); analyser.connect(audioContext.destination); await audioContext.resume();
+      } catch { /* Word timing remains available without Web Audio. */ }
+      audio.onplay = () => begin(analyser); audio.onended = finish;
+      audio.onerror = () => { audio?.pause(); void browserSpeech(); };
+      await audio.play();
+    } catch { if (!cancelled) { audio?.pause(); audioContext?.close().catch(() => {}); await browserSpeech(); } }
+  })();
+  return { stop };
 }

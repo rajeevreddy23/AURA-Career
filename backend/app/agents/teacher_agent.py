@@ -79,25 +79,23 @@ Recent Conversation History:
 
 The student just asked: "{question}"
 
-Respond like an elite AI tutor (like Google Gemini and ChatGPT-4o) delivering an engaging, concept-by-concept masterclass:
-1. Concept 1 (Direct Answer & Intuition): Answer the student's question immediately with conversational warmth, clarity, and a memorable physical analogy.
-2. Visual Flowchart (MANDATORY): Always include a clean, valid Mermaid.js diagram (```mermaid ... ```) using graph TD, sequenceDiagram, or stateDiagram-v2 mapping out the concept visually.
-3. Concept 2 (Under-the-Hood Mechanics): Explain step-by-step what happens internally in memory, call stack, or runtime execution.
-4. Code Demonstration & Dry Run: Provide a clean, idiomatic code snippet with its exact terminal stdout output and line-by-line commentary.
-5. Real-World FAANG / Industry Context: How Google, Netflix, or Stripe uses this in production at scale.
-6. Socratic Thought Challenge: Close by asking the student a thought-provoking challenge question ("💡 Over to you: What happens if...?").
-7. Robot Speech (`speech`): A natural spoken script (2-3 sentences) for the floating robot avatar to speak via TTS in parallel.
-8. Next Concept Roadmap (`nextConcept`): Explicitly introduce the logical NEXT concept in this topic area.
+Respond like an elite, concise computer science educator delivering ONLY what is needed for learning the concept (NO OVER-MATTER / FLUFF):
+1. Concept Definition & Intuition: Explain the concept in 2-3 clear, direct sentences.
+2. Visual Flowchart (MANDATORY): Always include a clean, syntactically valid Mermaid.js diagram (```mermaid ... ```) using graph TD mapping out the concept's step-by-step logic flow. Use simple node names to ensure valid syntax.
+3. Code Demonstration: Provide a clean, practical, runnable code snippet with clear comments.
+4. Execution Output: Exact terminal stdout output.
+5. Key Takeaways: 3 concise bullet points of the most essential rules to remember.
+6. Next Concept Roadmap: 1-sentence preview of the next concept to study.
 
 Format strictly as JSON with this schema:
 {{
-  "answer": "Detailed conversational Markdown response with ```mermaid diagram, deep mechanics, code, industry context, anti-patterns, and Socratic challenge...",
-  "speech": "Natural spoken explanation for the robot avatar to speak aloud via TTS...",
-  "codeSnippet": "# Demonstrative code snippet in relevant language\\n...",
+  "answer": "Concise Markdown response with ## Concept Overview, ```mermaid flowchart, ```language code, ### Expected Output, and ### Key Takeaways.",
+  "speech": "Natural spoken explanation (2 sentences max) for the robot avatar to speak via TTS.",
+  "codeSnippet": "# Demonstrative code snippet\\n...",
   "output": "Exact execution output...",
-  "suggestedFollowUp": "Natural inquiry about the next concept or practical edge case...",
-  "memoryInsight": "1-sentence insight about runtime memory layout or complexity...",
-  "nextConcept": {{"title": "Next Concept Title", "teaser": "1-sentence preview of what comes next in this topic..."}},
+  "suggestedFollowUp": "1 natural follow-up inquiry...",
+  "memoryInsight": "1 concise sentence about runtime efficiency or complexity...",
+  "nextConcept": {{"title": "Next Concept Title", "teaser": "1-sentence preview of what comes next..."}},
   "robotState": "answering"
 }}
 """
@@ -114,20 +112,42 @@ Format strictly as JSON with this schema:
 
         # Intelligent progressive fallback
         answer_text = (
-            f"Regarding **{question}** in **{current_topic}**:\n\n"
-            f"1. **Core Principle**: In {current_topic}, execution is governed by clean state boundaries and predictable runtime mechanics. "
-            f"Rather than mutating global state, data is passed deterministically through functions and references.\n\n"
-            f"2. **Under the Hood**: The runtime resolves memory allocations in O(1) average time and maintains cache coherence.\n\n"
-            f"3. **Next Concept**: Building on this foundation, we next explore concurrent execution and resilient data structures."
+            f"## {question}\n\n"
+            f"**{question}** is a core concept in **{current_topic}**. It provides a structured, predictable way to process data and maintain clean state boundaries.\n\n"
+            f"### 📊 Flowchart\n"
+            f"```mermaid\n"
+            f"graph TD\n"
+            f"  A[Start: {question[:20]}] --> B[Input Validation]\n"
+            f"  B --> C{{Condition Check}}\n"
+            f"  C -->|Pass| D[Execute Operation]\n"
+            f"  C -->|Fail| E[Handle Boundary]\n"
+            f"  D --> F[Return Result]\n"
+            f"  E --> F\n"
+            f"```\n\n"
+            f"### 💻 Code Example\n"
+            f"```python\n"
+            f"# Demonstration for {question}\n"
+            f"def process_sample(data):\n"
+            f"    return [item for item in data if item is not None]\n\n"
+            f"print(process_sample(['Item A', 'Item B']))\n"
+            f"```\n\n"
+            f"### 📋 Expected Output\n"
+            f"```\n"
+            f"['Item A', 'Item B']\n"
+            f"```\n\n"
+            f"### 📌 Key Takeaways\n"
+            f"- Master the fundamental rules and predictable data flow.\n"
+            f"- Maintain clean separation of state and minimize side effects.\n"
+            f"- Validate edge cases and boundaries defensively."
         )
 
         return {
             "answer": answer_text,
-            "speech": f"Regarding your question on {question}, the core idea in {current_topic} is clean data flow and deterministic memory management.",
-            "codeSnippet": f"# Example demonstrating {question[:30]}\ndef execute_example(data):\n    # Process data deterministically\n    result = {{'topic': '{current_topic}', 'data': data}}\n    return result\n\nprint(execute_example('Valid Input'))",
-            "output": f"{{'topic': '{current_topic}', 'data': 'Valid Input'}}",
-            "suggestedFollowUp": f"How do we optimize memory allocations when scaling {current_topic}?",
-            "memoryInsight": "Deterministic memory referencing maximizes CPU L1/L2 cache hits.",
+            "speech": f"Regarding {question}, the core idea in {current_topic} is clean data flow and predictable memory management.",
+            "codeSnippet": f"# Example for {question}\ndef execute_example(data):\n    return {{'topic': '{current_topic}', 'result': data}}\n\nprint(execute_example('Valid Input'))",
+            "output": f"{{'topic': '{current_topic}', 'result': 'Valid Input'}}",
+            "suggestedFollowUp": f"How do we optimize memory allocations for {question}?",
+            "memoryInsight": "Deterministic referencing maximizes CPU L1/L2 cache hits.",
             "nextConcept": {
                 "title": f"Advanced Patterns in {current_topic}",
                 "teaser": "Exploring high-throughput pipelines and concurrency patterns."

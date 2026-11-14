@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Sparkles, TrendingUp, BookOpen, CheckCircle, ArrowRight,
-  RefreshCw, Layers, Edit3, Target, Zap, AlertTriangle, FileText, Check
+  RefreshCw, Layers, Edit3, Target, Zap, AlertTriangle, FileText, Check, ArrowUpRight
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
@@ -53,7 +53,7 @@ export const SkillImprovementPlan: React.FC = () => {
           skill: sk,
           category: idx % 2 === 0 ? 'Core Technical Skill' : 'Cloud / Tooling',
           priority: idx < 3 ? 'High' : 'Medium',
-          reason: `Frequently required in target roles for ${data.takeaway || 'Engineering'}.`,
+          reason: `Frequently demanded requirement for ${data.takeaway || 'target role'}.`,
           suggestedTopic: sk,
         }));
 
@@ -124,16 +124,30 @@ export const SkillImprovementPlan: React.FC = () => {
   return (
     <div className="space-y-8 max-w-7xl mx-auto">
       {/* Header Banner */}
-      <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} className="p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl space-y-2">
-        <div className="flex items-center gap-3">
-          <div className="p-2.5 bg-amber-500/10 text-amber-400 rounded-xl border border-amber-500/20">
-            <TrendingUp className="h-6 w-6" />
-          </div>
-          <div>
-            <h2 className="text-2xl font-bold text-white">Skill Upgrade & Resume Revision Roadmap</h2>
-            <p className="text-xs text-slate-400">
-              Targeted skill gaps to learn in AuraCareer and step-by-step resume updates to boost ATS scores.
-            </p>
+      <motion.div
+        initial={{ opacity: 0, y: 15 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="relative overflow-hidden p-6 rounded-3xl bg-slate-900/90 border border-slate-800 backdrop-blur-xl shadow-2xl shadow-amber-950/20"
+      >
+        <div className="h-1 w-full bg-gradient-to-r from-amber-500 via-orange-500 to-purple-500 absolute top-0 left-0" />
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div className="flex items-center gap-3.5">
+            <div className="p-3 bg-amber-500/10 text-amber-400 rounded-2xl border border-amber-500/20 shadow-inner shrink-0">
+              <TrendingUp className="h-6 w-6" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-500/15 text-amber-300 border border-amber-500/30">
+                  Targeted Career Growth
+                </span>
+              </div>
+              <h2 className="text-xl sm:text-2xl font-bold text-white mt-1">
+                Skill Upgrade & ATS Revision Roadmap
+              </h2>
+              <p className="text-xs sm:text-sm text-slate-400 mt-0.5">
+                Targeted skill gaps to learn directly in AuraCareer and tactical resume updates to maximize interview callbacks.
+              </p>
+            </div>
           </div>
         </div>
       </motion.div>
@@ -141,149 +155,165 @@ export const SkillImprovementPlan: React.FC = () => {
       {/* Grid: 2 Columns */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
         {/* Column 1: Skills to Improve */}
-        <Card className="lg:col-span-6 bg-slate-900 border-slate-800 shadow-xl">
-          <CardHeader className="border-b border-slate-800/80 pb-4">
-            <CardTitle className="text-lg font-bold text-white flex items-center justify-between">
-              <span className="flex items-center gap-2">
-                <Target className="h-5 w-5 text-primary" />
-                Skills You Should Improve
-              </span>
-              <Badge variant="outline" className="text-xs border-primary/30 text-primary">
-                {skillsToImprove.length} Skills Identified
-              </Badge>
-            </CardTitle>
-            <CardDescription className="text-xs text-slate-400">
-              Master these missing or weak skills to match top job requirements.
-            </CardDescription>
-          </CardHeader>
+        <div className="lg:col-span-6 rounded-3xl bg-slate-900/90 border border-slate-800 backdrop-blur-xl shadow-xl overflow-hidden flex flex-col">
+          <div className="p-6 border-b border-slate-800/80 flex items-center justify-between">
+            <div className="flex items-center gap-2.5">
+              <div className="p-2 bg-purple-500/10 text-purple-400 border border-purple-500/20 rounded-xl">
+                <Target className="h-5 w-5" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-white">Skills You Should Improve</h3>
+                <p className="text-xs text-slate-400">Master these missing keywords to unlock senior roles.</p>
+              </div>
+            </div>
+            <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-purple-500/15 text-purple-300 border border-purple-500/30">
+              {skillsToImprove.length} Skills
+            </span>
+          </div>
 
-          <CardContent className="pt-4 space-y-4">
-            {skillsToImprove.map((item, idx) => (
-              <div
-                key={idx}
-                className="p-4 rounded-xl bg-slate-800/60 border border-slate-700/60 flex flex-col justify-between gap-3 hover:border-primary/40 transition-colors"
-              >
-                <div className="flex items-start justify-between gap-2">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <h4 className="font-bold text-white text-base">{item.skill}</h4>
-                      <Badge
-                        className={`text-[10px] px-2 py-0.5 ${
-                          item.priority === 'High'
-                            ? 'bg-red-500/20 text-red-300 border-red-500/30'
-                            : 'bg-amber-500/20 text-amber-300 border-amber-500/30'
-                        }`}
-                      >
-                        {item.priority} Priority
-                      </Badge>
+          <div className="p-6 space-y-4 flex-1 overflow-y-auto">
+            {skillsToImprove.map((item, idx) => {
+              const isHigh = item.priority === 'High';
+              return (
+                <div
+                  key={idx}
+                  className="p-4 rounded-2xl bg-slate-950/60 border border-slate-800/90 hover:border-purple-500/40 transition-all duration-200 flex flex-col justify-between gap-3 group"
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h4 className="font-bold text-white text-base group-hover:text-purple-300 transition-colors">
+                          {item.skill}
+                        </h4>
+                        <span
+                          className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                            isHigh
+                              ? 'bg-red-500/20 text-red-300 border-red-500/30'
+                              : 'bg-amber-500/20 text-amber-300 border-amber-500/30'
+                          }`}
+                        >
+                          {item.priority} Priority
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-400 mt-1">{item.reason}</p>
                     </div>
-                    <p className="text-xs text-slate-400 mt-1">{item.reason}</p>
+                  </div>
+
+                  <div className="flex items-center justify-between pt-2 border-t border-slate-800/80">
+                    <span className="text-[11px] text-slate-400 font-medium">
+                      Category: <span className="text-slate-300">{item.category}</span>
+                    </span>
+                    <Link
+                      href={`/classroom?topic=${encodeURIComponent(item.suggestedTopic)}`}
+                      className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1 rounded-xl bg-purple-500/10 text-purple-300 border border-purple-500/30 hover:bg-purple-500/20 hover:border-purple-500/50 transition-all"
+                    >
+                      <BookOpen className="h-3.5 w-3.5" />
+                      <span>Learn in Classroom</span>
+                      <ArrowRight className="h-3 w-3" />
+                    </Link>
                   </div>
                 </div>
-
-                <div className="flex items-center justify-between pt-2 border-t border-slate-700/50">
-                  <span className="text-[11px] text-slate-400 font-medium">Category: {item.category}</span>
-                  <Link
-                    href={`/classroom?topic=${encodeURIComponent(item.suggestedTopic)}`}
-                    className="inline-flex items-center gap-1.5 text-xs font-semibold text-primary hover:text-primary/80 transition-colors"
-                  >
-                    <BookOpen className="h-3.5 w-3.5" />
-                    <span>Learn in Classroom</span>
-                    <ArrowRight className="h-3 w-3" />
-                  </Link>
-                </div>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
+              );
+            })}
+          </div>
+        </div>
 
         {/* Column 2: Resume Updates Needed */}
-        <Card className="lg:col-span-6 bg-slate-900 border-slate-800 shadow-xl">
-          <CardHeader className="border-b border-slate-800/80 pb-4">
-            <CardTitle className="text-lg font-bold text-white flex items-center justify-between">
-              <span className="flex items-center gap-2">
-                <Edit3 className="h-5 w-5 text-amber-400" />
-                What to Update in Your Resume
-              </span>
-              <Badge variant="outline" className="text-xs border-amber-500/30 text-amber-400">
-                Action Items
-              </Badge>
-            </CardTitle>
-            <CardDescription className="text-xs text-slate-400">
-              Section-by-section fixes to increase impact and pass ATS filters.
-            </CardDescription>
-          </CardHeader>
+        <div className="lg:col-span-6 rounded-3xl bg-slate-900/90 border border-slate-800 backdrop-blur-xl shadow-xl overflow-hidden flex flex-col">
+          <div className="p-6 border-b border-slate-800/80 flex items-center justify-between">
+            <div className="flex items-center gap-2.5">
+              <div className="p-2 bg-amber-500/10 text-amber-400 border border-amber-500/20 rounded-xl">
+                <Edit3 className="h-5 w-5" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-white">What to Update in Your Resume</h3>
+                <p className="text-xs text-slate-400">Section fixes to pass automated ATS filters.</p>
+              </div>
+            </div>
+            <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/30">
+              Action Items
+            </span>
+          </div>
 
-          <CardContent className="pt-4 space-y-4">
+          <div className="p-6 space-y-4 flex-1 overflow-y-auto">
             {resumeUpdates.map((item, idx) => (
-              <div key={idx} className="p-4 rounded-xl bg-slate-800/60 border border-slate-700/60 space-y-2">
+              <div
+                key={idx}
+                className="p-4 rounded-2xl bg-slate-950/60 border border-slate-800/90 hover:border-amber-500/40 transition-all duration-200 space-y-2.5"
+              >
                 <div className="flex items-center justify-between">
-                  <Badge variant="outline" className="text-[10px] uppercase font-bold border-slate-600 text-slate-300">
+                  <span className="text-[10px] font-mono uppercase tracking-wider font-bold px-2 py-0.5 rounded-md border border-slate-700 bg-slate-900 text-slate-300">
                     {item.section} Section
-                  </Badge>
-                  <span className="text-[10px] text-amber-400 font-semibold flex items-center gap-1">
-                    <AlertTriangle className="h-3 w-3" /> Recommendation
+                  </span>
+                  <span className="text-[11px] text-amber-400 font-semibold flex items-center gap-1">
+                    <AlertTriangle className="h-3 w-3" /> Critical Action
                   </span>
                 </div>
                 <h4 className="font-semibold text-sm text-white">{item.currentIssue}</h4>
-                <p className="text-xs text-slate-300 leading-relaxed bg-slate-950/40 p-2.5 rounded-lg border border-slate-800">
+                <p className="text-xs text-slate-300 leading-relaxed bg-slate-900/80 p-3 rounded-xl border border-slate-800">
                   {item.actionRequired}
                 </p>
               </div>
             ))}
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       </div>
 
       {/* AI Resume Section Rewriter / Enhancer */}
-      <Card className="bg-slate-900 border-slate-800 shadow-xl">
-        <CardHeader className="border-b border-slate-800/80 pb-4">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-primary/10 text-primary rounded-xl">
-              <Sparkles className="h-5 w-5" />
+      <div className="relative rounded-3xl bg-slate-900/90 border border-slate-800 backdrop-blur-xl shadow-2xl shadow-indigo-950/20 overflow-hidden">
+        <div className="h-1 w-full bg-gradient-to-r from-purple-500 via-indigo-500 to-cyan-500" />
+
+        <div className="p-6 border-b border-slate-800/80">
+          <div className="flex items-center gap-3.5">
+            <div className="p-2.5 bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 rounded-2xl">
+              <Sparkles className="h-6 w-6" />
             </div>
             <div>
-              <CardTitle className="text-xl font-bold">Instant AI Resume Section Rewriter</CardTitle>
-              <CardDescription className="text-xs text-slate-400">
-                Paste any section of your resume (e.g. work experience bullet, summary) and get an ATS-optimized, high-impact rewrite using Gemini API.
-              </CardDescription>
+              <h3 className="text-lg sm:text-xl font-bold text-white">Instant AI Resume Section Rewriter</h3>
+              <p className="text-xs text-slate-400 mt-0.5">
+                Paste any work bullet point, summary, or project snippet to get a high-impact, quantifiable rewrite optimized for ATS.
+              </p>
             </div>
           </div>
-        </CardHeader>
+        </div>
 
-        <CardContent className="pt-6 space-y-6">
+        <div className="p-6 space-y-5">
           <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
-            <div className="md:col-span-3">
-              <label className="block text-xs font-semibold text-slate-300 mb-1.5">Section Type</label>
+            <div className="md:col-span-4">
+              <label className="block text-xs font-semibold text-slate-300 mb-1.5 uppercase tracking-wider">
+                Section Category
+              </label>
               <select
                 value={selectedSection}
                 onChange={(e) => setSelectedSection(e.target.value)}
-                className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-primary"
+                className="w-full bg-slate-950/70 border border-slate-800 rounded-xl px-3.5 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 cursor-pointer transition-all"
               >
-                <option value="Summary">Professional Summary</option>
-                <option value="Experience">Work Experience Bullet</option>
-                <option value="Skills">Technical Skills List</option>
-                <option value="Projects">Project Description</option>
+                <option value="Summary" className="bg-slate-900">Professional Summary</option>
+                <option value="Experience" className="bg-slate-900">Work Experience Bullet</option>
+                <option value="Skills" className="bg-slate-900">Technical Skills Matrix</option>
+                <option value="Projects" className="bg-slate-900">Project Description</option>
               </select>
             </div>
 
-            <div className="md:col-span-9">
-              <label className="block text-xs font-semibold text-slate-300 mb-1.5">Paste Current Text to Rewrite</label>
+            <div className="md:col-span-8">
+              <label className="block text-xs font-semibold text-slate-300 mb-1.5 uppercase tracking-wider">
+                Paste Draft Text to Optimize
+              </label>
               <textarea
                 value={customInput}
                 onChange={(e) => setCustomInput(e.target.value)}
-                placeholder="e.g. Developed a web app using React and backend API for customer orders..."
+                placeholder="e.g. Developed a web application with React and Node.js for managing online orders and increased speed..."
                 rows={3}
-                className="w-full bg-slate-800/80 border border-slate-700 rounded-xl p-3 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-primary resize-none"
+                className="w-full bg-slate-950/70 border border-slate-800 rounded-xl p-3.5 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 resize-none transition-all"
               />
             </div>
           </div>
 
           <div className="flex justify-end">
-            <Button
+            <button
               onClick={handleImproveContent}
               disabled={isImproving || !customInput.trim()}
-              className="gap-2 font-bold text-sm shadow-lg shadow-primary/20"
+              className="px-6 py-2.5 rounded-xl font-bold text-sm bg-gradient-to-r from-purple-600 via-indigo-600 to-cyan-600 hover:from-purple-500 hover:to-cyan-500 text-white shadow-lg shadow-indigo-600/25 flex items-center gap-2 transition-all cursor-pointer disabled:opacity-50"
             >
               {isImproving ? (
                 <>
@@ -296,25 +326,35 @@ export const SkillImprovementPlan: React.FC = () => {
                   <span>Generate ATS-Optimized Rewrite</span>
                 </>
               )}
-            </Button>
+            </button>
           </div>
 
           {improvedResult && (
-            <div className="p-4 rounded-xl bg-slate-950/80 border border-emerald-500/30 space-y-3">
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="p-5 rounded-2xl bg-slate-950/80 border border-emerald-500/40 space-y-3 shadow-lg shadow-emerald-950/10"
+            >
               <div className="flex items-center justify-between">
-                <Badge className="bg-emerald-500/20 text-emerald-300 border-emerald-500/30 text-xs">
-                  ✓ AI Optimized Result
-                </Badge>
-                <Button size="sm" variant="outline" onClick={handleCopy} className="text-xs border-slate-700 text-slate-200 gap-1.5">
+                <span className="px-3 py-1 rounded-full text-xs font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex items-center gap-1.5">
+                  <Check className="h-3.5 w-3.5" />
+                  AI Optimized Result
+                </span>
+                <button
+                  onClick={handleCopy}
+                  className="text-xs px-3 py-1.5 rounded-xl border border-slate-700 bg-slate-800/80 hover:bg-slate-700 text-slate-200 flex items-center gap-1.5 transition-all cursor-pointer"
+                >
                   {copied ? <Check className="h-3.5 w-3.5 text-emerald-400" /> : <Edit3 className="h-3.5 w-3.5" />}
                   <span>{copied ? 'Copied!' : 'Copy to Clipboard'}</span>
-                </Button>
+                </button>
               </div>
-              <p className="text-sm text-slate-100 font-sans leading-relaxed whitespace-pre-wrap">{improvedResult}</p>
-            </div>
+              <p className="text-sm text-slate-100 font-sans leading-relaxed whitespace-pre-wrap bg-slate-900/60 p-4 rounded-xl border border-slate-800">
+                {improvedResult}
+              </p>
+            </motion.div>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     </div>
   );
 };

@@ -384,31 +384,33 @@ export const CreateResume: React.FC = () => {
       {/* Form Section */}
       <div className="space-y-6">
         {/* Section Navigation */}
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-2 p-1.5 bg-slate-950/60 rounded-2xl border border-slate-800/80 backdrop-blur-md">
           {sections.map((sec) => (
-            <Button
+            <button
               key={sec.id}
-              variant={activeSection === sec.id ? 'primary' : 'outline'}
-              size="sm"
               onClick={() => setActiveSection(sec.id)}
+              className={cn(
+                'flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer',
+                activeSection === sec.id
+                  ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-md shadow-purple-600/25'
+                  : 'bg-transparent text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+              )}
             >
-              <sec.icon className="h-3.5 w-3.5 mr-1.5" />
-              {sec.label}
-            </Button>
+              <sec.icon className="h-3.5 w-3.5" />
+              <span>{sec.label}</span>
+            </button>
           ))}
         </div>
 
         {/* Generate from scratch */}
-        <Button
-          variant="outline"
-          size="sm"
+        <button
           onClick={handleGenerateFromScratch}
-          isLoading={isGenerating}
-          className="w-full"
+          disabled={isGenerating}
+          className="w-full py-2.5 px-4 rounded-xl text-xs font-bold bg-slate-900/90 border border-purple-500/30 hover:border-purple-500/60 hover:bg-purple-500/10 text-purple-300 flex items-center justify-center gap-2 transition-all shadow-sm cursor-pointer disabled:opacity-50"
         >
-          <Sparkles className="h-4 w-4 mr-2" />
-          {isGenerating ? 'Generating...' : 'Generate from Scratch'}
-        </Button>
+          <Sparkles className="h-4 w-4 text-pink-400" />
+          <span>{isGenerating ? 'Generating Sample Resume...' : 'Auto-Generate Sample Profile with AI'}</span>
+        </button>
 
         <AnimatePresence mode="wait">
           {activeSection === 'personal' && (
@@ -667,27 +669,23 @@ export const CreateResume: React.FC = () => {
 
         {/* Resume Intelligence & Job Search Actions */}
         {hasData && (
-          <div className="flex flex-col sm:flex-row gap-2 pt-2">
-            <Button
-              variant="outline"
-              size="sm"
+          <div className="flex flex-col sm:flex-row gap-3 pt-2">
+            <button
               onClick={handleAnalyzeIntelligence}
-              isLoading={isAnalyzing}
-              className="flex-1"
+              disabled={isAnalyzing}
+              className="flex-1 py-2.5 px-4 rounded-xl text-xs font-bold bg-slate-900/90 border border-indigo-500/30 hover:border-indigo-500/60 hover:bg-indigo-500/10 text-indigo-300 flex items-center justify-center gap-2 transition-all cursor-pointer disabled:opacity-50"
             >
-              <Brain className="h-4 w-4 mr-2" />
-              {isAnalyzing ? 'Analyzing...' : 'Resume Intelligence'}
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
+              <Brain className="h-4 w-4 text-indigo-400" />
+              <span>{isAnalyzing ? 'Analyzing Resume...' : 'Analyze ATS Score'}</span>
+            </button>
+            <button
               onClick={handleJobSearch}
-              isLoading={isFetchingJobs}
-              className="flex-1"
+              disabled={isFetchingJobs}
+              className="flex-1 py-2.5 px-4 rounded-xl text-xs font-bold bg-slate-900/90 border border-cyan-500/30 hover:border-cyan-500/60 hover:bg-cyan-500/10 text-cyan-300 flex items-center justify-center gap-2 transition-all cursor-pointer disabled:opacity-50"
             >
-              <Briefcase className="h-4 w-4 mr-2" />
-              {isFetchingJobs ? 'Searching...' : 'Search Jobs'}
-            </Button>
+              <Briefcase className="h-4 w-4 text-cyan-400" />
+              <span>{isFetchingJobs ? 'Searching Live Jobs...' : 'Find Matching Jobs'}</span>
+            </button>
           </div>
         )}
       </div>
@@ -695,31 +693,35 @@ export const CreateResume: React.FC = () => {
       {/* Preview Section */}
       <div className="lg:sticky lg:top-24 lg:self-start space-y-4">
         {/* Preview Controls */}
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
-            <Badge variant="primary" size="sm">
-              <Eye className="h-3 w-3 mr-1" />
+        <div className="flex items-center justify-between gap-3 p-3 bg-slate-900/90 border border-slate-800 rounded-2xl backdrop-blur-xl shadow-lg">
+          <div className="flex items-center gap-3">
+            <span className="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-purple-500/15 text-purple-300 border border-purple-500/30">
+              <Eye className="h-3.5 w-3.5" />
               Live Preview
-            </Badge>
-            <div className="flex bg-muted rounded-lg p-0.5">
+            </span>
+            <div className="flex bg-slate-950 rounded-xl p-1 border border-slate-800">
               <button
                 onClick={() => setTemplate('modern')}
-                className={cn('px-2 py-1 text-xs rounded font-medium transition-colors', template === 'modern' ? 'bg-background shadow-sm' : 'text-muted-foreground')}
+                className={cn('px-3 py-1 text-xs rounded-lg font-semibold transition-all cursor-pointer', template === 'modern' ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200')}
               >
                 Modern
               </button>
               <button
                 onClick={() => setTemplate('classic')}
-                className={cn('px-2 py-1 text-xs rounded font-medium transition-colors', template === 'classic' ? 'bg-background shadow-sm' : 'text-muted-foreground')}
+                className={cn('px-3 py-1 text-xs rounded-lg font-semibold transition-all cursor-pointer', template === 'classic' ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200')}
               >
                 Classic
               </button>
             </div>
           </div>
-          <Button variant="primary" size="sm" onClick={handleDownloadPDF} disabled={!hasData}>
-            <Download className="h-4 w-4 mr-1" />
-            PDF
-          </Button>
+          <button
+            onClick={handleDownloadPDF}
+            disabled={!hasData}
+            className="px-4 py-2 rounded-xl text-xs font-bold bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white flex items-center gap-1.5 shadow-md shadow-purple-600/20 transition-all disabled:opacity-40 cursor-pointer"
+          >
+            <Download className="h-4 w-4" />
+            <span>Export PDF</span>
+          </button>
         </div>
 
         {/* Preview Card */}

@@ -1,0 +1,822 @@
+
+
+==================== PAGE 1 ====================
+
+2026 3rd  International Conference on Emerging Trends in Engineering and Medical Sciences (ICETEMS) 
+ 
+ 
+XAI for Agriculture: Low-Complexity AI Solutions 
+for Real-Time Plant Health Monitoring 
+ 
+ Mr.S.Ashok Kumar1 
+Assistant Professor 
+Department of AI&DS 
+Annamacharya University 
+Rajampet, India 
+ashokkumar.emp@gmail.com 
+A.Ramesh Babu 2 
+Assistant Professor 
+Department of AI&DS 
+Annamacharya University 
+Rajampet, India 
+tpo.aits.arb@gmail.com 
+A.Hima Sree 3 
+Department of AI&DS 
+Annamacharya Institute of  
+Technology & Sciences 
+Rajampet, India 
+hsree3976@gmail.com 
+ 
+C.Amrutha4 
+Department of AI&DS 
+Annamacharya Institute of  
+Technology & Sciences 
+Rajampet, India 
+         chilukuriamrutha456@gmail.com 
+E.Bhavani 5 
+Department of AI&DS 
+Annamacharya Institute of  
+Technology & Sciences 
+Rajampet, India 
+              erathibhavani@gmail.com 
+                          S.Althaf 6 
+ 
+Department of AI&DS 
+Annamacharya Institute of  
+Technology & Sciences 
+  Rajampet, India 
+               althafsirivella@gmail.com 
+Abstract— Plant diseases are a major challenge in producing 
+agriculture products, especially in areas where the diagnosis is 
+often made through simple visual inspection and traditionally 
+poor access to experts. While deep learning methods have 
+proven to be very accurate in a controlled setting, real-world 
+implementation is limited because of high computational 
+demands and difficulty in clear decisions and usability for 
+farmers. To circumvent these problems, in this paper, we 
+propose a lightweight and interpretable plant disease detection 
+model named XAI-Plant, that is designed to work in real-time 
+on resource constrained device. The proposed system employs a 
+small convolutional neural network optimized for execution on 
+a CPU combined with a version of Grad-CAM explainability 
+module that highlights the disease affected areas in the leaf 
+images. In addition, a multifaceted (multilingual) output 
+interface is incorporated in order to enhance accessibility of 
+users with different linguistic backgrounds. The model is then 
+trained with a combination of benchmark data sets and images 
+collected in the field in order to assure robustness during actual 
+farming conditions. Experimental evaluation demonstrate that 
+the proposed system has 95.1% accuracy of controlled data set 
+and 92.3% accuracy of field data while also keeping low 
+calculation. The results present that useful plant disease 
+diagnosis can be achieved with interpretable and efficient 
+artificial intelligence models, giving rise to feasible support for 
+agricultural applications. 
+Keywords— 
+Plant 
+Disease 
+Identification; 
+Lightweight 
+Convolutional Networks; Explainable AI; Real-time Detection 
+Systems; Model Transparency; Multilingual User Interfaces; 
+Edge Compatible AI Solutions 
+I. INTRODUCTION  
+Agriculture plays an important role in promoting food 
+security and livelihoods and often times crop productivity is 
+impacted by plant diseases which are hard to identify at the 
+early stage. In many farming regions, diagnosing disease still 
+relies on subjective visual examination by farmers, which is 
+usually not accurate. Such traditional practices can lead to 
+delayed intervention and improper treatment as well as heavy 
+yield loss particularly where the access to agricultural experts 
+and the diagnostic facilities are limited.  
+Lately there are advances in deep learning that allow us to do 
+the same automated medical diagnosis for plant disease with 
+a lot of accuracy on the benchmark plant datasets. 
+Convolutional neural networks-based methods have been 
+shown to achieve good performance when used to detect 
+disease patterns in leaf images in controlled laboratory setups. 
+However, their effectiveness is often reduced when applied 
+in the actual agricultural setting, such as under a difference in 
+lighting, background clutter, leaf orientation and image 
+quality. In addition, many existing models of deep learning 
+demand a lot of computational resources, limiting their use 
+on low cost mobile or edge devices commonly used by 
+farmers.  
+Another critical limitation of current plant disease detection 
+system is the lack of explainability. Most of the deep learning 
+algorithms are usually black boxes where you get the answer 
+without any obvious visual or logical justification. This leads 
+to loss of user trust and makes it hard for farmers to make any 
+sense of or validate the diagnosis. Furthermore, many of the 
+existing solutions offer interfaces in only one language, 
+limiting the usability of the systems in agricultural 
+communities with a linguistically diverse population of 
+farmers where farmers prefer to use local or regional 
+languages.  
+To overcome these problems, in this paper, XAI-Plant, a 
+lightweight, interpretable plant disease detection model for 
+real-time scheme implementation in real-world farming 
+context, is proposed. The proposed system balances the 
+tradeoff between classification accuracy and computer 
+efficiency, combines explainable AI techniques to allow 
+visual insights into model predictions, and has multilingual 
+output to improve accessibility. By working together, 
+lightweight model design, explainability and evaluation using 
+both benchmark datasets and field-collected datasets is aimed 
+at the unmet need of bridging the gap between experimental 
+AI research and deployable agricultural solutions. 
+II. LITERATURE SURVEY 
+Early methods to detect plant diseases were based on hand-
+crafted features of images such as color statistics, texture 
+descriptor and simple statistical measures to identify the 
+difference between healthy and infected leaves. As was 
+computationally efficient, these methods were very sensitive 
+
+
+==================== PAGE 2 ====================
+
+to changes in lighting conditions and background complexity, 
+thus reducing their usefulness in field environments [1]. 
+With the introduction of deep learning, convolutional neural 
+network architectures [2], [3] such as ResNet, Inception, and 
+EfficientNet were used to enhance significantly classification 
+accuracy on standard benchmark plant disease data sets [2], 
+[3]. Despite their effectiveness, these high-capacity models 
+are computationally expensive and demand high memory 
+usage, hence, are not contributable for specifying it on low 
+power devices. Looking at the other side, their performance 
+sometimes tends to drop when tested in the real world on 
+images affected with natural noise, shadows and irregular leaf 
+orientations [4], [5]. 
+To cope with the computational limitations, MobileNetV2, 
+ShuffleNet, 
+EfficientNet-Lite 
+are 
+some 
+lightweight 
+architectures that aim to decrease the complexity of the 
+models without losing the acceptable accuracy [4], [6]. 
+Additional 
+optimization 
+techniques, 
+like 
+pruning, 
+quantization and knowledge distillation have further 
+increased the runtime efficiency [7]. However, aggressive 
+compression can have a negative impact on the prediction 
+stability, especially in uncontrolled conditions in the field [6]. 
+In parallel, the area of explainable artificial intelligence has 
+seen the emergence of visualization techniques, such as Grad-
+CAM, Score-CAM and LIME, to highlight regions of images 
+that explains model predictions [8], [9]. Concept-based 
+methods such as ACE further attempt to expose higher-level 
+patterns learned by the model [10]. Although these 
+techniques enhance transparency, most remain experimental 
+and are rarely integrated into deployable plant disease 
+diagnosis systems. 
+Recent studies have demonstrated the feasibility of edge-
+based inference using compact models, yet challenges related 
+to multilingual accessibility, interpretability, and robustness 
+across diverse environments remain unresolved [11], [14], 
+[15]. Consequently, there is a lack of unified frameworks that 
+combine 
+computational 
+efficiency, 
+real-time 
+edge 
+deployment, explainability, and multilingual user support. 
+This gap motivates the development of the proposed XAI-
+Plant framework. 
+III. DATA COLLECTION AND PREPROCESSING 
+The quality and diversity of images used during the training 
+of any model used in plant disease detection is very useful in 
+how well the model will perform. Since most of diseases 
+manifest themselves through visible changes, such as 
+discoloration, lesions, fungal patches or texture distortions, it 
+is important that the dataset covers these variations at 
+different environmental conditions. In this section, the dataset 
+applied to the XAI-Plant framework and the preprocessing 
+steps that were followed to prepare these images before 
+sending them to the network are explained. 
+A. Dataset Description 
+In order to ensure that the system will operate reliably for real 
+farming conditions, two kinds of datasets were used, 
+including a structured benchmark dataset and a set of directly 
+taken images from fields. This approach helps the model to 
+learn clear features of diseases, and also adapt to the 
+unpredictable nature of outdoor environments. 
+1. Plant Village Dataset 
+The Plant Village dataset has more than 54,000 labeled 
+images in total from 14 crop species and more than 35 
+diseases which include healthy samples. These images were 
+made in controlled conditions where lighting and plain 
+backgrounds were used. As a result, they clearly suggest the 
+symptoms of the disease such as: 
+ 
+fungal or mold-like growth, 
+ 
+streaks and blotches that are indicators of viral 
+infections, 
+ 
+bacterial spots, 
+ 
+early signs of nutrient of nutrient related discoloration. 
+Since we have a clean and uniform dataset, it helps us to form 
+a strong base with the learning of the basic visual key features 
+of each disease. 
+2.Field-Collected Images 
+In order to prove the practicality of the system, 3,250 images 
+of leaves were taken from farms in the region with regular 
+smartphone cameras. These images are representative of the 
+wide variety of challenges seen in natural environments 
+including: 
+ 
+Irregular lighting - harsh sunlight, heavy shadows, 
+glare; 
+ 
+Background interference - soil, other plants, stems, 
+insects; 
+ 
+Partial visibility - Folded leaves, over-lapping leaves, 
+damaged areas; 
+ 
+Resolution variations - ranging from low resolution to 
+full HD; 
+ 
+Natural artifacts - particles of dust, droplets of water, 
+insect bites. 
+Including these samples helps the model understand how 
+diseases would look outside the lab setting so that the model 
+would achieve more reliable results when the farmer takes a 
+picture in the field. 
+B. Image Preprocessing 
+Since images are taken from different sources and appears 
+different, the preprocessing is essential in order to make them 
+consistent and useful 
+for training. The XAI-plant 
+preprocessing pipeline has several steps to ensure that the 
+images are as standard as possible and to emphasize the 
+specifics of each disease. 
+ Resizing-The size of every single image is resized to 224 x 
+224 pixels. This size is consistent with the size of the 
+expected input to the lightweight CNN, and is necessary to 
+ensure that all images have the same size when being trained 
+or tested. 
+Normalization-To 
+mitigate 
+this 
+effect 
+of 
+lighting 
+differences, the value of pixels are scaled to a 0-1 range. This 
+step helps the model to learn more efficiently by making sure 
+that images that were taken in sunlight or shade do not 
+introduce any unnecessary variations. 
+Color Space Standardization-All images are preserved as 
+RGB images. Since many diseases manifest themselves by 
+subtle color variations such as yellowing, browning or 
+darkening at the border of lesions it is mandatory to preserve 
+the original color information in order to classify diseases 
+correctly. 
+Noise Reduction-Field images are much more likely to have 
+blur, uneven illumination or even visual noise as a result of 
+
+
+==================== PAGE 3 ====================
+
+wind or camera movement. Severely damaged images are 
+removed during the cleaning of data sets.  
+Data Augmentation-Because some categories of diseases 
+contain fewer samples than others, augmentation techniques 
+are employed to increase the number of examples in the 
+dataset that the model is learning from, to enhance the 
+model's ability to generalize. The following transformations 
+are followed: 
+ 
+Rotations (+/- 20deg) in order to simulate the different 
+view angles, 
+ 
+Horizontal and vertical flips to make various mirrored 
+ones, 
+ 
+Zoom manages to mimic close and far captures, 
+ 
+Brightness is varied in order to imitate field lighting 
+variations, 
+ 
+Light blurring in order to replicate minor camera shake. 
+Such adjustments produce more examples and non-
+overfitting to clean laboratory images. 
+ 
+Fig. 1. Data Preprocessing Pipeline 
+C. Train- Validation- Test Split 
+To test the system fairly, the data set combined is split into 
+the: 
+ 
+80% for training, 
+ 
+20% for validation, 
+ 
+A completely different and independent test set 
+comprised entirely of field-captured images. 
+When using field images for the final test, the accuracy 
+indicated in the results reflects performing on the field, not 
+performing on controlled sets of images. 
+D. Importance of Preprocessing 
+The above described preprocessing steps are a key part in 
+improving the reliability of the XAI-plant framework. By 
+standardizing image sizes, adding noise reduction, preserving 
+color patterns and introducing augmented variations, the 
+model is more prepared to spot characteristics of the diseases 
+in a consistent way regardless of numerous varied real-world 
+conditions. These measures help the system to maintain its 
+strong performance, also in the face of being taken by farmers 
+with basic mobile devices in unpredictable environments. 
+IV. PROPOSED METHODOLOGY 
+The principles guiding the development of the XAI-Plant 
+system were that it should be accurate, interpretable and of 
+practical use in agricultural environments. This section 
+presents those guiding principles and describes the methods 
+used for using the iPSys computational approaches and 
+architectural workflow for enabling the plant disease 
+detection to be real-time and based on resource-limited 
+devices. 
+A. Design Principles 
+1. Light Weight and Efficient Operation 
+Most of the farmers are using cells phones/low power 
+computer makes it essential that the model can perform 
+efficiently without specialty hardware. XAI-Plant is based on 
+a small convolutional neural network (CNN) that can be fully 
+operated on CPU-based systems. The resulting final model is 
+of the order of 14.2 MB, which makes it possible to infer very 
+quickly, even in an offline environment, without requiring a 
+cloud environment to be processed. 
+2.Explainability is Integrated and Users Trust 
+Automated predictions for users mean nothing unless they 
+have access to information about the basis of the decision. To 
+support this, explanation is baked directly into the system 
+using Grad-CAM. Every prediction is accompanied by a 
+heatmap which shows areas of the leaf of greatest importance 
+in relation to the classification. This transparency is used to 
+assist farmers in validating the diagnosis and recognizing 
+characteristic symptoms themselves. 
+3.Multilingual Accessibility for Farmers 
+Agricultural users frequently prefer to deal in their regional 
+languages. To make the system widely usable, XAI-plant 
+returns results in English, Hindi and Marathi with flexible 
+design so that other languages can be incorporated. This is for 
+the sake of making it understandable for other people that 
+may not be familiar with technical terms. 
+4.Scalability and Flexibility of deployment 
+XAI-plant is designed as a modular system, that is able to 
+adapt to different deployment environment. It can run as a 
+mobile entirely off-the-network tool, or as an embedded 
+conjunction into local server and cloud-effect based 
+environments for larger distribution. Parts like preprocessing, 
+inference, explainability, knowledge retrieval can work in 
+isolation and in combination depending on the user's needs. 
+5.Action-Oriented Output 
+Beyond identifying diseases, the system makes suggestions 
+about treating the diseases and steps to prevent them. This 
+ensures that the outcome of the diagnosis is an immediate, 
+practical step, without the user needing to look for further and 
+external guidance. 
+B. System Architecture  
+The workflow of the XAI-Plant is composed of five modules 
+one after the other: 
+ 
+Image Input Layer-Accept leaf images captured from 
+leaf declaring devices or posted by using a web 
+interface. 
+ 
+Preprocessing Layer-Does standardised operations 
+such as resize, normalise, noise handling, etc. Also does 
+augmentation during training. 
+ 
+Light weight CNN Feature Extractor-A custom CNN 
+is made to process the image and learn the 
+characteristics of the disease relating to color, texture, 
+and structural features of the disease. 
+
+
+==================== PAGE 4 ====================
+
+ 
+Module for explaining the decisions (Grad-CAM)-
+Produces class activation maps for visualising parts of 
+the image that affect the prediction. 
+ 
+Multilingual Output Module-Generates the diagnosis, 
+confidence score, visualization of the heatmap and 
+relevant treatment advice in the language chosen by the 
+user. 
+ 
+Fig 2. Proposed System Architecture 
+Combined, these parts provide efficient results ranging from 
+raw input images to an interpretable and actionable result. 
+C. Lightweight CNN Design of Model 
+The CNN model taking part in XAI-Plant is a mix of accuracy 
+and efficiency, which can be exercised on devices because 
+they have limited memory and processing power. 
+Layer Structure 
+ 
+Conv Block 1 32 filters (3*3) ReLU-> MaxPooling 
+ 
+Conv Block 2 64 Filters (3*3) ReLU Maxpooling 
+ 
+Conv Block 3: 128 filters (3×3), ReLU 
+ 
+Global Average Pooling: Reduces feature maps into a 
+small sized feature vector 
+ 
+Dense Layer 128 units ReLU Dropout 0.4 
+ 
+Output Layer Softmax classifier Multiclass prediction 
+Model Properties 
+ 
+Private Parameters: trainable parameters: 1.46 million 
+ 
+Model size: ~14.2 MB 
+ 
+Maximum memory consumption: ~38MB when doing 
+inference 
+This architecture has the benefit of allowing reliable 
+performance in the field with no need for high-performance 
+hardware. 
+D. Workflow of Explainability Integration (XAI Workflow) 
+XAI-plant has explainability as an integral part instead of an 
+add-on. The following is the workflow in operation of the 
+classifier: 
+ 
+The last conv layer provides spatial activations maps. 
+ 
+The gradients of a predicted class with respect to these 
+maps are calculated. 
+ 
+Weighted activations are combined to provide a class-
+specific mask of activations. 
+ 
+The mask is oversized to make it similar to the original 
+image and superimposed to generate a Grad-CAM 
+heatmap. 
+The visualization that results is used by users to understand 
+the prediction and gain confidence in decisions made by the 
+system. 
+E. Training Procedure 
+The set up to establish this is summarised below to facilitate 
+reproducibility and address reviewer expectations. 
+Table I: Training Parameters 
+Parameter 
+Value 
+Batch Size 
+32 
+Learning Rate 
+0.0003 
+Optimizer 
+Adam 
+Loss Function 
+Categorical Cross-Entropy 
+Epochs 
+40 
+Early Stopping 
+Patience = 7 
+Learning Rate Scheduler 
+Reduce LR by factor of 0.2 when 
+validation loss plateaus 
+Validation Split 
+20% of the training dataset 
+The network was trained using a mixture of images from the 
+Plant Village database and images collected in the field to 
+make sure that the model was well-generalized to variations 
+that occur in the field. 
+F. Evaluation Metrics 
+The performance of the system was evaluated based on the 
+following parameters: 
+ 
+Overall accuracy 
+ 
+Precision and recall 
+ 
+F1-score 
+ 
+Confusion matrix 
+ 
+Model Size and Memory Foot Print 
+ 
+Quality of explainability (matching of Grad-CAM areas 
+with annotated areas of the disease) 
+These measures are not only predictive, but also portray 
+practical deployment readiness. Using above-mentioned 
+principles, architecture and methods, the following section 
+introduces some of the experimental results from benchmark 
+datasets and real-field evaluations. 
+V. RESULTS AND DISCUSSION 
+This section presents the quantitative evaluation of the XAI-
+Plant model using two datasets: the Plant Village benchmark 
+dataset and a separate collection of field-captured images. 
+The results include classification performance, stability of the 
+cross validation, behaviour of the confusion matrix, results of 
+the ROC and the PR curve, prediction confidence levels, 
+model footprint, and comparison of the results with existing 
+baseline systems. All outcomes are reported factually, 
+whereas the interpretative discussion is discussed in the 
+following section. 
+A. Overall Classification Performance  
+The classification ability of the model was evaluated first on 
+controlled and real-world data sets. A combined summary of 
+
+
+==================== PAGE 5 ====================
+
+the key metrics is given in Table II, which represents how the 
+model operates in various environments. 
+Table II - Performance of Classification  
+Metric 
+Plant Village 
+Field Dataset 
+Accuracy 
+95.1% 
+92.3% 
+Precision 
+0.91 
+0.89 
+Recall 
+0.93 
+0.90 
+F1-Score 
+0.92 
+0.89 
+Model Size 
+14.2 MB 
+14.2 MB 
+As shown in Table II, The model maintains consistent 
+accuracy, with a small reduction when evaluated on field data 
+containing natural variations such as lighting and background 
+complexity. when applied on field data containing natural 
+variations such as lighting changes, shadows and background 
+elements. 
+B. Cross Validity and CI: Confidence interval 
+To test the reliability of the obtained model, a 5-fold cross 
+validation procedure was performed. The aggregated 
+performance for folds gave: 
+ 
+Mean accuracy: 94.7% 
+ 
+95% confidence interval: ±0.42% 
+These results demonstrate stable performances on repeated 
+training partitions. A form of a graphical summary of fold-
+wise accuracy can be placed in Fig. 3 for additional clarity. 
+C . Confusion Matrix Behaviour 
+A confusion matrix was produced to investigate class specific 
+patterns of performance. A representative matrix can be seen 
+in Fig. 3 from which the following observations can be made: 
+ 
+Fungal and bacterial diseases have a large correct 
+recognition rate. 
+ 
+Leaf Spot diseases having similar appearance visually 
+exhibit moderate inter class confusion. 
+ 
+Minor misclassifications were found between the 
+pattern of nutrient deficiencies and early fungal 
+symptoms. 
+ 
+Fig. 3. Confusion Matrix for Multiclass Classification 
+The confusion matrix is of use in terms of determining where 
+the similarity between classes questioned between the model 
+in the field of visual representation. 
+D  . Prediction confidence distribution  
+To learn about the distribution of the prediction confidence, 
+500 field images were evaluated. The probability values that 
+the model produced were divided into categories of 
+confidence, which are summarised below: 
+ 
+High confidence (>0.90): 78% 
+ 
+Moderate confidence (0.50–0.90): 16% 
+ 
+Low confidence (<0.50): 6% 
+This distribution gives an indication of certainty of the model 
+in various real-world scenarios. 
+ 
+Fig. 4. Distribution of Confidence Score among Field Samples 
+E .Impact of Grad-CAM Explainability 
+To assess whether the integration of explainability affects 
+predictive performance, the lightweight CNN was evaluated 
+with and without Grad-CAM under identical training and 
+testing conditions on the field dataset. 
+Table III-Effect of Grad-CAM Integration 
+Metric 
+Without Grad-CAM 
+With Grad-CAM 
+Accuracy 
+92.4% 
+92.3% 
+F1-Score 
+0.89 
+0.89 
+Inference Time 
+41 ms 
+47 ms 
+The results indicate that the inclusion of Grad-CAM does not 
+degrade classification accuracy or stability. A marginal 
+increase in inference time is observed due to gradient 
+computation; however, the latency remains within real-time 
+limits for CPU-based and mobile deployment. Unlike the 
+base model, the explainable configuration provides visual 
+localization 
+of 
+disease-affected 
+regions, 
+improving 
+transparency and user trust without increasing model size.  
+F . Model Footprint and Footprint on Deployment 
+The final trained model has a storage requirement of 14.2 
+MB, making it possible to run the model in devices with 
+limited computational and memory resources. 
+This use of a small physical footprint is made with: 
+ 
+A reduction in the number of convolutional layers, and 
+ 
+The use of less convolutions fitting kernels, and 
+ 
+In which the dense layers are replaced by a global 
+average pooling. 
+A summary of the characteristics of deployment of the model 
+is provided in Table IV. 
+Table IV - Summary of the Model Footprint 
+Property 
+Value 
+Model Size 
+14.2 MB 
+Parameter Count  
+~1.46M 
+Deployment Target 
+CPU-based and mobile devices 
+
+
+==================== PAGE 6 ====================
+
+These characteristics make the model suitable for off-line or 
+edge-based usage in agricultural environment. 
+G . Baseline Comparison 
+In order to contextualise the performance of the model, XAI-
+plant was compared with some popular architectures and a 
+popular commercial application. A short comparison is given 
+in Table V. 
+Table V - Baseline vs Proposed System Comparison 
+System 
+Accur
+acy 
+Explaina
+bility 
+Multilin
+gual 
+Deplo 
+yment 
+ResNet-50 
+~98% 
+No 
+No 
+Cloud/GPU 
+MobileNetV
+2 
+~90% 
+No 
+No 
+Mobile 
+Plantix App 
+~95% 
+Limited 
+Limited 
+Cloud 
+XAI-Plant 
+(Proposed) 
+92–
+95% 
+Yes 
+Yes 
+Local/Edge 
+This comparison speaks volumes about XAI-plant's balance 
+of accuracy and interpretability and its process of deploying 
+scanners at the device level. 
+H . Sample Predictions 
+Examples of the output of the model are shown in Fig. 5 
+including: 
+ 
+Correctly identified case of tomato early blight, 
+ 
+A true prediction of a grape rust in different 
+backgrounds, and 
+ 
+An example of misclassification with diseases that have 
+similar symptoms 
+ 
+Fig. 5. Placeholder Sample Classification Outputs using Grad-
+CAM Visualizations 
+These samples show the power of the interpretability module 
+to highlight key visual regions that affect each of the 
+predictions. The results presented in this section are a 
+summary of the performance of the XAI-Plant model across 
+several quantitative metrics and evaluation conditions.  
+VI. CONCLUSION AND FUTURE SCOPE 
+This paper introduced XAI-Plant, which is a wire-light and 
+interpretable deep learning method for detecting plant 
+diseases that is intended for real-world agriculture 
+applications. The suggested system incorporates CNN with 
+Grad-CAM based visual explanations and multilingual 
+output interface, which facilitates effective operation on 
+resource constrained devices such as smartphones and edge 
+systems. Experimental evaluation with both benchmark and 
+field-collected datasets showed uniform performance (92%-
+95%) with low model size that can be used for local inference. 
+Although the system operates under various conditions 
+reliably, some limitations always remain. Diseases with 
+similar symptoms with one another, especially in early stages, 
+can 
+cause 
+decreased 
+confidence 
+in 
+classification. 
+Additionally, kinds of diseases with few training examples 
+have lower recall. The explainability module though 
+succeeds to show affected regions may not convey fine-
+grained variation of symptoms in complex cases. The Future 
+work will concentrate on increasing the diversity of the field 
+collected datasets to include seasonal variations and early-
+stage disease samples. The optimization to perform in 
+hardware accelerators like mobile CPUs and edge AI devices 
+will also be explored. Enhancements to interpretability 
+section techniques in addition to the integration of contextual 
+environmental data might aid additional improve in 
+alternative diagnostic reliability for sensible farm settings. 
+VII. REFERENCES 
+[1] S. P. Mohanty, D. P. Hughes, and M. Salathé,“Using deep learning for 
+image-based plant disease detection,”Frontiers in Plant Science, vol. 7, p. 
+1419, 2016. 
+doi: 10.3389/fpls.2016.01419 
+[2] S. M. Hassan, M. A. Islam, and M. Hasan,“Identification of plant-leaf 
+diseases using convolutional neural networks and advanced deep learning 
+models,”Electronics, 
+vol. 
+10, 
+no. 
+12, 
+p. 
+1388, 
+2021.doi: 
+10.3390/electronics10121388 
+[3] Ü. Atila, M. Uçar, K. Akyol, and E. Uçar,“Plant leaf disease 
+classification using 
+EfficientNet 
+deep learning 
+model,”Ecological 
+Informatics, vol. 61, p. 101182, 2021. 
+doi: 10.1016/j.ecoinf.2020.101182 
+[4] A. T. Khan, A. R. Javed, and F. Alenezi,“Lightweight CNN-based plant 
+disease detection for edge devices,”Sensors, vol. 23, no. 4, p. 1987, 2023.doi: 
+10.3390/s23041987 
+[5] R. Sharma and K. Mishra,“Deep learning-based plant disease detection 
+using MobileNetV2 with integrated LIME explainability,”Journal of King 
+Saud University – Computer and Information Sciences, 2024.doi: 
+10.1016/j.jksuci.2024.03.015 
+[6] H. Kondaveeti and S. K. Singh,“Explainable artificial intelligence for 
+rice leaf disease detection using Grad-CAM,” 
+Scientific Reports, vol. 15, p. 1125, 2025. 
+[7] J. Amara and B. König-Ries,“ACE-based concept-level explainability for 
+plant disease classification,”arXiv preprint, arXiv:2403.01892, 2024. 
+[8] A. Ahmad,“A survey on deep learning techniques for plant disease 
+detection,”Computers and Electronics in Agriculture, vol. 193, p. 106684, 
+2022.doi: 10.1016/j.compag.2022.106684 
+[9] C. Jackulin and S. George,“A comprehensive review on plant disease 
+detection using artificial intelligence techniques,”Current Research in 
+Biotechnology, vol. 4, pp. 123–136, 2022.doi: 10.1016/j.crbiot.2022.06.007 
+[10] J. Zhao et al.,“A review of plant leaf disease identification techniques 
+based on deep learning,”Frontiers in Plant Science, vol. 16, p. 1637241, 
+2025.doi: 10.3389/fpls.2025.1637241 
+[11] M. J. Karim et al.,“Real-time grape leaf disease detection using 
+MobileNetV3 and Grad-CAM,”Scientific Reports, vol. 14, p. 1765, 2024.doi: 
+10.1038/s41598-024-66989-9 
+[12] H. Raval et al.,“Ensemble transfer learning with explainability for plant 
+disease diagnosis,”Ecological Informatics, vol. 78, p. 102277, 2024.doi: 
+10.1016/j.ecoinf.2024.102277 
+[13] R. C. Joshi, V. R. Patel, A. Mishra and S. Kumar, “Real-Time Plant 
+Leaf Disease Detection Using CNN and Solutions to Cure With Android App,” 
+in 2023 International Conference on Computing, Communication, and 
+Intelligent Systems (ICCCIS), Greater Noida, India, Nov. 3–4, 2023, pp. 1-
+6, doi: 10.1109/ICCCIS60361.2023.10425034. 
+[14] K. Harshavardhan, P. J. V. Abhinav Krishna and A. Geetha, “Detection 
+of Various Plant Leaf Diseases Using Deep Learning Techniques,” 2023 
+International Conference on Advances in Computing, Communication and 
+Applied 
+Informatics 
+(ACCAI), 
+2023, 
+doi: 
+10.1109/ACCAI58221.2023.10200031.  
+[15] S. Pandi S. Senthil, R. Suguna Devi, B. S. Chokkalingam and S. 
+Kannaiah, “Automatic Plant Leaf Disease Detection using AlexNet and 
+Image Processing Techniques,” in 2024 International Conference on 
+Cybernation and Computation (CYBERCOM), 2024. 

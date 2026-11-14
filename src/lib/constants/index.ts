@@ -343,7 +343,7 @@ export const TESTIMONIALS = [
 export const TEACHER_STYLES = [
   {
     id: 'professor',
-    name: 'Professor',
+    name: 'Pravalika',
     title: 'The Classic Educator',
     tagline: 'Structured, thorough, and comprehensive teaching with deep explanations.',
     description: 'Like a university professor, I teach with well-structured lessons, building from fundamentals to advanced concepts. I use formal explanations, cite research, and ensure you have a deep theoretical understanding before moving to practice.',
@@ -360,7 +360,7 @@ export const TEACHER_STYLES = [
   },
   {
     id: 'coach',
-    name: 'Coach',
+    name: 'Madhu',
     title: 'The Motivational Mentor',
     tagline: 'Practical, hands-on learning with real-world projects and encouragement.',
     description: 'I focus on practical application and building real projects. My teaching is action-oriented with lots of exercises, challenges, and encouragement. I push you to code, build, and create while providing supportive guidance.',
@@ -377,7 +377,7 @@ export const TEACHER_STYLES = [
   },
   {
     id: 'friend',
-    name: 'Friend',
+    name: 'Navya',
     title: 'The Friendly Guide',
     tagline: 'Conversational, relatable teaching with humor and everyday analogies.',
     description: 'Learning should feel natural and fun! I teach like a knowledgeable friend explaining things over coffee. I use casual language, humor, and relatable analogies. No question is too silly — I create a safe, judgment-free learning space.',
@@ -394,7 +394,7 @@ export const TEACHER_STYLES = [
   },
   {
     id: 'expert',
-    name: 'Expert',
+    name: 'Rajeev',
     title: 'The Industry Veteran',
     tagline: 'Advanced insights, best practices, and professional-grade teaching.',
     description: 'I teach like a senior engineer or industry expert sharing years of experience. I focus on best practices, design patterns, performance optimization, and production-ready code. Perfect for experienced learners who want to level up.',
@@ -411,7 +411,7 @@ export const TEACHER_STYLES = [
   },
   {
     id: 'simplifier',
-    name: 'Simplifier',
+    name: 'Srihita',
     title: 'The Clear Explainer',
     tagline: 'Complex topics made simple with visual explanations and step-by-step breakdowns.',
     description: 'I specialize in taking the most complex topics and breaking them down into simple, digestible pieces. I use visual explanations, step-by-step breakdowns, and the "explain like I\'m 5" approach. Perfect for beginners or tough topics.',

@@ -11,14 +11,20 @@ import {
   Headphones, Globe, Phone, PhoneOff, Lightbulb, Award,
   ChevronDown, ChevronUp, Eye, Zap, Brain, Settings, SlidersHorizontal,
   CheckCircle2, XCircle, RotateCcw, HelpCircle, Layers,
+  Rocket, Target, Paperclip,
 } from 'lucide-react';
-import { AIProfessorAvatar, ProfessorState } from '@/components/classroom/AIProfessorAvatar';
+import { AIProfessorAvatar, ProfessorState, AvatarGesture } from '@/components/classroom/AIProfessorAvatar';
 import { ExitClassModal } from '@/components/classroom/ExitClassModal';
 import { useClassroomState } from '@/hooks/useClassroomState';
 import { useAuth } from '@/contexts/AuthContext';
 import { playAuraVoice, stopAllVoicePlayback, sanitizeSpeechText } from '@/lib/ai/voice';
 import MermaidChart from '@/components/classroom/MermaidChart';
 import toast from 'react-hot-toast';
+import { TEACHERS, getTeacher, TeacherId } from '@/lib/ai/teachers';
+import TeachingBoard from '@/components/classroom/TeachingBoard';
+import { TeacherPortrait } from '@/components/classroom/ReferenceTeacher';
+import { escapeExportHtml, hasCompletedCourse } from '@/lib/classroom/safety';
+import { getUserCertificates } from '@/lib/utils/userData';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
@@ -35,6 +41,27 @@ export interface ConceptFeedItem {
   memoryInsight?: string;
   suggestedFollowUp?: string;
   nextConcept?: { title: string; teaser: string };
+  nextAction?: {
+    type: 'practice_problem' | 'socratic_question' | 'next_concept' | 'quiz_check';
+    title: string;
+    prompt: string;
+    starterCode?: string;
+    expectedGoal?: string;
+    nextConcept?: { title: string; teaser: string };
+  } | null;
+  telemetry?: {
+    detectedLanguage: string;
+    intent: string;
+    strategy: string;
+    difficulty?: string;
+    toolsUsed: string[];
+    persona?: {
+      id: string;
+      name: string;
+      badge: string;
+    };
+  };
+  attachedImage?: string;
   timestamp: string;
 }
 
@@ -191,10 +218,12 @@ function renderFormattedText(text: string, onCopySnippet?: (code: string) => voi
 export default function LiveClassroomPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const urlCourseId = searchParams.get('courseId') || searchParams.get('course') || '1';
 
-  const { session, currentModule, currentSlide, setAIState, setVoiceGender, addChatMessage } = useClassroomState(urlCourseId);
+  const { session, currentModule, currentSlide, setAIState, setPersona, addChatMessage, addAutoLiveNote, goToSlideInModule, nextSlideOrModule, prevSlideOrModule, currentOverallSlideNumber, totalSlides } = useClassroomState(urlCourseId, authLoading ? 'pending' : user?.uid || 'guest');
+  const courseCompleted = hasCompletedCourse(session.modules);
+  const savedCertificate = getUserCertificates(user?.uid || 'guest').find(c => c.courseId === session.courseId);
 
   // ── Feed & Input State
   const [feedItems, setFeedItems] = useState<ConceptFeedItem[]>([]);
@@ -205,12 +234,12 @@ export default function LiveClassroomPage() {
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
 
   // ── Voice & Advanced Classroom State
-  const [voiceGenderState, setLocalVoiceGender] = useState<'female' | 'male'>('female');
   const [isVoiceEnabled, setIsVoiceEnabled] = useState(true);
   const [isPlayingSpeech, setIsPlayingSpeech] = useState(false);
   const [isMicListening, setIsMicListening] = useState(false);
   const [isFastMode, setIsFastMode] = useState(false);
   const [speechSpeed, setSpeechSpeed] = useState(1.0);
+  const [avatarGesture, setAvatarGesture] = useState<AvatarGesture>('idle');
 
   const urlTeacherStyle = (searchParams.get('teacher') || searchParams.get('style') || 'friend').toLowerCase();
   const urlDifficulty = (searchParams.get('level') || searchParams.get('diff') || 'intermediate').toLowerCase();
@@ -219,10 +248,38 @@ export default function LiveClassroomPage() {
     urlTeacherStyle.includes('coach') ? 'coach' : urlTeacherStyle.includes('friend') ? 'friend' : urlTeacherStyle.includes('expert') ? 'expert' : urlTeacherStyle.includes('simplifier') ? 'simplifier' : 'professor'
   );
   const [activeDifficulty, setActiveDifficulty] = useState<'beginner' | 'intermediate' | 'advanced'>(
-    (urlDifficulty as any) || 'intermediate'
+    ['beginner', 'intermediate', 'advanced'].includes(urlDifficulty) ? urlDifficulty as 'beginner' | 'intermediate' | 'advanced' : 'beginner'
   );
+  const activeTeacher = getTeacher(activeTeacherStyle);
+  const voiceGenderState = activeTeacher.gender;
+  const requestRef = useRef<AbortController | null>(null);
+  const selectedTeacherRef = useRef(activeTeacherStyle);
+  selectedTeacherRef.current = activeTeacherStyle;
+  const stopNarration = useCallback(() => {
+    stopAllVoicePlayback(); setIsPlayingSpeech(false); setAIState('idle'); setAvatarGesture('idle');
+  }, [setAIState]);
+  const selectTeacher = (id: TeacherId) => {
+    stopNarration(); requestRef.current?.abort(); setIsProfessorThinking(false);
+    setActiveTeacherStyle(id); setPersona(getTeacher(id).name);
+    localStorage.setItem('aura_teacher', id);
+    const params = new URLSearchParams(searchParams.toString());
+    params.set('teacher', id);
+    router.replace(`/classroom?${params.toString()}`, { scroll: false });
+    toast.success(`${getTeacher(id).name} is ready to teach`);
+  };
+  useEffect(() => {
+    if (!searchParams.get('teacher') && !searchParams.get('style')) {
+      const stored = localStorage.getItem('aura_teacher');
+      if (stored && TEACHERS.some(t => t.id === stored)) setActiveTeacherStyle(stored as TeacherId);
+    }
+    return () => { requestRef.current?.abort(); stopAllVoicePlayback(); speechRecognitionRef.current?.abort(); };
+  }, []);
+  useEffect(() => {
+    requestRef.current?.abort(); setIsProfessorThinking(false); stopNarration();
+    setFeedItems([]); setExpandedItems(new Set());
+  }, [session.courseId, currentSlide.slideId, stopNarration, user?.uid]);
   const [showCertModal, setShowCertModal] = useState(false);
-  const [studentCertName, setStudentCertName] = useState(user?.displayName || user?.email?.split('@')[0] || 'Rajeev Reddy');
+  const [studentCertName, setStudentCertName] = useState(user?.displayName || user?.email?.split('@')[0] || 'Student');
 
   // ── Advanced Modals State
   const [showQuizModal, setShowQuizModal] = useState(false);
@@ -266,74 +323,99 @@ export default function LiveClassroomPage() {
 
   // ── PDF Notes
   const [pdfNotes, setPdfNotes] = useState<PDFNote[]>([]);
+  useEffect(() => {
+    setPdfNotes(session.notes.map(note => ({ id: note.id, title: note.slideTitle, content: note.bullets.join('\n\n'), code: note.code, timestamp: note.timestamp })));
+  }, [session.notes]);
+
+  // ── Attached Image / Screenshot State
+  const [attachedImage, setAttachedImage] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      toast.error('Please select an image file');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      setAttachedImage(reader.result as string);
+      toast.success('Screenshot / Diagram attached! Ask your question.');
+    };
+    reader.readAsDataURL(file);
+  };
 
   const feedBottomRef = useRef<HTMLDivElement>(null);
   const speechRecognitionRef = useRef<any>(null);
   const continuousRecogRef = useRef<any>(null);
 
-  const hasLoadedLiveInitialLesson = useRef(false);
-
-  // ── Initialize with Live AI Lesson (No static pre-baked slides)
-  useEffect(() => {
-    if (!hasLoadedLiveInitialLesson.current && currentSlide?.title && session.courseTitle) {
-      hasLoadedLiveInitialLesson.current = true;
-      const initialTopic = currentSlide.title;
-      const initialModule = currentModule.moduleTitle || session.courseTitle;
-      // Trigger live AI generation immediately
-      handleSendQuestion(`Explain the complete core architecture of ${initialTopic} with a visual flowchart diagram, practical code, and under-the-hood execution mechanics.`);
-    }
-  }, [currentSlide, currentModule, session.courseTitle]);
 
   // ── Auto-scroll
   useEffect(() => {
-    feedBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (feedItems.length || isProfessorThinking) feedBottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }, [feedItems, isProfessorThinking]);
+
+  const [currentSpokenSentence, setCurrentSpokenSentence] = useState<string>('');
 
   // ── Voice narration
   const speakText = useCallback((textToSpeak: string) => {
     if (!isVoiceEnabled || !textToSpeak) return;
+    speechRecognitionRef.current?.abort();
+    setIsMicListening(false);
     stopAllVoicePlayback();
-    setIsPlayingSpeech(true);
-    setAIState('speaking' as ProfessorState);
+    setCurrentSpokenSentence(textToSpeak);
     playAuraVoice({
       text: sanitizeSpeechText(textToSpeak),
-      gender: voiceGenderState,
+      teacherId: activeTeacherStyle,
       speed: speechSpeed,
-      onStart: () => { setIsPlayingSpeech(true); setAIState('speaking' as ProfessorState); },
-      onEnd: () => { setIsPlayingSpeech(false); setAIState('idle' as ProfessorState); },
-      onError: () => { setIsPlayingSpeech(false); setAIState('idle' as ProfessorState); },
+      onStart: () => { setIsPlayingSpeech(true); setAIState('speaking' as ProfessorState); setAvatarGesture('explaining'); },
+      onBoundary: (_word, index) => setCurrentSpokenSentence(sanitizeSpeechText(textToSpeak).slice(Math.max(0, index - 35), index + 100)),
+      onEnd: () => { setIsPlayingSpeech(false); setCurrentSpokenSentence(''); setAIState('idle' as ProfessorState); setAvatarGesture('idle'); },
+      onError: () => { setIsPlayingSpeech(false); setCurrentSpokenSentence(''); setAIState('idle' as ProfessorState); setAvatarGesture('idle'); },
     });
-  }, [isVoiceEnabled, voiceGenderState, speechSpeed, setAIState]);
+  }, [isVoiceEnabled, activeTeacherStyle, speechSpeed, setAIState]);
 
   const handleSendQuestion = async (queryText?: string) => {
     const textToSend = (queryText || chatInput).trim();
-    if (!textToSend || isProfessorThinking) return;
+    const imageToSend = attachedImage;
+    if ((!textToSend && !imageToSend) || isProfessorThinking) return;
+    speechRecognitionRef.current?.abort(); setIsMicListening(false);
+    stopNarration();
+    requestRef.current?.abort();
+    const controller = new AbortController(); requestRef.current = controller;
+    const teacherAtRequest = activeTeacherStyle;
     setChatInput('');
+    setAttachedImage(null);
     setIsProfessorThinking(true);
     setAIState('thinking' as ProfessorState);
+    setAvatarGesture('thinking');
 
     const qId = `q-${Date.now()}`;
-    const userLabel = textToSend.startsWith('Explain the complete core architecture of') 
-      ? `Topic Overview: ${currentSlide?.title || 'Core Architecture'}` 
-      : textToSend;
+    const userLabel = textToSend.toLowerCase().startsWith('explain ')
+      ? `Topic: ${currentSlide?.title || 'Core Concept'}`
+      : (textToSend || 'Analyzed Screenshot Inquiry');
 
     setFeedItems((prev) => [...prev, {
       id: qId,
       type: 'qna',
       title: userLabel.length > 55 ? userLabel.slice(0, 52) + '...' : userLabel,
       topic: currentModule.moduleTitle || 'Inquiry',
-      explanation: textToSend,
+      explanation: textToSend || 'Please analyze this attached code diagram/screenshot.',
+      attachedImage: imageToSend || undefined,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     }]);
     setExpandedItems((prev) => new Set([...prev, qId]));
-    addChatMessage('user', textToSend);
+    addChatMessage('user', textToSend || 'Attached Screenshot Inquiry');
 
     try {
       const res = await fetch('/api/ask-professor', {
+        signal: controller.signal,
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          question: textToSend,
+          question: textToSend || 'Explain the attached screenshot/code snippet in detail.',
+          image: imageToSend || undefined,
           persona: activeTeacherStyle,
           courseTitle: session.courseTitle,
           currentTopic: currentModule.moduleTitle,
@@ -341,25 +423,28 @@ export default function LiveClassroomPage() {
           // Multi-turn history like ChatGPT
           history: feedItems.slice(-8).map((f) => ({
             role: f.type === 'qna' ? 'user' : 'assistant',
-            sender: f.type === 'qna' ? 'Student' : 'Professor Aura',
+            sender: f.type === 'qna' ? 'Student' : activeTeacher.name,
             text: f.explanation,
             content: f.explanation,
           })),
           currentSlide: {
-            title: feedItems[feedItems.length - 1]?.title || currentSlide?.title || textToSend,
-            explanation: feedItems[feedItems.length - 1]?.explanation || '',
-            code: feedItems[feedItems.length - 1]?.code || '',
+            title: currentSlide.title,
+            speech: currentSlide.speech,
+            explanation: currentSlide.explanation,
+            code: currentSlide.code,
           },
         }),
       });
 
       const resJson = await res.json();
+      if (controller.signal.aborted || selectedTeacherRef.current !== teacherAtRequest) return;
+      if (!res.ok || resJson.success === false) throw new Error(resJson.error || 'Unable to answer right now');
       const d = resJson.data || resJson;
 
       const aId = `a-${Date.now()}`;
-      const answerTitle = textToSend.startsWith('Explain the complete core architecture of')
-        ? (currentSlide?.title || 'Masterclass Overview')
-        : (textToSend.length > 50 ? textToSend.slice(0, 47) + '...' : textToSend);
+      const answerTitle = textToSend.toLowerCase().startsWith('explain ')
+        ? (currentSlide?.title || 'Concept Overview')
+        : (textToSend.length > 50 ? textToSend.slice(0, 47) + '...' : textToSend || 'Code Analysis');
 
       const newItem: ConceptFeedItem = {
         id: aId,
@@ -373,6 +458,8 @@ export default function LiveClassroomPage() {
         memoryInsight: d.memoryInsight || undefined,
         suggestedFollowUp: d.suggestedFollowUp || undefined,
         nextConcept: d.nextConcept || undefined,
+        nextAction: d.nextAction || undefined,
+        telemetry: d.telemetry || undefined,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       };
 
@@ -380,6 +467,11 @@ export default function LiveClassroomPage() {
       setExpandedItems((prev) => new Set([...prev, aId]));
       addChatMessage('professor', d.answer);
       setAIState('idle' as ProfessorState);
+      if (d.gesture) {
+        setAvatarGesture(d.gesture as AvatarGesture);
+      } else {
+        setAvatarGesture('explaining');
+      }
 
       setPdfNotes((prev) => [
         {
@@ -391,13 +483,16 @@ export default function LiveClassroomPage() {
         },
         ...prev,
       ]);
+      addAutoLiveNote(currentModule.moduleTitle, answerTitle, [d.answer], d.codeSnippet);
 
       if (isVoiceEnabled && d.speech) speakText(d.speech);
     } catch {
-      toast.error('AI Professor is busy. Please retry.');
+      if (controller.signal.aborted) return;
+      toast.error(`${activeTeacher.name} could not answer. Please retry.`);
       setAIState('idle' as ProfessorState);
+      setAvatarGesture('idle');
     } finally {
-      setIsProfessorThinking(false);
+      if (requestRef.current === controller) setIsProfessorThinking(false);
     }
   };
 
@@ -413,14 +508,15 @@ export default function LiveClassroomPage() {
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SpeechRecognition) { toast.error('Voice input not supported'); return; }
     if (isMicListening) { speechRecognitionRef.current?.stop(); setIsMicListening(false); return; }
+    stopNarration();
     const r = new SpeechRecognition();
     r.continuous = false; r.interimResults = false; r.lang = 'en-US';
     r.onstart = () => { setIsMicListening(true); setAIState('listening' as ProfessorState); };
     r.onresult = (e: any) => { const t = e.results[0][0].transcript; setChatInput(t); };
     r.onend = () => { setIsMicListening(false); setAIState('idle' as ProfessorState); };
-    r.onerror = () => { setIsMicListening(false); };
+    r.onerror = () => { setIsMicListening(false); setAIState('idle'); toast.error('Microphone unavailable. You can type your question.'); };
     speechRecognitionRef.current = r;
-    r.start();
+    try { r.start(); } catch { setIsMicListening(false); setAIState('idle'); toast.error('Could not start the microphone. You can type your question.'); }
   };
 
   const downloadPDFNotes = () => {
@@ -429,14 +525,14 @@ export default function LiveClassroomPage() {
     const notesHtml = pdfNotes.map((n, i) => `
       <div style="background: #111827; border: 1px solid #1f2937; border-radius: 16px; padding: 24px; margin-bottom: 24px; box-shadow: 0 10px 25px rgba(0,0,0,0.3);">
         <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #374151; padding-bottom: 12px; margin-bottom: 16px;">
-          <h3 style="margin: 0; font-size: 18px; color: #f59e0b; font-weight: 700;">Note ${i + 1}: ${n.title}</h3>
+          <h3 style="margin: 0; font-size: 18px; color: #f59e0b; font-weight: 700;">Note ${i + 1}: ${escapeExportHtml(n.title)}</h3>
           <span style="font-family: monospace; font-size: 12px; color: #9ca3af; background: #1f2937; padding: 4px 10px; border-radius: 8px;">${n.timestamp}</span>
         </div>
-        <div style="font-size: 14px; line-height: 1.7; color: #e5e7eb; white-space: pre-wrap; margin-bottom: 16px;">${n.content}</div>
+        <div style="font-size: 14px; line-height: 1.7; color: #e5e7eb; white-space: pre-wrap; margin-bottom: 16px;">${escapeExportHtml(n.content)}</div>
         ${n.code ? `
           <div style="background: #030712; border: 1px solid #374151; border-radius: 12px; overflow: hidden; margin-top: 12px;">
             <div style="background: #1f2937; padding: 8px 16px; font-size: 12px; font-family: monospace; color: #c084fc; font-weight: bold;">💻 Code Example</div>
-            <pre style="padding: 16px; margin: 0; font-family: monospace; font-size: 13px; color: #e9d5ff; overflow-x: auto; line-height: 1.5;"><code>${n.code}</code></pre>
+            <pre style="padding: 16px; margin: 0; font-family: monospace; font-size: 13px; color: #e9d5ff; overflow-x: auto; line-height: 1.5;"><code>${escapeExportHtml(n.code)}</code></pre>
           </div>
         ` : ''}
       </div>
@@ -446,7 +542,7 @@ export default function LiveClassroomPage() {
 <html>
 <head>
   <meta charset="utf-8"/>
-  <title>AuraCareer Session Notes — ${session.courseTitle}</title>
+  <title>AuraCareer Session Notes — ${escapeExportHtml(session.courseTitle)}</title>
   <style>
     body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #070b14; color: #f3f4f6; margin: 0; padding: 40px 20px; }
     .container { max-width: 800px; margin: 0 auto; }
@@ -462,7 +558,7 @@ export default function LiveClassroomPage() {
   <div class="container">
     <div class="header">
       <div class="badge">🎓 AuraCareer University</div>
-      <h1>${session.courseTitle}</h1>
+      <h1>${escapeExportHtml(session.courseTitle)}</h1>
       <p class="meta">Generated Session Notes • ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}</p>
       <button onclick="window.print()" class="print-btn">🖨️ Print / Save as PDF</button>
     </div>
@@ -488,13 +584,12 @@ export default function LiveClassroomPage() {
     setTimeout(() => setCopiedSnippetId(null), 2000);
   };
 
-  const voiceGenderLabel = voiceGenderState === 'female' ? 'Bekki (♀)' : 'Ben (♂)';
 
   return (
     <div className="h-screen w-screen bg-[#070b14] text-slate-100 flex flex-col overflow-hidden font-sans">
 
       {/* ═══ TOP HEADER BAR ═══ */}
-      <header className="h-16 bg-slate-900/95 border-b border-slate-800 px-4 flex items-center justify-between z-30 shrink-0 backdrop-blur-md">
+      <header className="min-h-16 bg-slate-900/95 border-b border-slate-800 px-3 py-2 flex flex-wrap gap-2 items-center justify-between z-30 shrink-0 backdrop-blur-md">
         <div className="flex items-center space-x-3">
           <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
           <span className="text-xs font-mono font-bold uppercase tracking-wider text-emerald-400">LIVE</span>
@@ -508,19 +603,12 @@ export default function LiveClassroomPage() {
         {/* Controls */}
         <div className="flex items-center space-x-1.5 sm:space-x-2">
           {/* Teacher Style Persona Pill Switcher */}
-          <div className="hidden lg:flex bg-slate-950 p-1 rounded-xl border border-slate-800 shadow-inner">
-            {[
-              { id: 'friend', label: '🤝 Friend' },
-              { id: 'coach', label: '⚡ Coach' },
-              { id: 'professor', label: '🎓 Prof' },
-              { id: 'expert', label: '🧠 Expert' },
-              { id: 'simplifier', label: '💡 Simple' },
-            ].map((t) => (
+          <div className="hidden 2xl:flex bg-slate-950 p-1 rounded-xl border border-slate-800 shadow-inner">
+            {TEACHERS.map((t) => (
               <button
                 key={t.id}
                 onClick={() => {
-                  setActiveTeacherStyle(t.id as any);
-                  toast.success(`Switched AI Teacher style & avatar outfit to ${t.label}`);
+                  selectTeacher(t.id);
                 }}
                 className={`px-2 py-1 rounded-lg text-xs font-bold transition ${
                   activeTeacherStyle === t.id
@@ -528,10 +616,13 @@ export default function LiveClassroomPage() {
                     : 'text-slate-400 hover:text-white'
                 }`}
               >
-                {t.label}
+                {t.name}
               </button>
             ))}
           </div>
+          <select aria-label="Choose AI teacher" value={activeTeacherStyle} onChange={e => selectTeacher(e.target.value as TeacherId)} className="2xl:hidden max-w-[180px] bg-slate-950 border border-slate-700 rounded-xl px-2 py-2 text-xs">
+            {TEACHERS.map(t => <option key={t.id} value={t.id}>{t.name} · {t.role}</option>)}
+          </select>
 
           {/* Teaching Difficulty Level Switcher */}
           <div className="hidden xl:flex bg-slate-950 p-1 rounded-xl border border-slate-800 shadow-inner">
@@ -558,14 +649,6 @@ export default function LiveClassroomPage() {
           </div>
 
           {/* Teacher Voice Toggle */}
-          <div className="flex bg-slate-950 p-1 rounded-xl border border-slate-800 shadow-inner">
-            {(['female', 'male'] as const).map((g) => (
-              <button key={g} onClick={() => { setLocalVoiceGender(g); setVoiceGender(g); stopAllVoicePlayback(); toast.success(`Switched voice to ${g === 'female' ? '♀ Bekki' : '♂ Ben'}`); }}
-                className={`px-2 py-1 rounded-lg text-xs font-bold transition flex items-center space-x-1 ${voiceGenderState === g ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-md' : 'text-slate-400 hover:text-white'}`}>
-                <span>{g === 'female' ? '♀ Bekki' : '♂ Ben'}</span>
-              </button>
-            ))}
-          </div>
 
           {/* ⚡ Turbo Fast Mode Toggle */}
           <button onClick={() => { const next = !isFastMode; setIsFastMode(next); toast(next ? '⚡ Turbo Mode Activated' : '🎓 Switched to Deep Mode', { icon: next ? '⚡' : '🎓' }); }}
@@ -584,15 +667,15 @@ export default function LiveClassroomPage() {
           </button>
 
           {/* 🎓 Download Course Certificate */}
-          <button onClick={() => setShowCertModal(true)}
+          <button onClick={() => courseCompleted ? setShowCertModal(true) : toast('Complete the course before downloading its certificate.')}
             className="px-2.5 py-1.5 rounded-xl border border-amber-500/40 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 transition flex items-center space-x-1.5 text-xs font-bold"
-            title="View & Download Official Course Completion Certificate">
+            title="View course completion certificate">
             <Award className="w-3.5 h-3.5 text-amber-400" />
             <span className="hidden md:inline">Certificate</span>
           </button>
 
           {/* 🔊 Audio Mute / Unmute */}
-          <button onClick={() => { isVoiceEnabled ? (stopAllVoicePlayback(), setIsVoiceEnabled(false), toast('Muted', { icon: '🔇' })) : (setIsVoiceEnabled(true), toast.success('Voice enabled')); }}
+          <button onClick={() => { isVoiceEnabled ? (stopNarration(), setIsVoiceEnabled(false), toast('Muted', { icon: '🔇' })) : (setIsVoiceEnabled(true), toast.success('Voice enabled')); }}
             className={`p-2 rounded-xl border transition ${isVoiceEnabled ? 'bg-purple-500/15 border-purple-500/30 text-purple-300' : 'bg-slate-800 border-slate-700 text-slate-500'}`}
             title={isVoiceEnabled ? 'Mute AI Voice' : 'Enable AI Voice'}>
             {isVoiceEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
@@ -623,18 +706,32 @@ export default function LiveClassroomPage() {
           </button>
 
           {/* ❌ Exit Class */}
-          <button onClick={() => setShowExitModal(true)} className="p-2 rounded-xl bg-slate-800 hover:bg-red-950/60 hover:text-red-300 text-slate-400 border border-slate-700 transition" title="Exit Classroom">
-            <X className="w-4 h-4" />
+          <button onClick={() => { stopNarration(); speechRecognitionRef.current?.abort(); setShowExitModal(true); }} className="p-2 rounded-xl bg-red-500/10 hover:bg-red-950/60 text-red-300 border border-red-500/30 transition flex gap-1 items-center text-xs font-bold" title="Exit Classroom">
+            <X className="w-4 h-4" /> Exit
           </button>
         </div>
       </header>
 
       {/* ═══ MAIN AREA ═══ */}
-      <div className="flex-1 flex overflow-hidden">
+      <div className="bg-slate-950/80 border-b border-slate-800 px-3 py-2 flex flex-wrap items-center gap-2 shrink-0">
+        <label className="text-xs text-slate-400" htmlFor="module-picker">Lesson</label>
+        <select id="module-picker" aria-label="Choose module and lesson" value={`${session.currentModuleIndex}:${session.currentSlideIndex}`} onChange={e => { const [m, s] = e.target.value.split(':').map(Number); goToSlideInModule(m, s); }} className="flex-1 min-w-0 max-w-xl rounded-xl bg-slate-900 border border-slate-700 px-2 py-2 text-xs">
+          {session.modules.map((m, mi) => <optgroup key={m.moduleId} label={m.moduleTitle}>{m.slides.map((s, si) => <option key={s.slideId} value={`${mi}:${si}`}>{mi + 1}.{si + 1} {s.title}</option>)}</optgroup>)}
+        </select>
+        <span className="text-xs text-slate-400">{currentOverallSlideNumber}/{totalSlides}</span>
+        <button aria-label="Previous lesson" disabled={currentOverallSlideNumber <= 1} onClick={prevSlideOrModule} className="text-xs px-3 py-2 rounded-xl bg-slate-800 disabled:opacity-30">Previous</button>
+        <button aria-label={currentOverallSlideNumber >= totalSlides ? 'Finish course' : 'Next lesson'} disabled={session.aiState === 'lesson_completed'} onClick={nextSlideOrModule} className="text-xs px-3 py-2 rounded-xl bg-indigo-600 disabled:opacity-30">{session.aiState === 'lesson_completed' ? 'Course completed' : currentOverallSlideNumber >= totalSlides ? 'Finish course' : 'Next lesson'}</button>
+      </div>
+      <div className="flex-1 min-h-0 flex overflow-hidden">
 
         {/* ── LEFT: Concept Feed ── */}
-        <div className={`flex-1 overflow-y-auto px-4 sm:px-6 lg:px-10 py-6 space-y-5 pb-40 ${rightPanel !== 'none' ? 'max-w-3xl' : 'max-w-5xl'} mx-auto w-full`}>
+        <div className={`flex-1 min-w-0 overflow-y-auto px-4 sm:px-6 lg:px-8 py-5 space-y-5 pb-8 ${rightPanel !== 'none' ? 'max-w-3xl' : 'max-w-5xl'} mx-auto w-full`}>
+          <details className="md:hidden rounded-2xl border border-slate-700 p-3">
+            <summary className="text-sm text-indigo-200 cursor-pointer">Meet {activeTeacher.name} · tap to show teacher</summary>
+            <AIProfessorAvatar size="md" teacherStyle={activeTeacherStyle} state={isPlayingSpeech ? 'speaking' : isProfessorThinking ? 'thinking' : 'idle'} onAvatarClick={() => speakText(currentSlide.speech)} onPause={stopNarration} />
+          </details>
 
+          <TeachingBoard key={`${session.courseId}:${currentSlide.slideId}`} slide={currentSlide} teacherStyle={activeTeacherStyle} busy={isProfessorThinking} speak={speakText} ask={handleSendQuestion} />
           {feedItems.map((item) => {
             const isExpanded = expandedItems.has(item.id);
             return (
@@ -684,6 +781,43 @@ export default function LiveClassroomPage() {
                       transition={{ duration: 0.25 }}
                       className="px-5 pb-6 space-y-4 overflow-hidden"
                     >
+                      {/* Attached Screenshot / Diagram */}
+                      {item.attachedImage && (
+                        <div className="rounded-2xl overflow-hidden border border-purple-500/30 bg-slate-950/60 max-w-md shadow-lg">
+                          <img src={item.attachedImage} alt="Attached screenshot" className="w-full h-auto object-cover max-h-64" />
+                        </div>
+                      )}
+
+                      {/* Pedagogy Telemetry Badges */}
+                      {item.telemetry && (
+                        <div className="flex flex-wrap items-center gap-2 p-2.5 rounded-2xl bg-slate-950/80 border border-slate-800/80 text-xs">
+                          {item.telemetry.persona && (
+                            <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-gradient-to-r from-purple-500/20 to-indigo-500/20 border border-purple-500/40 text-purple-200 font-bold text-[11px] shadow-sm">
+                              <span>{item.telemetry.persona.badge}</span>
+                              <span>{item.telemetry.persona.name}</span>
+                            </span>
+                          )}
+                          <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-purple-500/10 border border-purple-500/25 text-purple-300 font-medium text-[11px]">
+                            <Globe className="w-3.5 h-3.5 text-purple-400" />
+                            <span>{item.telemetry.detectedLanguage}</span>
+                          </span>
+                          <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-indigo-500/10 border border-indigo-500/25 text-indigo-300 font-medium text-[11px]">
+                            <Brain className="w-3.5 h-3.5 text-indigo-400" />
+                            <span className="capitalize">{item.telemetry.intent.replace(/_/g, ' ').toLowerCase()}</span>
+                          </span>
+                          <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-amber-500/10 border border-amber-500/25 text-amber-300 font-medium text-[11px]">
+                            <Zap className="w-3.5 h-3.5 text-amber-400" />
+                            <span className="capitalize">{item.telemetry.strategy.replace(/_/g, ' ').toLowerCase()}</span>
+                          </span>
+                          {item.telemetry.toolsUsed?.map((tool, idx) => (
+                            <span key={idx} className="flex items-center gap-1 px-2.5 py-1 rounded-xl bg-emerald-500/10 border border-emerald-500/25 text-emerald-300 font-mono text-[10.5px]">
+                              <Terminal className="w-3 h-3 text-emerald-400" />
+                              <span>{tool}</span>
+                            </span>
+                          ))}
+                        </div>
+                      )}
+
                       {/* Full explanation */}
                       <div className="space-y-1 select-text">
                         {renderFormattedText(item.explanation, (code) => copyCode(code, item.id))}
@@ -703,7 +837,7 @@ export default function LiveClassroomPage() {
                                 {copiedSnippetId === item.id ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
                                 <span>{copiedSnippetId === item.id ? 'Copied' : 'Copy'}</span>
                               </button>
-                              <Link href={`/coding-lab?courseId=${urlCourseId}`}
+                              <Link href={`/coding-lab?snippet=${encodeURIComponent(item.code || '')}&lang=python`}
                                 className="px-2.5 py-1 rounded-lg bg-purple-600 hover:bg-purple-500 text-white text-[11px] font-bold flex items-center space-x-1 transition">
                                 <ExternalLink className="w-3 h-3" />
                                 <span>Try in Lab</span>
@@ -726,6 +860,102 @@ export default function LiveClassroomPage() {
                         <div className="p-3 rounded-2xl bg-purple-950/40 border border-purple-800/40 text-xs text-purple-200 flex items-center space-x-2">
                           <Cpu className="w-4 h-4 text-purple-400 shrink-0" />
                           <span className="font-mono">{item.memoryInsight}</span>
+                        </div>
+                      )}
+
+                      {/* Adaptive Next-Step Action Card */}
+                      {item.nextAction && item.nextAction.type === 'practice_problem' && (
+                        <div className="p-4 rounded-2xl bg-gradient-to-br from-slate-950 via-emerald-950/20 to-slate-950 border border-emerald-500/30 shadow-xl space-y-3">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center space-x-2 text-emerald-400">
+                              <span className="p-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
+                                <Rocket className="w-4 h-4 text-emerald-400" />
+                              </span>
+                              <span className="text-xs font-mono font-bold uppercase tracking-wider">Practice Challenge • 1-Click Coding Lab</span>
+                            </div>
+                            <span className="text-[10px] font-mono px-2 py-0.5 rounded-md bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
+                              Interactive
+                            </span>
+                          </div>
+
+                          <div>
+                            <h4 className="text-sm font-bold text-white">{item.nextAction.title || 'Hands-On Coding Exercise'}</h4>
+                            <p className="text-xs text-slate-300 mt-1 leading-relaxed">{item.nextAction.prompt}</p>
+                            {item.nextAction.expectedGoal && (
+                              <div className="mt-2 text-[11px] text-emerald-300 font-mono flex items-center gap-1.5 bg-emerald-950/40 px-2.5 py-1.5 rounded-xl border border-emerald-800/40">
+                                <Target className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                                <span>Goal: {item.nextAction.expectedGoal}</span>
+                              </div>
+                            )}
+                          </div>
+
+                          {item.nextAction.starterCode && (
+                            <div className="rounded-xl bg-slate-950 border border-slate-800 overflow-hidden">
+                              <div className="px-3 py-1.5 bg-slate-900 border-b border-slate-800 flex items-center justify-between">
+                                <span className="text-[10px] font-mono text-slate-400">Starter Code Template</span>
+                                <button
+                                  onClick={() => copyCode(item.nextAction!.starterCode!, `starter-${item.id}`)}
+                                  className="text-[10px] font-mono text-slate-400 hover:text-emerald-300 flex items-center gap-1 transition"
+                                >
+                                  {copiedSnippetId === `starter-${item.id}` ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                                  <span>{copiedSnippetId === `starter-${item.id}` ? 'Copied' : 'Copy'}</span>
+                                </button>
+                              </div>
+                              <pre className="p-3 text-[11px] font-mono text-emerald-200 overflow-x-auto max-h-36">
+                                <code>{item.nextAction.starterCode}</code>
+                              </pre>
+                            </div>
+                          )}
+
+                          <div className="flex flex-wrap items-center gap-2 pt-1">
+                            <Link
+                              href={`/coding-lab?snippet=${encodeURIComponent(item.nextAction.starterCode || item.code || '')}&lang=python`}
+                              className="px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs rounded-xl shadow-lg flex items-center space-x-2 transition hover:scale-[1.02] active:scale-[0.98]"
+                            >
+                              <Rocket className="w-3.5 h-3.5" />
+                              <span>Launch in Coding Lab</span>
+                              <ExternalLink className="w-3 h-3 opacity-80" />
+                            </Link>
+                          </div>
+                        </div>
+                      )}
+
+                      {item.nextAction && item.nextAction.type === 'socratic_question' && (
+                        <div className="p-4 rounded-2xl bg-gradient-to-br from-slate-950 via-purple-950/20 to-slate-950 border border-purple-500/30 shadow-xl space-y-2.5">
+                          <div className="flex items-center space-x-2 text-purple-400">
+                            <span className="p-1.5 rounded-lg bg-purple-500/10 border border-purple-500/20">
+                              <HelpCircle className="w-4 h-4 text-purple-400" />
+                            </span>
+                            <span className="text-xs font-mono font-bold uppercase tracking-wider">Concept Check • Socratic Inquiry</span>
+                          </div>
+                          <h4 className="text-sm font-bold text-white">{item.nextAction.title || 'Check Your Understanding'}</h4>
+                          <p className="text-xs text-purple-200 leading-relaxed">{item.nextAction.prompt}</p>
+                          <button
+                            onClick={() => {
+                              setChatInput(`Regarding "${item.nextAction!.prompt}", my answer is: `);
+                            }}
+                            className="px-3.5 py-1.5 rounded-xl bg-purple-600/30 hover:bg-purple-600/50 text-purple-200 border border-purple-500/40 text-xs font-semibold flex items-center gap-1.5 transition"
+                          >
+                            <MessageSquare className="w-3.5 h-3.5 text-purple-300" />
+                            <span>Reply with Your Answer</span>
+                          </button>
+                        </div>
+                      )}
+
+                      {item.nextAction && item.nextAction.type === 'quiz_check' && (
+                        <div className="p-4 rounded-2xl bg-gradient-to-br from-slate-950 via-indigo-950/20 to-slate-950 border border-indigo-500/30 shadow-xl flex items-center justify-between gap-3">
+                          <div>
+                            <span className="text-[10px] font-mono text-indigo-400 font-bold uppercase tracking-wider">⚡ KNOWLEDGE CHECK</span>
+                            <h4 className="text-sm font-bold text-white">{item.nextAction.title || 'Diagnostic Quiz Ready'}</h4>
+                            <p className="text-xs text-slate-400">{item.nextAction.prompt}</p>
+                          </div>
+                          <button
+                            onClick={fetchLiveQuiz}
+                            className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-xl shadow-lg flex items-center gap-1.5 shrink-0 transition"
+                          >
+                            <Award className="w-3.5 h-3.5" />
+                            <span>Take Quiz</span>
+                          </button>
                         </div>
                       )}
 
@@ -773,7 +1003,7 @@ export default function LiveClassroomPage() {
               animate={{ opacity: 1, y: 0 }}
               className="bg-slate-900/90 border border-purple-500/40 rounded-3xl p-5 flex items-center space-x-3 shadow-xl max-w-sm"
             >
-              <AIProfessorAvatar state="thinking" size="sm" teacherStyle={activeTeacherStyle} />
+              <AIProfessorAvatar state="thinking" size="sm" teacherStyle={activeTeacherStyle} gender={voiceGenderState} />
               <div>
                 <p className="text-xs font-bold text-white">Preparing full concept explanation...</p>
                 <p className="text-[11px] font-mono text-purple-300 mt-0.5">Generating complete analysis with code</p>
@@ -783,6 +1013,52 @@ export default function LiveClassroomPage() {
 
           <div ref={feedBottomRef} />
         </div>
+
+        {/* ── RIGHT: Interactive 3D Bitmoji Teacher Stage ── */}
+        {rightPanel === 'none' && (
+          <aside className="hidden md:flex w-64 xl:w-80 2xl:w-96 border-l border-slate-800/80 bg-gradient-to-b from-slate-950/50 via-slate-900/30 to-slate-950/70 flex-col items-center justify-start p-4 pt-12 shrink-0 overflow-y-auto relative select-none">
+            {/* Stage header info */}
+            <div className="absolute top-4 left-4 right-4 flex items-center justify-between text-xs text-slate-400 font-mono z-20">
+              <span className="flex items-center gap-1.5 text-emerald-400 font-bold">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                Live AI Teacher
+              </span>
+              <span className="text-[10px] px-2 py-0.5 rounded-full bg-purple-500/10 text-purple-300 border border-purple-500/30 uppercase tracking-wider font-bold">
+                {activeTeacherStyle}
+              </span>
+            </div>
+
+            {/* 3D Bitmoji Teacher Avatar */}
+            <AIProfessorAvatar
+              state={isPlayingSpeech ? 'speaking' : isProfessorThinking ? 'thinking' : isMicListening ? 'listening' : 'idle'}
+              gesture={isProfessorThinking ? 'thinking' : isPlayingSpeech ? (avatarGesture || 'explaining') : isMicListening ? 'listening' : avatarGesture}
+              size="full"
+              teacherStyle={activeTeacherStyle}
+              gender={voiceGenderState}
+              speechText={currentSpokenSentence || feedItems[feedItems.length - 1]?.speech?.slice(0, 140) || feedItems[feedItems.length - 1]?.explanation?.slice(0, 140) || ''}
+              isVoiceActive={isVoiceEnabled}
+              onToggleVoice={() => {
+                if (isVoiceEnabled) {
+                  stopNarration();
+                  setIsVoiceEnabled(false);
+                  toast('Muted', { icon: '🔇' });
+                } else {
+                  setIsVoiceEnabled(true);
+                  toast.success('Voice enabled');
+                }
+              }}
+              onPause={stopNarration}
+              onAvatarClick={() => {
+                const latest = [...feedItems].reverse().find(f => f.type === 'concept');
+                if (latest?.speech) {
+                  speakText(latest.speech);
+                } else {
+                  speakText(currentSlide.speech);
+                }
+              }}
+            />
+          </aside>
+        )}
 
         {/* ── RIGHT PANEL: Notes / Group Chat ── */}
         <AnimatePresence>
@@ -844,30 +1120,33 @@ export default function LiveClassroomPage() {
         </AnimatePresence>
       </div>
 
-      {/* ═══ FLOATING AVATAR (bottom-right corner) ═══ */}
-      <div className="fixed bottom-32 right-4 z-50 hidden lg:flex flex-col items-center">
-        <AIProfessorAvatar
-          state={isPlayingSpeech ? 'speaking' : isProfessorThinking ? 'thinking' : 'idle'}
-          size="md"
-          teacherStyle={activeTeacherStyle}
-        />
-        <div className="mt-1 text-[10px] font-mono font-bold text-center" style={{ color: '#a855f7' }}>
-          {voiceGenderState === 'female' ? 'Bekki' : 'Ben'}
+      {/* ═══ FLOATING AVATAR (When Notes panel is open) ═══ */}
+      {rightPanel !== 'none' && (
+        <div className="fixed bottom-32 right-4 z-50 hidden lg:flex flex-col items-center">
+          <AIProfessorAvatar
+            state={isPlayingSpeech ? 'speaking' : isProfessorThinking ? 'thinking' : 'idle'}
+            gesture={isProfessorThinking ? 'thinking' : isPlayingSpeech ? (avatarGesture || 'explaining') : avatarGesture}
+            size="sm"
+            teacherStyle={activeTeacherStyle}
+            gender={voiceGenderState}
+            speechText={currentSpokenSentence}
+            isVoiceActive={isVoiceEnabled}
+          />
         </div>
-      </div>
+      )}
 
       {/* ═══ BOTTOM INPUT BAR ═══ */}
-      <footer className="fixed bottom-0 left-0 right-0 bg-slate-900/95 border-t border-slate-800 p-3 z-40 backdrop-blur-lg">
+      <footer className="shrink-0 bg-slate-900/95 border-t border-slate-800 p-3 z-40 backdrop-blur-lg">
         <div className="max-w-4xl mx-auto space-y-2">
           {/* Suggestion chips */}
           <div className="flex items-center space-x-2 overflow-x-auto pb-1 no-scrollbar">
             <span className="text-[10px] text-slate-500 font-mono shrink-0">Quick:</span>
             {[
-              'Explain the full core process',
-              'Show complete production code example',
-              'What are all the real-world use cases?',
-              'Explain the security architecture',
-              'Walk me through line by line',
+              'Explain this more simply',
+              'Show a small worked example',
+              'Draw a helpful diagram',
+              'Give me a hint, not the answer',
+              'Check my understanding',
             ].map((chip) => (
               <button key={chip} onClick={() => handleSendQuestion(chip)} disabled={isProfessorThinking}
                 className="px-3 py-1 rounded-xl bg-slate-800 hover:bg-purple-900/50 text-slate-300 hover:text-white border border-slate-700 text-[11px] shrink-0 transition whitespace-nowrap">
@@ -876,8 +1155,45 @@ export default function LiveClassroomPage() {
             ))}
           </div>
 
+          {/* Screenshot / Image attachment preview */}
+          {attachedImage && (
+            <div className="flex items-center gap-2 p-1.5 px-3 rounded-xl bg-purple-950/70 border border-purple-500/40 w-fit">
+              <img src={attachedImage} alt="Attachment preview" className="w-8 h-8 rounded-lg object-cover border border-purple-400/50" />
+              <span className="text-xs text-purple-200 font-mono">Screenshot / Diagram attached</span>
+              <button
+                type="button"
+                onClick={() => setAttachedImage(null)}
+                className="p-1 rounded-md text-slate-400 hover:text-white hover:bg-slate-800 transition"
+                title="Remove attachment"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
+
           {/* Input row */}
           <form onSubmit={(e) => { e.preventDefault(); handleSendQuestion(); }} className="flex items-center space-x-2">
+            {/* Hidden file input for screenshot / diagram upload */}
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handleImageSelect}
+              accept="image/*"
+              className="hidden"
+            />
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className={`p-3 rounded-2xl border transition flex items-center justify-center shrink-0 ${
+                attachedImage
+                  ? 'bg-purple-600/30 border-purple-500/60 text-purple-300'
+                  : 'bg-slate-950 border-slate-700 hover:border-purple-500/60 text-slate-400 hover:text-purple-300'
+              }`}
+              title="Attach Code Screenshot or Diagram"
+            >
+              <Paperclip className="w-4 h-4" />
+            </button>
+
             <div className="relative flex-1">
               <input
                 type="text"
@@ -887,12 +1203,12 @@ export default function LiveClassroomPage() {
                 disabled={isProfessorThinking}
                 className="w-full bg-slate-950 border border-slate-700 focus:border-purple-500 rounded-2xl pl-4 pr-12 py-3 text-sm text-slate-100 placeholder-slate-500 focus:outline-none"
               />
-              <button type="button" onClick={toggleMic}
+              <button type="button" onClick={toggleMic} aria-label={isMicListening ? 'Stop microphone' : 'Ask using microphone'}
                 className={`absolute right-3 top-2.5 p-1.5 rounded-xl transition ${isMicListening ? 'bg-red-500 text-white animate-pulse' : 'text-slate-400 hover:text-white hover:bg-slate-800'}`}>
                 {isMicListening ? <Mic className="w-4 h-4" /> : <MicOff className="w-4 h-4" />}
               </button>
             </div>
-            <button type="submit" disabled={!chatInput.trim() || isProfessorThinking}
+            <button type="submit" disabled={(!chatInput.trim() && !attachedImage) || isProfessorThinking}
               className="px-5 py-3 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 disabled:opacity-50 text-white rounded-2xl font-bold text-sm shadow-lg transition flex items-center space-x-1.5 shrink-0">
               <Send className="w-4 h-4" />
               <span>Ask</span>
@@ -1054,6 +1370,9 @@ export default function LiveClassroomPage() {
               </div>
 
               <div className="space-y-4">
+                <div className="grid grid-cols-5 gap-2" aria-label="Choose your character">
+                  {TEACHERS.map(t => <button key={t.id} onClick={() => selectTeacher(t.id)} aria-label={`Choose ${t.name}`} aria-pressed={activeTeacherStyle === t.id} className={`rounded-xl overflow-hidden border-2 ${activeTeacherStyle === t.id ? 'border-indigo-400' : 'border-slate-700'}`}><TeacherPortrait teacherStyle={t.id} className="w-full" /><span className="block py-2 text-[10px] text-white">{t.name}</span></button>)}
+                </div>
                 {/* Speech Speed Multiplier */}
                 <div className="p-4 bg-slate-950 rounded-2xl border border-slate-800 space-y-2">
                   <div className="flex justify-between items-center">
@@ -1074,15 +1393,12 @@ export default function LiveClassroomPage() {
                 <div className="p-4 bg-slate-950 rounded-2xl border border-slate-800 flex justify-between items-center">
                   <div>
                     <h4 className="text-xs font-bold text-slate-200">Selected Professor Voice</h4>
-                    <p className="text-[11px] text-slate-400">Bekki (Sweet) or Ben (Deep Bass)</p>
+                    <p className="text-[11px] text-slate-400">{activeTeacher.name} · {activeTeacher.gender} voice</p>
                   </div>
                   <div className="flex bg-slate-900 p-1 rounded-xl border border-slate-800">
-                    {(['female', 'male'] as const).map((g) => (
-                      <button key={g} onClick={() => { setLocalVoiceGender(g); setVoiceGender(g); stopAllVoicePlayback(); toast.success(`Voice set to ${g === 'female' ? '♀ Bekki' : '♂ Ben'}`); }}
-                        className={`px-3 py-1 rounded-lg text-xs font-bold transition ${voiceGenderState === g ? 'bg-purple-600 text-white' : 'text-slate-400'}`}>
-                        {g === 'female' ? '♀ Bekki' : '♂ Ben'}
-                      </button>
-                    ))}
+                    <select aria-label="Teacher in settings" value={activeTeacherStyle} onChange={e => selectTeacher(e.target.value as TeacherId)} className="max-w-[160px] bg-slate-900 rounded-xl p-2 text-xs">
+                      {TEACHERS.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                    </select>
                   </div>
                 </div>
               </div>
@@ -1099,7 +1415,7 @@ export default function LiveClassroomPage() {
 
       {/* ═══ OFFICIAL COURSE COMPLETION CERTIFICATE MODAL ═══ */}
       <AnimatePresence>
-        {showCertModal && (
+        {showCertModal && courseCompleted && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -1119,7 +1435,7 @@ export default function LiveClassroomPage() {
                   </div>
                   <div>
                     <h3 className="text-base font-bold text-white">Course Completion Certificate</h3>
-                    <p className="text-xs text-amber-300 font-mono">Official AuraCareer Certification</p>
+                    <p className="text-xs text-amber-300 font-mono">AuraCareer Course Completion</p>
                   </div>
                 </div>
                 <button onClick={() => setShowCertModal(false)} className="p-2 text-slate-400 hover:text-white rounded-xl bg-slate-800">
@@ -1130,7 +1446,7 @@ export default function LiveClassroomPage() {
               {/* Certificate Card Preview */}
               <div className="p-6 rounded-2xl bg-gradient-to-br from-slate-950 via-slate-900 to-purple-950/40 border-2 border-amber-500/30 text-center space-y-4 shadow-xl relative">
                 <div className="inline-block px-3 py-1 rounded-full bg-amber-500/20 text-amber-400 font-mono text-[11px] font-bold border border-amber-500/30 uppercase tracking-widest">
-                  OFFICIAL DIPLOMA
+                  COURSE COMPLETION
                 </div>
                 <p className="text-xs text-slate-400 font-mono uppercase">This certifies that</p>
                 <input
@@ -1142,9 +1458,9 @@ export default function LiveClassroomPage() {
                 <p className="text-xs text-slate-300">has successfully completed the interactive mastery course on</p>
                 <h2 className="text-lg font-bold text-white">{session.courseTitle}</h2>
                 <div className="pt-3 border-t border-slate-800 flex justify-between items-center text-[10px] font-mono text-slate-400">
-                  <span>Grade: A+ (Honors)</span>
+                  <span>Completion recorded</span>
                   <span>Date: {new Date().toLocaleDateString()}</span>
-                  <span>ID: AURACAREER-CERT-{urlCourseId}-8924</span>
+                  <span>ID: {savedCertificate?.verificationId || 'Local completion record'}</span>
                 </div>
               </div>
 
@@ -1152,11 +1468,12 @@ export default function LiveClassroomPage() {
                 <span className="text-xs text-slate-400 font-mono">Click name above to edit</span>
                 <button
                   onClick={() => {
+                    if (!courseCompleted) return;
                     const doc = `<!DOCTYPE html>
 <html>
 <head>
   <meta charset="utf-8"/>
-  <title>AuraCareer Certificate — ${studentCertName}</title>
+  <title>AuraCareer Certificate — ${escapeExportHtml(studentCertName)}</title>
   <style>
     body { font-family: 'Segoe UI', Roboto, sans-serif; background: #070b14; color: #fff; text-align: center; padding: 60px 40px; }
     .cert { max-width: 800px; margin: 0 auto; border: 4px double #f59e0b; padding: 50px; background: #0f172a; border-radius: 20px; box-shadow: 0 20px 50px rgba(0,0,0,0.5); }
@@ -1169,15 +1486,15 @@ export default function LiveClassroomPage() {
 <body>
   <div class="cert">
     <p>AURACAREER UNIVERSITY</p>
-    <h1>CERTIFICATE OF MASTERY</h1>
+    <h1>COURSE COMPLETION CERTIFICATE</h1>
     <p>This certifies that</p>
-    <h2>${studentCertName}</h2>
-    <p>has demonstrated exceptional comprehension and successfully completed</p>
-    <h3>${session.courseTitle}</h3>
+    <h2>${escapeExportHtml(studentCertName)}</h2>
+    <p>has completed</p>
+    <h3>${escapeExportHtml(session.courseTitle)}</h3>
     <div class="footer">
-      <span>Grade: A+ (Honors)</span>
+      <span>Completion recorded</span>
       <span>Date: ${new Date().toLocaleDateString()}</span>
-      <span>Verification ID: AURACAREER-CERT-${urlCourseId}-8924</span>
+      <span>Record ID: ${escapeExportHtml(savedCertificate?.verificationId || 'Local completion record')}</span>
     </div>
   </div>
   <script>window.print();</script>

@@ -68,7 +68,10 @@ Return JSON only without markdown formatting.`;
 
   } catch (error: any) {
     console.error('Doubt diagnostic error:', error);
-    const fallback = generateFallbackDoubt('Concept Inquiry', 'Programming');
+    const bodyFallback = await req.json().catch(() => ({}));
+    const dText = bodyFallback?.doubt || 'Conceptual Roadmap';
+    const tText = bodyFallback?.topic || 'Programming';
+    const fallback = generateFallbackDoubt(dText, tText);
     return NextResponse.json({
       success: true,
       data: fallback,

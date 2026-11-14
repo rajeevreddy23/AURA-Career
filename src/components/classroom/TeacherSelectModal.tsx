@@ -50,7 +50,7 @@ export const TeacherSelectModal: React.FC<TeacherSelectModalProps> = ({
               <div>
                 <h2 className="text-lg font-bold text-white">Switch AI Teacher Style</h2>
                 <p className="text-xs text-slate-400">
-                  Select an AI Teacher persona. The robot avatar design & teaching approach will adapt instantly!
+                  Choose a teacher. Their appearance, voice, and teaching approach will adapt instantly.
                 </p>
               </div>
             </div>

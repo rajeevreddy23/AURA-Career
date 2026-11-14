@@ -69,9 +69,6 @@ export const LiveJobSearch: React.FC = () => {
   // Cover Letter Modal State
   const [activeCoverLetterJob, setActiveCoverLetterJob] = useState<LiveJob | null>(null);
 
-  // Selected Job for Drawer/Detail
-  const [selectedDetailJob, setSelectedDetailJob] = useState<LiveJob | null>(null);
-
   // Load cached resume analysis on mount to auto-tune job search
   useEffect(() => {
     try {
@@ -149,22 +146,28 @@ export const LiveJobSearch: React.FC = () => {
       {/* Header & Resume Sync Banner */}
       <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
         {resumeSyncInfo && (
-          <div className="p-4 rounded-2xl bg-primary/10 border border-primary/20 text-slate-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 backdrop-blur">
+          <div className="relative overflow-hidden p-4 rounded-2xl bg-gradient-to-r from-cyan-950/40 via-indigo-950/30 to-purple-950/40 border border-cyan-500/30 text-slate-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 backdrop-blur-xl shadow-lg shadow-cyan-950/20">
             <div className="flex items-center gap-3">
-              <div className="p-2 bg-primary/20 text-primary rounded-xl shrink-0">
+              <div className="p-2.5 bg-cyan-500/15 text-cyan-400 border border-cyan-500/30 rounded-xl shrink-0 shadow-inner">
                 <Sparkles className="h-5 w-5" />
               </div>
               <div>
-                <p className="text-sm font-bold text-white flex items-center gap-2">
-                  <span>Resume Synced from ATS Analysis</span>
+                <div className="flex items-center gap-2">
+                  <span className="relative flex h-2 w-2">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-cyan-500"></span>
+                  </span>
+                  <p className="text-sm font-bold text-white">
+                    Resume Intelligence Connected
+                  </p>
                   {resumeSyncInfo.atsScore && (
-                    <Badge variant="primary" className="text-[10px] py-0.5">
-                      ATS Score: {resumeSyncInfo.atsScore}%
-                    </Badge>
+                    <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                      ATS: {resumeSyncInfo.atsScore}%
+                    </span>
                   )}
-                </p>
+                </div>
                 <p className="text-xs text-slate-300 mt-0.5">
-                  Extracted {resumeSyncInfo.skills?.length || 0} skills to automatically rank live web jobs by compatibility.
+                  Synchronized {resumeSyncInfo.skills?.length || 0} candidate skills to automatically rank live opportunities by compatibility.
                 </p>
               </div>
             </div>
@@ -173,7 +176,7 @@ export const LiveJobSearch: React.FC = () => {
               variant="outline"
               onClick={executeJobSearch}
               disabled={isLoading}
-              className="text-xs border-primary/30 hover:bg-primary/20 text-primary shrink-0 gap-1.5"
+              className="text-xs border-cyan-500/40 hover:bg-cyan-500/20 text-cyan-300 shrink-0 gap-1.5 rounded-xl transition-all"
             >
               <RefreshCw className={`h-3.5 w-3.5 ${isLoading ? 'animate-spin' : ''}`} />
               <span>Re-Sync & Search</span>
@@ -182,31 +185,39 @@ export const LiveJobSearch: React.FC = () => {
         )}
 
         {/* Search Bar & Controls */}
-        <Card className="bg-slate-900 border-slate-800 shadow-xl overflow-hidden">
-          <CardHeader className="pb-4 border-b border-slate-800/80">
-            <div className="flex items-center justify-between">
+        <div className="relative rounded-3xl bg-slate-900/90 border border-slate-800 backdrop-blur-xl shadow-2xl shadow-cyan-950/20 overflow-hidden">
+          {/* Neon accent top bar */}
+          <div className="h-1 w-full bg-gradient-to-r from-cyan-500 via-indigo-500 to-purple-500" />
+
+          <div className="p-6 border-b border-slate-800/80">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div className="flex items-center gap-3">
-                <div className="p-2 bg-slate-800 text-primary rounded-xl">
+                <div className="p-2.5 bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 rounded-xl shrink-0">
                   <Globe className="h-5 w-5" />
                 </div>
                 <div>
-                  <CardTitle className="text-xl font-bold">Live AI Web Job Search</CardTitle>
-                  <CardDescription className="text-xs text-slate-400">
-                    Aggregating live postings from Remotive, RemoteOK, Arbeitnow, Adzuna, and AI search indices.
-                  </CardDescription>
+                  <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                    Live AI Career Matcher
+                  </h2>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    Querying Remotive, RemoteOK, Arbeitnow, Adzuna & live web indices in real-time.
+                  </p>
                 </div>
               </div>
-              <Badge variant="outline" className="text-xs border-emerald-500/30 text-emerald-400 bg-emerald-500/10">
-                Live APIs Active
-              </Badge>
+              <div className="flex items-center gap-2">
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 border border-emerald-500/30 text-emerald-400">
+                  <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
+                  Live APIs Online
+                </span>
+              </div>
             </div>
-          </CardHeader>
+          </div>
 
-          <CardContent className="pt-6 space-y-4">
+          <div className="p-6 space-y-5">
             <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
               {/* Role Query */}
               <div className="md:col-span-4">
-                <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                <label className="block text-xs font-semibold text-slate-300 mb-1.5 uppercase tracking-wider">
                   Target Role / Job Title
                 </label>
                 <div className="relative">
@@ -216,15 +227,15 @@ export const LiveJobSearch: React.FC = () => {
                     value={roleInput}
                     onChange={(e) => setRoleInput(e.target.value)}
                     placeholder="e.g. Full Stack Developer, Frontend Engineer..."
-                    className="w-full bg-slate-800/80 border border-slate-700 rounded-xl pl-10 pr-4 py-2.5 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-primary"
+                    className="w-full bg-slate-950/70 border border-slate-800 rounded-xl pl-10 pr-4 py-2.5 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/20 transition-all"
                   />
                 </div>
               </div>
 
               {/* Skills */}
               <div className="md:col-span-5">
-                <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-                  Core Resume Skills (Comma separated)
+                <label className="block text-xs font-semibold text-slate-300 mb-1.5 uppercase tracking-wider">
+                  Key Skills (Comma separated)
                 </label>
                 <div className="relative">
                   <Zap className="absolute left-3.5 top-3 h-4 w-4 text-slate-400" />
@@ -233,25 +244,25 @@ export const LiveJobSearch: React.FC = () => {
                     value={skillsInput}
                     onChange={(e) => setSkillsInput(e.target.value)}
                     placeholder="e.g. React, Python, AWS, Docker..."
-                    className="w-full bg-slate-800/80 border border-slate-700 rounded-xl pl-10 pr-4 py-2.5 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-primary"
+                    className="w-full bg-slate-950/70 border border-slate-800 rounded-xl pl-10 pr-4 py-2.5 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/20 transition-all"
                   />
                 </div>
               </div>
 
               {/* Location Select */}
               <div className="md:col-span-3">
-                <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-                  Location / Preference
+                <label className="block text-xs font-semibold text-slate-300 mb-1.5 uppercase tracking-wider">
+                  Location Preference
                 </label>
                 <div className="relative">
-                  <MapPin className="absolute left-3.5 top-3 h-4 w-4 text-slate-400" />
+                  <MapPin className="absolute left-3.5 top-3 h-4 w-4 text-slate-400 pointer-events-none" />
                   <select
                     value={selectedLocation}
                     onChange={(e) => setSelectedLocation(e.target.value)}
-                    className="w-full bg-slate-800/80 border border-slate-700 rounded-xl pl-10 pr-4 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-primary appearance-none cursor-pointer"
+                    className="w-full bg-slate-950/70 border border-slate-800 rounded-xl pl-10 pr-8 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/20 cursor-pointer appearance-none transition-all"
                   >
                     {LOCATION_OPTIONS.map((opt) => (
-                      <option key={opt.label} value={opt.value}>
+                      <option key={opt.label} value={opt.value} className="bg-slate-900 text-slate-100">
                         {opt.label}
                       </option>
                     ))}
@@ -260,18 +271,18 @@ export const LiveJobSearch: React.FC = () => {
               </div>
             </div>
 
-            {/* Action Bar */}
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-2 border-t border-slate-800/60">
+            {/* Action & Preset Bar */}
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-3 border-t border-slate-800/80">
               <div className="flex items-center gap-2 overflow-x-auto w-full sm:w-auto pb-1 sm:pb-0">
-                <span className="text-xs text-slate-400 font-semibold shrink-0">Preset Roles:</span>
+                <span className="text-xs text-slate-400 font-semibold shrink-0">Popular:</span>
                 {PRESET_ROLES.slice(0, 4).map((r) => (
                   <button
                     key={r}
-                    onClick={() => { setRoleInput(r); }}
-                    className={`px-2.5 py-1 text-xs rounded-lg border transition-colors shrink-0 ${
+                    onClick={() => setRoleInput(r)}
+                    className={`px-3 py-1 text-xs rounded-xl border transition-all shrink-0 font-medium cursor-pointer ${
                       roleInput === r
-                        ? 'bg-primary/20 text-primary border-primary/30 font-semibold'
-                        : 'bg-slate-800/60 text-slate-400 border-slate-700/60 hover:text-slate-200'
+                        ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40 shadow-sm shadow-cyan-500/20'
+                        : 'bg-slate-800/50 text-slate-400 border-slate-700/60 hover:text-slate-200 hover:border-slate-600'
                     }`}
                   >
                     {r}
@@ -279,15 +290,15 @@ export const LiveJobSearch: React.FC = () => {
                 ))}
               </div>
 
-              <Button
+              <button
                 onClick={executeJobSearch}
                 disabled={isLoading}
-                className="w-full sm:w-auto px-6 py-2.5 font-bold text-sm gap-2 shadow-lg shadow-primary/20"
+                className="w-full sm:w-auto px-6 py-2.5 rounded-xl font-bold text-sm bg-gradient-to-r from-cyan-500 via-blue-600 to-indigo-600 hover:from-cyan-400 hover:to-indigo-500 text-white shadow-lg shadow-cyan-500/25 flex items-center justify-center gap-2 transition-all duration-200 disabled:opacity-50 cursor-pointer"
               >
                 {isLoading ? (
                   <>
                     <RefreshCw className="h-4 w-4 animate-spin" />
-                    <span>Searching Web APIs...</span>
+                    <span>Searching Web Boards...</span>
                   </>
                 ) : (
                   <>
@@ -295,26 +306,28 @@ export const LiveJobSearch: React.FC = () => {
                     <span>Search Live Jobs</span>
                   </>
                 )}
-              </Button>
+              </button>
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       </motion.div>
 
       {/* Error Alert */}
       {errorMsg && (
-        <div className="p-4 rounded-xl bg-red-950/60 border border-red-800 text-red-200 text-sm flex items-center gap-3">
+        <div className="p-4 rounded-2xl bg-red-950/60 border border-red-800/80 text-red-200 text-sm flex items-center gap-3">
           <AlertCircle className="h-5 w-5 text-red-400 shrink-0" />
           <span>{errorMsg}</span>
         </div>
       )}
 
       {/* Results Header & Match Filter */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pt-2">
         <div>
-          <h3 className="text-xl font-bold text-white flex items-center gap-2">
-            <span>Live Job Matches</span>
-            <Badge variant="primary" className="text-xs">{filteredJobs.length} Results</Badge>
+          <h3 className="text-xl font-bold text-white flex items-center gap-2.5">
+            <span>Discovered Opportunities</span>
+            <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-cyan-500/10 text-cyan-300 border border-cyan-500/30">
+              {filteredJobs.length} Results
+            </span>
           </h3>
           {searchSummary && (
             <p className="text-xs text-slate-400 mt-1">{searchSummary}</p>
@@ -322,13 +335,13 @@ export const LiveJobSearch: React.FC = () => {
         </div>
 
         {/* Filter by minimum match */}
-        <div className="flex items-center gap-2 bg-slate-900 border border-slate-800 px-3 py-1.5 rounded-xl">
-          <Filter className="h-3.5 w-3.5 text-primary" />
+        <div className="flex items-center gap-2 bg-slate-900/90 border border-slate-800 px-3.5 py-2 rounded-xl backdrop-blur-md">
+          <Filter className="h-3.5 w-3.5 text-cyan-400" />
           <span className="text-xs font-semibold text-slate-300">Min Match:</span>
           <select
             value={minMatchFilter}
             onChange={(e) => setMinMatchFilter(Number(e.target.value))}
-            className="bg-slate-800 text-xs text-slate-200 rounded-md px-2 py-1 focus:outline-none border border-slate-700"
+            className="bg-slate-950 text-xs text-slate-200 rounded-lg px-2.5 py-1 focus:outline-none border border-slate-700 cursor-pointer"
           >
             <option value={0}>All Matches</option>
             <option value={80}>80%+ High Match</option>
@@ -341,17 +354,17 @@ export const LiveJobSearch: React.FC = () => {
       {isLoading && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {[1, 2, 3, 4, 5, 6].map((i) => (
-            <Card key={i} className="bg-slate-900/60 border-slate-800 p-6 space-y-4 animate-pulse">
+            <div key={i} className="rounded-2xl bg-slate-900/60 border border-slate-800 p-6 space-y-4 animate-pulse">
               <div className="flex justify-between items-start">
-                <div className="w-10 h-10 bg-slate-800 rounded-xl" />
-                <div className="w-16 h-6 bg-slate-800 rounded-full" />
+                <div className="w-12 h-12 bg-slate-800 rounded-xl" />
+                <div className="w-20 h-6 bg-slate-800 rounded-full" />
               </div>
               <div className="space-y-2">
                 <div className="w-3/4 h-5 bg-slate-800 rounded" />
                 <div className="w-1/2 h-4 bg-slate-800 rounded" />
               </div>
-              <div className="w-full h-12 bg-slate-800 rounded-xl" />
-            </Card>
+              <div className="w-full h-16 bg-slate-800/60 rounded-xl" />
+            </div>
           ))}
         </div>
       )}
@@ -362,6 +375,8 @@ export const LiveJobSearch: React.FC = () => {
           <AnimatePresence>
             {filteredJobs.map((job, idx) => {
               const isHighMatch = job.matchScore >= 80;
+              const isMediumMatch = job.matchScore >= 60 && job.matchScore < 80;
+
               return (
                 <motion.div
                   key={`${job.title}-${job.company}-${idx}`}
@@ -370,72 +385,77 @@ export const LiveJobSearch: React.FC = () => {
                   transition={{ delay: idx * 0.04 }}
                   className="flex"
                 >
-                  <Card className="bg-slate-900 border-slate-800 hover:border-primary/40 shadow-xl flex flex-col justify-between w-full group transition-all duration-200 hover:-translate-y-1">
-                    <CardHeader className="pb-3">
+                  <div className="rounded-2xl bg-gradient-to-b from-slate-900/90 to-slate-950/90 border border-slate-800/90 hover:border-cyan-500/50 hover:shadow-xl hover:shadow-cyan-500/10 flex flex-col justify-between w-full group transition-all duration-300 hover:-translate-y-1 overflow-hidden">
+                    <div className="p-5 pb-3">
                       <div className="flex items-start justify-between gap-3 mb-3">
-                        <div className="w-11 h-11 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center font-bold text-primary text-base shrink-0 group-hover:scale-105 transition-transform">
+                        <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-cyan-500/10 to-indigo-500/10 border border-cyan-500/20 flex items-center justify-center font-bold text-cyan-400 text-base shrink-0 group-hover:scale-105 transition-transform shadow-inner">
                           {job.company.substring(0, 2).toUpperCase()}
                         </div>
                         <div className="flex items-center gap-2">
-                          <Badge variant="outline" className="text-[10px] border-slate-700 text-slate-400">
+                          <span className="text-[10px] font-mono px-2 py-0.5 rounded-md border border-slate-800 bg-slate-950 text-slate-400">
                             {job.source}
-                          </Badge>
-                          <Badge
-                            className={`text-xs font-bold px-2.5 py-0.5 ${
+                          </span>
+                          <span
+                            className={`text-xs font-bold px-2.5 py-0.5 rounded-full border flex items-center gap-1 ${
                               isHighMatch
-                                ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
-                                : 'bg-blue-500/20 text-blue-300 border-blue-500/30'
+                                ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30'
+                                : isMediumMatch
+                                ? 'bg-cyan-500/15 text-cyan-300 border-cyan-500/30'
+                                : 'bg-amber-500/15 text-amber-300 border-amber-500/30'
                             }`}
                           >
+                            <span
+                              className={`h-1.5 w-1.5 rounded-full ${
+                                isHighMatch ? 'bg-emerald-400' : isMediumMatch ? 'bg-cyan-400' : 'bg-amber-400'
+                              }`}
+                            />
                             {job.matchScore}% Match
-                          </Badge>
+                          </span>
                         </div>
                       </div>
 
-                      <CardTitle className="text-lg font-bold text-white line-clamp-1 group-hover:text-primary transition-colors">
+                      <h3 className="text-base font-bold text-white line-clamp-1 group-hover:text-cyan-300 transition-colors">
                         {job.title}
-                      </CardTitle>
+                      </h3>
                       <div className="flex items-center gap-2 text-xs text-slate-400 mt-1">
-                        <span className="font-medium text-slate-300">{job.company}</span>
+                        <span className="font-semibold text-slate-300">{job.company}</span>
                         <span>•</span>
                         <span className="flex items-center gap-1">
                           <MapPin className="h-3 w-3 text-slate-500" />
                           {job.location}
                         </span>
                       </div>
-                    </CardHeader>
+                    </div>
 
-                    <CardContent className="pt-0 space-y-4 flex-1 flex flex-col justify-between">
-                      <p className="text-xs text-slate-300 line-clamp-3 leading-relaxed bg-slate-950/40 p-3 rounded-xl border border-slate-800/60">
+                    <div className="px-5 pb-5 pt-0 space-y-4 flex-1 flex flex-col justify-between">
+                      <p className="text-xs text-slate-300 line-clamp-3 leading-relaxed bg-slate-950/60 p-3 rounded-xl border border-slate-800/80">
                         {job.description}
                       </p>
 
                       {/* Card Actions */}
                       <div className="space-y-2 pt-2 border-t border-slate-800/80">
                         <div className="grid grid-cols-2 gap-2">
-                          <Button
-                            size="sm"
-                            variant="outline"
+                          <button
                             onClick={() => setActiveCoverLetterJob(job)}
-                            className="text-xs border-slate-700 hover:bg-slate-800 text-slate-200 gap-1"
+                            className="inline-flex items-center justify-center rounded-xl font-semibold text-xs px-3 py-2 border border-slate-700 bg-slate-800/60 hover:bg-slate-800 hover:border-slate-600 text-slate-200 transition-all gap-1.5 cursor-pointer"
                           >
-                            <FileText className="h-3.5 w-3.5 text-primary" />
-                            <span>Cover Letter</span>
-                          </Button>
+                            <FileText className="h-3.5 w-3.5 text-cyan-400" />
+                            <span>AI Letter</span>
+                          </button>
 
                           <a
                             href={job.url || '#'}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="inline-flex items-center justify-center rounded-xl font-bold text-xs px-3 py-2 bg-primary text-white hover:bg-primary/90 transition-colors gap-1 shadow-sm"
+                            className="inline-flex items-center justify-center rounded-xl font-bold text-xs px-3 py-2 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white transition-all gap-1 shadow-md shadow-cyan-500/20"
                           >
-                            <span>Apply Now</span>
+                            <span>Apply</span>
                             <ArrowUpRight className="h-3.5 w-3.5" />
                           </a>
                         </div>
                       </div>
-                    </CardContent>
-                  </Card>
+                    </div>
+                  </div>
                 </motion.div>
               );
             })}
@@ -445,18 +465,18 @@ export const LiveJobSearch: React.FC = () => {
 
       {/* Empty State */}
       {!isLoading && filteredJobs.length === 0 && (
-        <Card className="bg-slate-900 border-slate-800 p-12 text-center space-y-4">
-          <div className="w-16 h-16 rounded-full bg-slate-800 flex items-center justify-center mx-auto text-slate-500">
+        <div className="rounded-3xl bg-slate-900/80 border border-slate-800 p-12 text-center space-y-4 shadow-xl">
+          <div className="w-16 h-16 rounded-2xl bg-slate-800/80 border border-slate-700/60 flex items-center justify-center mx-auto text-slate-400">
             <Search className="h-8 w-8" />
           </div>
           <h4 className="text-lg font-bold text-white">No Matching Jobs Found</h4>
           <p className="text-xs text-slate-400 max-w-sm mx-auto">
-            Try adjusting your location preferences or broadening your search skills and job titles above.
+            Try lowering the minimum match filter, changing your location, or broadening your target role.
           </p>
           <Button onClick={executeJobSearch} size="sm" variant="outline" className="border-slate-700 text-xs">
             Reset Filters & Search Again
           </Button>
-        </Card>
+        </div>
       )}
 
       {/* Cover Letter Generator Modal */}

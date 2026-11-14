@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AURA Learn - Complete Project Stack & Architecture Guide</title>
+    <style>
+        :root {
+            --primary: #4f46e5;
+            --primary-dark: #3730a3;
+            --secondary: #0ea5e9;
+            --bg-main: #f8fafc;
+            --bg-card: #ffffff;
+            --text-main: #0f172a;
+            --text-muted: #475569;
+            --border-color: #e2e8f0;
+            --badge-bg: #e0e7ff;
+            --badge-text: #3730a3;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-main);
+            color: var(--text-main);
+            line-height: 1.6;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background: var(--bg-card);
+            padding: 40px;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+            border: 1px solid var(--border-color);
+        }
+
+        @media (max-width: 600px) {
+            body {
+                padding: 10px;
+            }
+            .container {
+                padding: 20px;
+            }
+        }
+
+        header {
+            border-bottom: 2px solid var(--primary);
+            padding-bottom: 20px;
+            margin-bottom: 30px;
+        }
+
+        h1 {
+            font-size: 26px;
+            color: var(--primary-dark);
+            margin-bottom: 8px;
+        }
+
+        .subtitle {
+            font-size: 14px;
+            color: var(--text-muted);
+        }
+
+        .summary-box {
+            background-color: #f1f5f9;
+            border-left: 4px solid var(--primary);
+            padding: 16px;
+            border-radius: 6px;
+            margin-bottom: 30px;
+            font-size: 14.5px;
+        }
+
+        h2 {
+            font-size: 18px;
+            color: var(--text-main);
+            margin-top: 30px;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 8px;
+        }
+
+        h3 {
+            font-size: 15px;
+            color: var(--primary);
+            margin-top: 18px;
+            margin-bottom: 8px;
+        }
+
+        p, li {
+            font-size: 14px;
+            color: var(--text-muted);
+            margin-bottom: 8px;
+        }
+
+        ul {
+            padding-left: 20px;
+            margin-bottom: 15px;
+        }
+
+        li {
+            margin-bottom: 6px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+            margin-bottom: 25px;
+            font-size: 13.5px;
+        }
+
+        th, td {
+            text-align: left;
+            padding: 10px 12px;
+            border: 1px solid var(--border-color);
+        }
+
+        th {
+            background-color: #f1f5f9;
+            color: var(--text-main);
+            font-weight: 600;
+        }
+
+        tr:nth-child(even) {
+            background-color: #f8fafc;
+        }
+
+        .code-tag {
+            font-family: SFMono-Regular, Consolas, "Liberation Mono", Menlo, monospace;
+            background-color: #e2e8f0;
+            color: #0f172a;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 12.5px;
+        }
+
+        .badge {
+            display: inline-block;
+            background-color: var(--badge-bg);
+            color: var(--badge-text);
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .action-bar {
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+        }
+
+        .btn {
+            background-color: var(--primary);
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 13px;
+            text-decoration: none;
+        }
+
+        .btn:hover {
+            background-color: var(--primary-dark);
+        }
+
+        @media print {
+            body {
+                background: white;
+                padding: 0;
+            }
+            .container {
+                box-shadow: none;
+                border: none;
+                padding: 0;
+                max-width: 100%;
+            }
+            .action-bar {
+                display: none;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <div class="action-bar">
+            <button class="btn" onclick="window.print()">🖨️ Print / Save as PDF</button>
+        </div>
+
+        <header>
+            <h1>🌟 AURA Learn & Career Platform</h1>
+            <div class="subtitle">Complete Project Technology Stack & Situational Architecture Blueprint</div>
+        </header>
+
+        <div class="summary-box">
+            <strong>📌 Executive Summary:</strong> AURA Learn is an interactive, multi-agent AI career and learning ecosystem featuring an <b>AI Resume Analyzer</b>, <b>Live Multi-Slide Classroom</b>, <b>Dynamic AI Teacher Avatar</b>, <b>Browser Code Sandbox</b>, and <b>Technical Doubt Resolver</b>. This guide details all programming languages, frontend/backend frameworks, database engines, AI models, and infrastructure tools used across the application.
+        </div>
+
+        <h2>1. Programming Languages Breakdown</h2>
+        
+        <h3>1. TypeScript (v5.5)</h3>
+        <ul>
+            <li><b>Where Used:</b> 100% of frontend UI code (<span class="code-tag">src/</span>), React components (<span class="code-tag">.tsx</span>), interfaces (<span class="code-tag">src/types/</span>), custom hooks (<span class="code-tag">src/hooks/</span>), Zustand stores, and Next.js serverless route handlers (<span class="code-tag">src/app/api/</span>).</li>
+            <li><b>Role:</b> End-to-end static type safety for API requests, state updates, prompt structures, and UI prop validation.</li>
+            <li><b>Situation / Trigger:</b> Runs during client-side user interactions, state transitions, client PDF parsing, and Next serverless API route dispatching.</li>
+        </ul>
+
+        <h3>2. Python (v3.11+)</h3>
+        <ul>
+            <li><b>Where Used:</b> Backend microservice (<span class="code-tag">backend/app/</span>), multi-agent LLM engine (<span class="code-tag">backend/app/agents/</span>), FastAPI endpoints, SQLAlchemy ORM, and Celery workers.</li>
+            <li><b>Role:</b> Powers backend AI agent workflows, prompt processing, database ORM operations, background Celery tasks, and WebSocket streaming.</li>
+            <li><b>Situation / Trigger:</b> Executed when processing deep AI requests, querying PostgreSQL, streaming live teacher responses, and executing background jobs.</li>
+        </ul>
+
+        <h3>3. JavaScript (ES2023 / Node.js)</h3>
+        <ul>
+            <li><b>Where Used:</b> Build configuration scripts (<span class="code-tag">next.config.js</span>, <span class="code-tag">postcss.config.js</span>), build tooling, and Node.js server runtime underlying Next.js.</li>
+            <li><b>Role:</b> Executes web server initializations, SSR page pre-rendering, build optimizations, and CSS post-processing.</li>
+            <li><b>Situation / Trigger:</b> Triggered during development (<span class="code-tag">npm run dev</span>), production build (<span class="code-tag">npm run build</span>), and SSR execution.</li>
+        </ul>
+
+        <h3>4. HTML5 & CSS3 / Tailwind CSS (v3.4)</h3>
+        <ul>
+            <li><b>Where Used:</b> Component markup and custom stylesheets (<span class="code-tag">src/styles/globals.css</span>, <span class="code-tag">tailwind.config.ts</span>).</li>
+            <li><b>Role:</b> Defines responsive visual presentation, dark glassmorphism themes, HSL visual tokens, and keyframe micro-animations.</li>
+            <li><b>Situation / Trigger:</b> Evaluated continuously by web browser DOM layout engines across all pages.</li>
+        </ul>
+
+        <h3>5. SQL (PostgreSQL Dialect)</h3>
+        <ul>
+            <li><b>Where Used:</b> Relational database schemas, DDL table migrations (<span class="code-tag">backend/alembic/</span>), and ORM query execution.</li>
+            <li><b>Role:</b> Stores structured data for users, profile details, course progress, quiz attempt scores, and resume analysis logs.</li>
+            <li><b>Situation / Trigger:</b> Executed during user auth, profile updates, saving course progress, logging ATS analysis, and fetching course catalogs.</li>
+        </ul>
+
+        <h2>2. Frontend Technology Stack</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Technology</th>
+                    <th>Category</th>
+                    <th>Location</th>
+                    <th>Exact Situation & Feature Usage</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><b>Next.js 14.2</b></td>
+                    <td><span class="badge">Web Framework</span></td>
+                    <td><span class="code-tag">src/app/</span></td>
+                    <td>App Router page navigation (<span class="code-tag">/classroom</span>, <span class="code-tag">/resume-hub</span>, <span class="code-tag">/select-teacher</span>), layouts, edge API route handlers.</td>
+                </tr>
+                <tr>
+                    <td><b>React 18.3</b></td>
+                    <td><span class="badge">UI View Engine</span></td>
+                    <td><span class="code-tag">src/components/</span></td>
+                    <td>Component tree rendering, virtual DOM diffing, component hooks, interactive state updates.</td>
+                </tr>
+                <tr>
+                    <td><b>Tailwind CSS 3.4</b></td>
+                    <td><span class="badge">Styling</span></td>
+                    <td><span class="code-tag">src/styles/</span></td>
+                    <td>Utility-first responsive layout styling, dark mode glassmorphism themes, visual design tokens.</td>
+                </tr>
+                <tr>
+                    <td><b>Framer Motion 11</b></td>
+                    <td><span class="badge">Animations</span></td>
+                    <td><span class="code-tag">src/components/classroom/</span></td>
+                    <td>Robot avatar breathing animation, glowing visual pulses, modal entrance popups, animated ATS score rings.</td>
+                </tr>
+                <tr>
+                    <td><b>Monaco Editor</b></td>
+                    <td><span class="badge">Browser IDE</span></td>
+                    <td><span class="code-tag">src/components/classroom/</span></td>
+                    <td>Interactive browser code sandbox in classroom blackboard for students to write and test code.</td>
+                </tr>
+                <tr>
+                    <td><b>pdfjs-dist & mammoth</b></td>
+                    <td><span class="badge">Doc Parser</span></td>
+                    <td><span class="code-tag">src/lib/pdfParser.ts</span></td>
+                    <td>Triggered when uploading PDF/DOCX resumes. Extracts plain text client-side before sending to ATS AI.</td>
+                </tr>
+                <tr>
+                    <td><b>Recharts & Chart.js</b></td>
+                    <td><span class="badge">Data Viz</span></td>
+                    <td><span class="code-tag">src/components/resume/</span></td>
+                    <td>Visualizes ATS match score radial charts, 5-criteria metric progress bars, skill radar, growth analytics.</td>
+                </tr>
+                <tr>
+                    <td><b>Zustand 5.0</b></td>
+                    <td><span class="badge">State Store</span></td>
+                    <td><span class="code-tag">src/contexts/</span></td>
+                    <td>Global store for active slide index, selected AI teacher persona, code editor buffer, user theme.</td>
+                </tr>
+                <tr>
+                    <td><b>Radix UI Primitives</b></td>
+                    <td><span class="badge">UI Components</span></td>
+                    <td><span class="code-tag">src/components/</span></td>
+                    <td>Accessible modal overlays (Teacher Switcher, Exit Modal), accordions, popovers, select dropdowns, toasts.</td>
+                </tr>
+                <tr>
+                    <td><b>react-markdown</b></td>
+                    <td><span class="badge">Markdown</span></td>
+                    <td><span class="code-tag">src/components/classroom/</span></td>
+                    <td>Renders formatted markdown, LaTeX equations, syntax-highlighted code blocks from AI Professor in live chat.</td>
+                </tr>
+                <tr>
+                    <td><b>react-confetti</b></td>
+                    <td><span class="badge">Celebration FX</span></td>
+                    <td><span class="code-tag">src/app/classroom/</span></td>
+                    <td>Fires confetti celebration when completing course modules, scoring 100% on quizzes, or reaching target ATS score.</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <h2>3. Backend Technology Stack</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Technology</th>
+                    <th>Category</th>
+                    <th>Location</th>
+                    <th>Exact Situation & Feature Usage</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><b>FastAPI 0.115</b></td>
+                    <td><span class="badge">Async Framework</span></td>
+                    <td><span class="code-tag">backend/app/main.py</span></td>
+                    <td>Backend REST API routes (<span class="code-tag">/api/v1/</span>), multi-agent execution routes, WebSockets, streaming endpoints.</td>
+                </tr>
+                <tr>
+                    <td><b>Uvicorn & Gunicorn</b></td>
+                    <td><span class="badge">ASGI Server</span></td>
+                    <td><span class="code-tag">backend/Dockerfile</span></td>
+                    <td>Production ASGI web server running FastAPI application with asynchronous worker processes.</td>
+                </tr>
+                <tr>
+                    <td><b>Google Gemini 2.0</b></td>
+                    <td><span class="badge">Primary LLM</span></td>
+                    <td><span class="code-tag">backend/app/agents/</span></td>
+                    <td>Generates multi-slide lessons, live classroom Q&A tutoring responses, ATS resume scoring, doubt fixes.</td>
+                </tr>
+                <tr>
+                    <td><b>Groq API 1.6</b></td>
+                    <td><span class="badge">Low-Latency LLM</span></td>
+                    <td><span class="code-tag">backend/app/agents/</span></td>
+                    <td>Ultra-fast inference provider used as primary/secondary agent engine for instant conversational speech & chat responses.</td>
+                </tr>
+                <tr>
+                    <td><b>OpenAI API 2.52</b></td>
+                    <td><span class="badge">Supplemental LLM</span></td>
+                    <td><span class="code-tag">backend/app/agents/</span></td>
+                    <td>Backup multi-modal LLM engine for specialized code evaluation, complex reasoning, fallback responses.</td>
+                </tr>
+                <tr>
+                    <td><b>PostgreSQL + AsyncPG</b></td>
+                    <td><span class="badge">Database & Driver</span></td>
+                    <td><span class="code-tag">backend/app/models/</span></td>
+                    <td>Stores persistent data for users, profile data, course structures, resume history, quiz scores, agent logs.</td>
+                </tr>
+                <tr>
+                    <td><b>SQLAlchemy 2.0 & Alembic</b></td>
+                    <td><span class="badge">ORM & Migrations</span></td>
+                    <td><span class="code-tag">backend/app/core/db.py</span></td>
+                    <td>Async database ORM models and schema DDL migration version control.</td>
+                </tr>
+                <tr>
+                    <td><b>Redis 5.2 & Celery 5.4</b></td>
+                    <td><span class="badge">Cache & Queue</span></td>
+                    <td><span class="code-tag">backend/app/core/redis.py</span></td>
+                    <td>Session caching, API rate limiting, LLM response cache, and background task queue execution.</td>
+                </tr>
+                <tr>
+                    <td><b>Firebase Admin SDK</b></td>
+                    <td><span class="badge">Identity & Auth</span></td>
+                    <td><span class="code-tag">backend/app/core/security.py</span></td>
+                    <td>Verifies user authentication tokens, Google OAuth sign-in, security rules (<span class="code-tag">firestore.rules</span>).</td>
+                </tr>
+                <tr>
+                    <td><b>WebSockets 14.1</b></td>
+                    <td><span class="badge">Real-Time</span></td>
+                    <td><span class="code-tag">backend/app/api/websocket_routes.py</span></td>
+                    <td>Full-duplex real-time channel between frontend classroom UI and backend AI agents for live streaming.</td>
+                </tr>
+                <tr>
+                    <td><b>Stripe API 11.0</b></td>
+                    <td><span class="badge">Payments</span></td>
+                    <td><span class="code-tag">backend/app/services/stripe.py</span></td>
+                    <td>Manages subscription tiers, premium checkout transactions, payment webhooks.</td>
+                </tr>
+                <tr>
+                    <td><b>Sentry & Prometheus</b></td>
+                    <td><span class="badge">Telemetry</span></td>
+                    <td><span class="code-tag">backend/app/main.py</span></td>
+                    <td>Backend error tracking (Sentry) and system performance metrics (Prometheus) at <span class="code-tag">/health</span>.</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <h2>4. DevOps, Infrastructure & Build Tooling</h2>
+        <ul>
+            <li><b>Docker & Docker Compose:</b> Packages Next.js frontend, Python FastAPI backend, PostgreSQL, and Redis into unified container environments (<span class="code-tag">Dockerfile</span>, <span class="code-tag">docker-compose.yml</span>).</li>
+            <li><b>Vercel:</b> Deploys Next.js frontend with edge routing, SSL certificates, and CI/CD preview builds (<span class="code-tag">vercel.json</span>).</li>
+            <li><b>Render Platform:</b> Deploys Python FastAPI backend Web Service and Celery workers (<span class="code-tag">render.yaml</span>).</li>
+            <li><b>ESLint & Prettier:</b> Enforces code style, linting standards, and automated formatting.</li>
+        </ul>
+
+        <h2>5. Step-by-Step Feature Situations</h2>
+
+        <h3>Feature 1: AI Resume Analysis & ATS Scoring</h3>
+        <p>1. User uploads a PDF/DOCX resume file in Resume Hub UI.<br>
+        2. <span class="code-tag">pdfjs-dist</span> or <span class="code-tag">mammoth</span> parses plain text client-side in browser.<br>
+        3. Text is sent to Next.js API route <span class="code-tag">/api/resume/analyze</span>.<br>
+        4. Gemini 2.0 Flash evaluates resume text against target job description across 5 ATS metrics.<br>
+        5. Recharts renders ATS Score ring gauge and keyword matching chips.</p>
+
+        <h3>Feature 2: Live Interactive Classroom</h3>
+        <p>1. Student launches classroom course page.<br>
+        2. Framer Motion renders 3D robot avatar animations.<br>
+        3. Monaco Editor displays interactive code blackboard.<br>
+        4. Student asks question via voice or text chat input.<br>
+        5. WebSockets streams query to FastAPI backend, where Gemini/Groq agent streams live response back.</p>
+
+        <h3>Feature 3: Dynamic AI Teacher Persona Switcher</h3>
+        <p>1. Student clicks 'Switch Teacher' inside live classroom.<br>
+        2. Radix UI Dialog opens without losing current slide or code state.<br>
+        3. Student selects persona (Professor, Coach, Friend, Expert, Simplifier).<br>
+        4. Zustand updates global persona state instantly.<br>
+        5. Avatar chest emblem, eye glow color, and AI response voice tone transform dynamically.</p>
+    </div>
+
+</body>
+</html>

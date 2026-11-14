@@ -1,0 +1,206 @@
+================================================================================
+          AURA LEARN & CAREER PLATFORM - PROJECT STACK GUIDE
+================================================================================
+
+DOCUMENT OVERVIEW:
+------------------
+AURA Learn (AURA Career) is an interactive, multi-agent AI career development
+and learning ecosystem. Key features include:
+  1. AI Resume Analyzer & ATS Scanner
+  2. Live Multi-Slide Interactive Classroom
+  3. Dynamic AI Teacher Avatar & Persona Switching
+  4. Browser Coding Lab Sandbox
+  5. Technical Doubt Resolution Assistant
+  6. AI Course & Quiz Generator
+
+
+================================================================================
+1. PROGRAMMING LANGUAGES & SITUATION BREAKDOWN
+================================================================================
+
+1. TYPESCRIPT (v5.5)
+   - Where Used: 100% of frontend UI code (src/), React components (.tsx),
+     types (src/types/), custom hooks (src/hooks/), Zustand stores, and Next.js
+     serverless API routes (src/app/api/).
+   - Role: Ensures end-to-end static type safety for API requests, state
+     updates, prompt structures, and UI prop validation.
+   - Situation / Trigger: Runs during client-side user interactions, state
+     transitions, client PDF parsing, and Next serverless API route dispatching.
+
+2. PYTHON (v3.11+)
+   - Where Used: Backend microservice (backend/app/), multi-agent LLM engine
+     (backend/app/agents/), FastAPI endpoints, SQLAlchemy ORM, and Celery.
+   - Role: Powers backend AI multi-agent orchestration, LLM prompts, async
+     database transactions, background Celery tasks, and WebSocket streaming.
+   - Situation / Trigger: Executed when processing deep AI agent requests,
+     querying PostgreSQL database models, streaming live teacher responses,
+     and running async background jobs.
+
+3. JAVASCRIPT (ES2023 / Node.js)
+   - Where Used: Build configuration scripts (next.config.js, postcss.config.js,
+     .eslintrc.json), build tooling, and Node.js server runtime underlying Next.js.
+   - Role: Executes web server initializations, SSR page pre-rendering, build
+     optimizations, and CSS post-processing.
+   - Situation / Trigger: Triggered during development (npm run dev),
+     production builds (npm run build), and server-side rendering execution.
+
+4. HTML5 & CSS3 / TAILWIND CSS (v3.4)
+   - Where Used: Component markup structure and custom stylesheets
+     (src/styles/globals.css, tailwind.config.ts).
+   - Role: Defines responsive visual presentation, dark glassmorphism themes,
+     custom HSL color tokens, keyframe micro-animations, and container grids.
+   - Situation / Trigger: Evaluated continuously by web browser DOM layout
+     engines across all user-facing views.
+
+5. SQL (PostgreSQL Dialect)
+   - Where Used: Relational database schemas, DDL table migrations
+     (backend/alembic/), and SQLAlchemy ORM query execution.
+   - Role: Stores structured data for users, profile details, course progress,
+     quiz attempt scores, and resume analysis logs.
+   - Situation / Trigger: Executed on user auth, profile updates, saving course
+     progress, logging ATS analysis history, and fetching course catalogs.
+
+
+================================================================================
+2. FRONTEND TECHNOLOGY STACK
+================================================================================
+
+- Next.js 14.2 (App Router) [src/app/]
+  Category: Core Web Framework
+  Situation: App Router page navigation (/classroom, /resume-hub, /select-teacher),
+  layouts, edge serverless route handlers.
+
+- React 18.3 & React DOM [src/components/]
+  Category: UI View Engine
+  Situation: Component tree rendering, virtual DOM diffing, hooks, interactive state.
+
+- Tailwind CSS 3.4 & Vanilla CSS [src/styles/]
+  Category: Styling
+  Situation: Responsive layouts, dark glassmorphism themes, custom visual tokens.
+
+- Framer Motion 11 [src/components/classroom/]
+  Category: Animations
+  Situation: Robot avatar 3D breathing effect, glowing eye pulses, modal entry animations,
+  animated ATS score gauge rings.
+
+- Monaco Editor (@monaco-editor/react) [src/components/classroom/]
+  Category: Browser Code Sandbox
+  Situation: Interactive code editor in classroom blackboard for students to write and test code.
+
+- pdfjs-dist 6.2 & mammoth 1.12 [src/lib/pdfParser.ts]
+  Category: Document Parser
+  Situation: Triggered when uploading PDF/DOCX resumes. Extracts plain text client-side before ATS scoring.
+
+- Recharts 2.12 & Chart.js 4.4 [src/components/resume/]
+  Category: Data Visualization
+  Situation: Visualizes ATS score radial gauges, 5-criteria metric progress bars, skill radars.
+
+- Zustand 5.0 [src/contexts/]
+  Category: Global State Store
+  Situation: Stores active slide index, selected AI teacher persona, code editor buffer, user theme.
+
+- Radix UI Primitives [src/components/]
+  Category: UI Components
+  Situation: Accessible modals (Teacher Switcher, Exit Modal), accordions, popovers, select boxes, toasts.
+
+- react-markdown 9.0 & syntax-highlighter [src/components/classroom/]
+  Category: Markdown Renderer
+  Situation: Renders formatted markdown, LaTeX equations, syntax-highlighted code from AI Professor chat.
+
+- react-confetti 6.1 [src/app/classroom/]
+  Category: Celebration FX
+  Situation: Fires confetti particle animation when completing modules, scoring 100% on quizzes, or reaching target ATS score.
+
+
+================================================================================
+3. BACKEND TECHNOLOGY STACK
+================================================================================
+
+- FastAPI 0.115 [backend/app/main.py]
+  Category: Async Web Framework
+  Situation: Backend REST API routes (/api/v1/), multi-agent routes, WebSockets, streaming.
+
+- Uvicorn 0.30 & Gunicorn 23.0 [backend/Dockerfile]
+  Category: ASGI Server Engine
+  Situation: Production ASGI web server running FastAPI app with async worker processes.
+
+- Google Gemini 2.0 Flash [backend/app/agents/]
+  Category: Primary LLM Engine
+  Situation: Generates multi-slide lessons, live classroom Q&A tutoring responses, ATS resume scoring, doubt fixes.
+
+- Groq API 1.6 [backend/app/agents/]
+  Category: Low-Latency LLM
+  Situation: Ultra-fast inference provider used as primary/secondary agent engine for instant conversational speech/chat responses.
+
+- OpenAI API 2.52 [backend/app/agents/]
+  Category: Supplemental LLM
+  Situation: Backup multi-modal LLM engine for specialized code evaluation, complex reasoning, fallback responses.
+
+- PostgreSQL + AsyncPG 0.30 [backend/app/models/]
+  Category: Database & Driver
+  Situation: Persistent storage for users, profile data, course structures, resume history, quiz scores, agent logs.
+
+- SQLAlchemy 2.0 & Alembic 1.14 [backend/app/core/db.py]
+  Category: ORM & Migrations
+  Situation: Async database ORM models and schema DDL migration version control.
+
+- Redis 5.2 & Celery 5.4 [backend/app/core/redis.py]
+  Category: Cache & Queue
+  Situation: Session caching, API rate limiting, LLM response cache, and background task queue execution.
+
+- Firebase Admin SDK 6.6 [backend/app/core/security.py]
+  Category: Authentication & Identity
+  Situation: Verifies user authentication tokens, Google OAuth sign-in, security rules (firestore.rules).
+
+- WebSockets 14.1 [backend/app/api/websocket_routes.py]
+  Category: Real-Time Streaming
+  Situation: Full-duplex real-time channel between frontend classroom UI and backend AI agents for live streaming.
+
+- Stripe API 11.0 [backend/app/services/stripe.py]
+  Category: Payments
+  Situation: Manages subscription tiers, premium checkout transactions, payment webhooks.
+
+- Sentry SDK 2.17 & Prometheus [backend/app/main.py]
+  Category: Telemetry & Monitoring
+  Situation: Backend error tracking (Sentry) and system performance metrics (Prometheus) at /health.
+
+
+================================================================================
+4. DEVOPS, INFRASTRUCTURE & BUILD TOOLING
+================================================================================
+
+- Docker & Docker Compose: Packages Next.js frontend, Python FastAPI backend,
+  PostgreSQL, and Redis into unified container environments (Dockerfile, docker-compose.yml).
+- Vercel: Deploys Next.js frontend with edge routing, SSL certificates, and CI/CD preview builds (vercel.json).
+- Render Platform: Deploys Python FastAPI backend Web Service and Celery workers (render.yaml).
+- ESLint & Prettier: Enforces code style, linting standards, and automated formatting.
+
+
+================================================================================
+5. STEP-BY-STEP FEATURE SITUATIONS
+================================================================================
+
+Feature 1: AI Resume Analysis & ATS Scoring
+1. User uploads a PDF/DOCX resume file in Resume Hub UI.
+2. pdfjs-dist or mammoth parses plain text client-side in browser.
+3. Text is sent to Next.js API route /api/resume/analyze.
+4. Gemini 2.0 Flash evaluates resume text against target job description across 5 ATS metrics.
+5. Recharts renders ATS Score ring gauge and keyword matching chips.
+
+Feature 2: Live Interactive Classroom
+1. Student launches classroom course page.
+2. Framer Motion renders 3D robot avatar animations.
+3. Monaco Editor displays interactive code blackboard.
+4. Student asks question via voice or text chat input.
+5. WebSockets streams query to FastAPI backend, where Gemini/Groq agent streams live response back.
+
+Feature 3: Dynamic AI Teacher Persona Switcher
+1. Student clicks 'Switch Teacher' inside live classroom.
+2. Radix UI Dialog opens without losing current slide or code state.
+3. Student selects persona (Professor, Coach, Friend, Expert, Simplifier).
+4. Zustand updates global persona state instantly.
+5. Avatar chest emblem, eye glow color, and AI response voice tone transform dynamically.
+
+================================================================================
+                                END OF GUIDE
+================================================================================
